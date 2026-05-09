@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { Character, StoryDay, Media } from "@/types";
 import Sidebar from "@/components/dashboard/Sidebar";
+import MediaCard from "@/components/dashboard/MediaCard";
 
 export const dynamic = "force-dynamic";
 
@@ -122,65 +123,15 @@ export default async function TodayPage() {
                         </div>
                       )}
 
-                      {/* Media prompts */}
+                      {/* Production */}
                       {(photoMedia || videoMedia) && (
                         <div>
                           <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-3">
-                            // Higgsfield prompty
+                            // Production
                           </p>
-                          <div className="grid grid-cols-1 gap-3">
-                            {photoMedia && (
-                              <div>
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <span className="text-base">📷</span>
-                                  <span className="font-mono text-[9px] text-muted uppercase tracking-wider">
-                                    Photo prompt
-                                  </span>
-                                  <span
-                                    className={`font-mono text-[8px] border px-1.5 py-0.5 rounded-sm ml-auto ${
-                                      photoMedia.status === "ready"
-                                        ? "border-teal/20 text-teal bg-teal/10"
-                                        : photoMedia.status === "generating"
-                                        ? "border-amber/20 text-amber bg-amber/10"
-                                        : photoMedia.status === "posted"
-                                        ? "border-accent/20 text-accent bg-accent/10"
-                                        : "border-border2 text-muted2"
-                                    }`}
-                                  >
-                                    {photoMedia.status.toUpperCase()}
-                                  </span>
-                                </div>
-                                <pre className="bg-bg3 border border-border rounded p-4 font-mono text-[10px] text-ink leading-relaxed whitespace-pre-wrap break-words">
-                                  {photoMedia.higgsfield_prompt}
-                                </pre>
-                              </div>
-                            )}
-                            {videoMedia && (
-                              <div>
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <span className="text-base">🎬</span>
-                                  <span className="font-mono text-[9px] text-muted uppercase tracking-wider">
-                                    Video prompt
-                                  </span>
-                                  <span
-                                    className={`font-mono text-[8px] border px-1.5 py-0.5 rounded-sm ml-auto ${
-                                      videoMedia.status === "ready"
-                                        ? "border-teal/20 text-teal bg-teal/10"
-                                        : videoMedia.status === "generating"
-                                        ? "border-amber/20 text-amber bg-amber/10"
-                                        : videoMedia.status === "posted"
-                                        ? "border-accent/20 text-accent bg-accent/10"
-                                        : "border-border2 text-muted2"
-                                    }`}
-                                  >
-                                    {videoMedia.status.toUpperCase()}
-                                  </span>
-                                </div>
-                                <pre className="bg-bg3 border border-border rounded p-4 font-mono text-[10px] text-ink leading-relaxed whitespace-pre-wrap break-words">
-                                  {videoMedia.higgsfield_prompt}
-                                </pre>
-                              </div>
-                            )}
+                          <div className="grid grid-cols-2 gap-3">
+                            {photoMedia && <MediaCard media={photoMedia} />}
+                            {videoMedia && <MediaCard media={videoMedia} />}
                           </div>
                         </div>
                       )}
