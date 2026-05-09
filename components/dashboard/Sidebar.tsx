@@ -10,6 +10,15 @@ const nav = [
   { label: "História", href: "/history", icon: "◷" },
 ];
 
+const createNav = [
+  { label: "Nový influencer", href: "/create", icon: "✦" },
+  { label: "Character DNA", href: "/create/dna", icon: "◉" },
+  { label: "Prompt Generator", href: "/create/prompts", icon: "◌" },
+  { label: "Lore Engine", href: "/create/lore", icon: "◍" },
+  { label: "Content Engine", href: "/create/content", icon: "◐" },
+  { label: "Social Preview", href: "/create/social", icon: "◑" },
+];
+
 const buildNav = [
   { label: "DB Schéma", href: "/schema", icon: "◧" },
   { label: "Setup", href: "/setup", icon: "◪" },
@@ -36,6 +45,24 @@ export default function Sidebar() {
           Overview
         </div>
         {nav.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-3 px-4 py-2.5 text-[12.5px] transition-all border-l-2 ${
+              pathname === item.href
+                ? "text-accent bg-bg3 border-accent"
+                : "text-muted2 border-transparent hover:bg-bg3 hover:text-ink"
+            }`}
+          >
+            <span className="text-sm w-4 text-center">{item.icon}</span>
+            {item.label}
+          </Link>
+        ))}
+
+        <div className="px-4 py-2 mt-2 font-mono text-[8px] tracking-widest text-muted uppercase">
+          Create
+        </div>
+        {createNav.map((item) => (
           <Link
             key={item.href}
             href={item.href}
