@@ -27,9 +27,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "No pending media for this story day" }, { status: 404 });
     }
 
-    const owner = process.env.GITHUB_OWNER!;
-    const repo = process.env.GITHUB_REPO!;
-    const token = process.env.GH_TOKEN!;
+    const owner = process.env.GITHUB_OWNER;
+    const repo = process.env.GITHUB_REPO;
+    const token = process.env.GH_TOKEN;
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "GH_TOKEN env var is not set" },
+        { status: 500 }
+      );
+    }
+    if (!owner || !repo) {
+      return NextResponse.json(
+        { success: false, error: "GITHUB_OWNER or GITHUB_REPO env var is not set" },
+        { status: 500 }
+      );
+    }
 
     const dispatched = [];
 
