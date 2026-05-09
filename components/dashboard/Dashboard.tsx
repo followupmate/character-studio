@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Character, StoryDay, Media } from "@/types";
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     pending: "bg-border text-muted2 border-border2",
-    generating: "bg-amber/10 text-amber border-amber/20",
+    generating: "bg-amber/10 text-amber border-amber/20 animate-pulse",
     ready: "bg-teal/10 text-teal border-teal/20",
     posted: "bg-accent/10 text-accent border-accent/20",
     failed: "bg-red-500/10 text-red-400 border-red-500/20",
@@ -29,8 +30,41 @@ export default function Dashboard({ characters, todayStories }: Props) {
   const totalMedia = todayStories.flatMap((s) => s.chs_media);
   const postedMedia = totalMedia.filter((m) => m.status === "posted");
 
+  const [approvingStories, setApprovingStories] = useState<Set<string>>(new Set());
+  const [postingMedias, setPostingMedias] = useState<Set<string>>(new Set());
+
   async function triggerStory() {
     await fetch("/api/characters/story");
+    window.location.reload();
+  }
+
+  async function approveGenerate(storyDayId: string) {
+    setApprovingStories((prev) => new Set([...prev, storyDayId]));
+    await fetch("/api/characters/approve-generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storyDayId }),
+    });
+    setApprovingStories((prev) => {
+      const next = new Set(prev);
+      next.delete(storyDayId);
+      return next;
+    });
+    window.location.reload();
+  }
+
+  async function approvePost(mediaId: string) {
+    setPostingMedias((prev) => new Set([...prev, mediaId]));
+    await fetch("/api/characters/approve-post", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaId }),
+    });
+    setPostingMedias((prev) => {
+      const next = new Set(prev);
+      next.delete(mediaId);
+      return next;
+    });
     window.location.reload();
   }
 
@@ -83,6 +117,9 @@ export default function Dashboard({ characters, todayStories }: Props) {
             <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Dnešné príbehy</p>
             {todayStories.map((story) => {
               const char = characters.find((c) => c.id === story.character_id);
+              const hasPending = story.chs_media.some((m) => m.status === "pending");
+              const isApprovingGenerate = approvingStories.has(story.id);
+
               return (
                 <div key={story.id} className="bg-bg2 border border-border rounded-md overflow-hidden">
                   {/* Story header */}
@@ -93,7 +130,18 @@ export default function Dashboard({ characters, todayStories }: Props) {
                         DAY {story.day_number}
                       </span>
                     </div>
-                    <span className="font-mono text-[9px] text-muted">{story.arc_position}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-[9px] text-muted">{story.arc_position}</span>
+                      {hasPending && (
+                        <button
+                          onClick={() => approveGenerate(story.id)}
+                          disabled={isApprovingGenerate}
+                          className="text-[11px] font-medium bg-teal/10 border border-teal/30 text-teal px-3 py-1 rounded hover:bg-teal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isApprovingGenerate ? "Spúšťam…" : "Schváliť generovanie"}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Story body */}
@@ -105,26 +153,40 @@ export default function Dashboard({ characters, todayStories }: Props) {
                       {story.narrative}
                     </p>
 
-                    {/* Media status */}
+                    {/* Media items */}
                     {story.chs_media.length > 0 && (
                       <div className="grid grid-cols-2 gap-3">
-                        {story.chs_media.map((m) => (
-                          <div
-                            key={m.id}
-                            className="bg-bg3 border border-border rounded p-3 flex items-center gap-3"
-                          >
-                            <span className="text-xl">{m.type === "photo" ? "📷" : "🎬"}</span>
-                            <div className="flex-1">
-                              <div className="font-mono text-[9px] text-muted uppercase tracking-wider mb-1">
-                                {m.type}
+                        {story.chs_media.map((m) => {
+                          const isPostingThis = postingMedias.has(m.id);
+                          return (
+                            <div
+                              key={m.id}
+                              className="bg-bg3 border border-border rounded p-3 flex items-center gap-3"
+                            >
+                              <span className="text-xl">{m.type === "photo" ? "📷" : "🎬"}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-mono text-[9px] text-muted uppercase tracking-wider mb-1">
+                                  {m.type}
+                                </div>
+                                <div className="text-xs text-ink">
+                                  {m.type === "photo" ? "Seedance 2.0" : "Cinema Studio 3.5"}
+                                </div>
                               </div>
-                              <div className="text-xs text-ink">
-                                {m.type === "photo" ? "Seedance 2.0" : "Cinema Studio 3.5"}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <StatusBadge status={m.status} />
+                                {m.status === "ready" && (
+                                  <button
+                                    onClick={() => approvePost(m.id)}
+                                    disabled={isPostingThis}
+                                    className="text-[10px] font-medium bg-accent/10 border border-accent/30 text-accent px-2 py-0.5 rounded hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {isPostingThis ? "Postuje…" : "Schváliť posting"}
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            <StatusBadge status={m.status} />
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
