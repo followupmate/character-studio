@@ -77,7 +77,8 @@ Rules:
       });
 
       const rawText = (msg.content[0] as { type: string; text: string }).text;
-      const story = JSON.parse(rawText);
+      const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+      const story = JSON.parse(jsonText);
 
       // Save story day
       const { data: storyDay, error: storyError } = await supabase
