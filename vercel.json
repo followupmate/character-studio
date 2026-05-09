@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/characters/story",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/characters/publish",
+      "schedule": "0 10 * * *"
+    }
+  ]
+}
