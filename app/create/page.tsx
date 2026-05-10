@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import StepProgress from "@/components/ui/StepProgress";
@@ -29,6 +29,12 @@ export default function CreatePage() {
   const [concept, setConcept] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    localStorage.removeItem("character_dna");
+    localStorage.removeItem("selected_archetype");
+    localStorage.removeItem("create_method");
+  }, []);
 
   function selectPreset(preset: CharacterDNA) {
     localStorage.setItem("selected_archetype", JSON.stringify(preset));
