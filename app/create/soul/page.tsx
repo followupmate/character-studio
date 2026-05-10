@@ -57,7 +57,7 @@ export default function SoulPage() {
         </div>
 
         <div className="p-4 lg:p-8 max-w-4xl">
-          <StepProgress current={3} total={8} label="Soul ID" />
+          <StepProgress current={4} total={5} label="Soul ID" />
 
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Visual Identity</p>
           <h2 className="text-2xl font-medium text-white mb-1">
@@ -162,13 +162,13 @@ export default function SoulPage() {
           {/* Bottom nav */}
           <div className="flex items-center gap-3 pt-6 border-t border-border">
             <button
-              onClick={() => router.push("/create/dna")}
+              onClick={() => router.push("/create/midjourney")}
               className="font-mono text-[11px] border border-border2 text-muted2 px-5 py-2.5 rounded hover:text-ink hover:border-border transition-colors"
             >
               ← Späť
             </button>
             <button
-              onClick={() => router.push("/create/prompts")}
+              onClick={() => router.push("/create/launch")}
               className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 rounded hover:bg-blue-400 transition-colors"
             >
               Pokračovať →

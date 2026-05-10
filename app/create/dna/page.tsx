@@ -203,17 +203,23 @@ export default function DnaPage() {
   const router = useRouter();
   const [dna, setDna] = useState<CharacterDNA>(emptyDna);
   const [saved, setSaved] = useState(false);
+  const [createMethod, setCreateMethod] = useState<string | null>(null);
+  const [mjCopied, setMjCopied] = useState(false);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("selected_archetype");
+      setCreateMethod(localStorage.getItem("create_method"));
+      const raw = localStorage.getItem("character_dna");
       if (raw) setDna(JSON.parse(raw) as CharacterDNA);
-      else {
-        const savedDna = localStorage.getItem("character_dna");
-        if (savedDna) setDna(JSON.parse(savedDna) as CharacterDNA);
-      }
     } catch {}
   }, []);
+
+  async function copyMjPrompt() {
+    if (!dna.midjourneyPrompt) return;
+    await navigator.clipboard.writeText(dna.midjourneyPrompt);
+    setMjCopied(true);
+    setTimeout(() => setMjCopied(false), 2000);
+  }
 
   function setIdentity(k: keyof CharacterDNA["identity"], v: string) {
     setDna((d) => ({ ...d, identity: { ...d.identity, [k]: v } }));
@@ -278,7 +284,7 @@ export default function DnaPage() {
             </button>
             <button
               type="button"
-              onClick={() => { saveDna(); router.push("/create/soul"); }}
+              onClick={() => { saveDna(); router.push("/create/midjourney"); }}
               className="font-mono text-[10px] bg-accent text-white px-4 py-1.5 rounded hover:bg-blue-400 transition-colors"
             >
               Uložiť a pokračovať →
@@ -286,9 +292,9 @@ export default function DnaPage() {
           </div>
         </div>
 
-        <div className="p-8 max-w-4xl space-y-5">
+        <div className="p-4 lg:p-8 max-w-4xl space-y-5">
           <div>
-            <StepProgress current={2} total={8} label="Character DNA" />
+            <StepProgress current={2} total={5} label="DNA Review" />
             <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">
               // Character DNA
             </p>
@@ -299,6 +305,18 @@ export default function DnaPage() {
               Vyplň DNA profil. Všetky polia sa použijú na generovanie promptov a obsahu.
             </p>
           </div>
+
+          {/* Create method banner */}
+          {createMethod === "ai" && (
+            <div className="bg-teal/5 border border-teal/20 rounded-md px-4 py-3 font-mono text-[11px] text-teal">
+              ✓ AI vygeneroval tvoj charakter. Skontroluj a uprav podľa potreby.
+            </div>
+          )}
+          {createMethod === "preset" && (
+            <div className="bg-accent/5 border border-accent/20 rounded-md px-4 py-3 font-mono text-[11px] text-accent">
+              Preset načítaný. Uprav podľa potreby.
+            </div>
+          )}
 
           {/* Name + archetype (top-level) */}
           <div className="bg-bg2 border border-border rounded-md p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -531,6 +549,48 @@ export default function DnaPage() {
             />
           </Section>
 
+          {/* Midjourney Prompt Preview */}
+          {dna.midjourneyPrompt && (
+            <div className="bg-bg2 border border-border rounded-md overflow-hidden">
+              <div className="bg-bg3 px-5 py-3 border-b border-border flex items-center justify-between">
+                <p className="font-mono text-[9px] text-muted uppercase tracking-widest">// Midjourney Prompt</p>
+                <span className="font-mono text-[9px] text-muted2">Tento prompt použiješ v nasledujúcom kroku</span>
+              </div>
+              <div className="p-5">
+                <div className="relative">
+                  <pre className="bg-[#050709] border border-border rounded p-4 font-mono text-[11px] text-teal leading-relaxed whitespace-pre-wrap break-words pr-24">
+                    {dna.midjourneyPrompt}
+                  </pre>
+                  <button
+                    type="button"
+                    onClick={copyMjPrompt}
+                    className="absolute top-2 right-2 font-mono text-[8px] bg-bg2 border border-border text-muted2 px-2 py-1 rounded hover:text-ink hover:border-border2 transition-colors"
+                  >
+                    {mjCopied ? "✓" : "Kopírovať"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Lore Preview (collapsed) */}
+          {dna.lore && (
+            <details className="bg-bg2 border border-border rounded-md overflow-hidden group">
+              <summary className="px-5 py-4 bg-bg3 flex items-center justify-between cursor-pointer select-none">
+                <span className="font-mono text-[9px] tracking-widest text-muted uppercase">Lore Preview</span>
+                <span className="text-muted text-xs">▾</span>
+              </summary>
+              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(dna.lore).map(([key, value]) => (
+                  <div key={key}>
+                    <p className="font-mono text-[8px] text-muted uppercase tracking-widest mb-1">{key}</p>
+                    <p className="font-mono text-[11px] text-muted2 leading-relaxed">{value as string}</p>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
           {/* Bottom actions */}
           <div className="flex items-center gap-3 pt-2 pb-8">
             <button
@@ -542,7 +602,7 @@ export default function DnaPage() {
             </button>
             <button
               type="button"
-              onClick={() => { saveDna(); router.push("/create/soul"); }}
+              onClick={() => { saveDna(); router.push("/create/midjourney"); }}
               className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 rounded hover:bg-blue-400 transition-colors"
             >
               Uložiť a pokračovať →

@@ -12,17 +12,14 @@ const nav = [
 ];
 
 const createSteps = [
-  { step: 1, label: "Archetype",        href: "/create" },
-  { step: 2, label: "Character DNA",    href: "/create/dna" },
-  { step: 3, label: "Soul ID",          href: "/create/soul" },
-  { step: 4, label: "Prompt Generator", href: "/create/prompts" },
-  { step: 5, label: "Lore Engine",      href: "/create/lore" },
-  { step: 6, label: "Content Engine",   href: "/create/content" },
-  { step: 7, label: "Social Preview",   href: "/create/social" },
-  { step: 8, label: "Spustiť",          href: "/create/launch" },
+  { step: 1, label: "Štart",      href: "/create" },
+  { step: 2, label: "DNA Review", href: "/create/dna" },
+  { step: 3, label: "Midjourney", href: "/create/midjourney" },
+  { step: 4, label: "Soul ID",    href: "/create/soul" },
+  { step: 5, label: "Spustiť",   href: "/create/launch" },
 ];
 
-const STEP_ICONS = ["①","②","③","④","⑤","⑥","⑦","⑧"];
+const STEP_ICONS = ["①","②","③","④","⑤"];
 
 const buildNav = [
   { label: "DB Schéma", href: "/schema", icon: "◧" },

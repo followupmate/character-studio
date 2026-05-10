@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Character, StoryDay, Media } from "@/types";
 import MediaCard from "@/components/dashboard/MediaCard";
 import SoulIdStatus from "@/components/dashboard/SoulIdStatus";
@@ -9,14 +11,58 @@ interface Props {
   todayStories: (StoryDay & { chs_media: Media[] })[];
 }
 
+function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: string[] | null }) {
+  return (
+    <div className="pt-4 border-t border-border">
+      <p className="font-mono text-[9px] text-muted tracking-wider uppercase mb-3">
+        // Instagram caption
+      </p>
+      <div className="space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 rounded-sm flex-shrink-0 mt-0.5">EN</span>
+          <p className="text-xs text-ink italic leading-relaxed">{caption}</p>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="font-mono text-[8px] bg-border border border-border2 text-muted px-1.5 py-0.5 rounded-sm flex-shrink-0 mt-0.5">SK</span>
+          <p className="text-xs text-muted italic leading-relaxed">(SK preklad bude vygenerovaný)</p>
+        </div>
+      </div>
+      {hashtags && hashtags.length > 0 && (
+        <p className="font-mono text-[10px] text-muted mt-2">
+          {hashtags.map((h) => `#${h}`).join(" ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard({ characters, todayStories }: Props) {
+  const router = useRouter();
   const activeChars = characters.filter((c) => c.is_active);
   const totalMedia = todayStories.flatMap((s) => s.chs_media);
   const postedMedia = totalMedia.filter((m) => m.status === "posted");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [genResult, setGenResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   async function triggerStory() {
-    await fetch("/api/characters/story");
-    window.location.reload();
+    setIsGenerating(true);
+    setGenResult(null);
+    try {
+      const res = await fetch("/api/characters/story");
+      if (res.ok) {
+        setGenResult({ ok: true, msg: "Príbeh vygenerovaný! Stránka sa aktualizuje..." });
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setGenResult({ ok: false, msg: data.error ?? `Chyba ${res.status}` });
+        setIsGenerating(false);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Sieťová chyba";
+      setGenResult({ ok: false, msg });
+      setIsGenerating(false);
+    }
+    setTimeout(() => setGenResult(null), 4000);
   }
 
   return (
@@ -31,14 +77,22 @@ export default function Dashboard({ characters, todayStories }: Props) {
           </span>
           <button
             onClick={triggerStory}
-            className="text-xs font-medium bg-accent text-white px-3 py-1.5 rounded hover:bg-blue-400 transition-colors"
+            disabled={isGenerating}
+            className="text-xs font-medium bg-accent text-white px-3 py-1.5 rounded hover:bg-blue-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            + Generuj dnes
+            {isGenerating ? "Generujem..." : "+ Generuj dnes"}
           </button>
         </div>
       </div>
 
-      <div className="p-8">
+      {/* Generation result banner */}
+      {genResult && (
+        <div className={`px-8 py-2.5 font-mono text-[11px] border-b ${genResult.ok ? "bg-teal/5 border-teal/20 text-teal" : "bg-red-900/10 border-red-500/20 text-red-400"}`}>
+          {genResult.msg}
+        </div>
+      )}
+
+      <div className="p-4 lg:p-8">
         {/* Eyebrow */}
         <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Prehľad</p>
         <h2 className="text-2xl font-medium text-white mb-1">Character Studio</h2>
@@ -106,17 +160,8 @@ export default function Dashboard({ characters, todayStories }: Props) {
                       </div>
                     )}
 
-                    {/* Caption */}
                     {story.ig_caption && (
-                      <div className="pt-4 border-t border-border">
-                        <p className="font-mono text-[9px] text-muted tracking-wider uppercase mb-2">
-                          // Instagram caption
-                        </p>
-                        <p className="text-xs text-muted2 italic leading-relaxed">{story.ig_caption}</p>
-                        <p className="font-mono text-[10px] text-muted mt-1">
-                          {story.hashtags?.map((h) => `#${h}`).join(" ")}
-                        </p>
-                      </div>
+                      <CaptionBlock caption={story.ig_caption} hashtags={story.hashtags} />
                     )}
                   </div>
                 </div>
@@ -132,9 +177,10 @@ export default function Dashboard({ characters, todayStories }: Props) {
             </p>
             <button
               onClick={triggerStory}
-              className="text-sm font-medium bg-accent text-white px-5 py-2 rounded hover:bg-blue-400 transition-colors"
+              disabled={isGenerating}
+              className="text-sm font-medium bg-accent text-white px-5 py-2 rounded hover:bg-blue-400 transition-colors disabled:opacity-60"
             >
-              Generuj teraz
+              {isGenerating ? "Generujem..." : "Generuj teraz"}
             </button>
           </div>
         )}
@@ -142,7 +188,7 @@ export default function Dashboard({ characters, todayStories }: Props) {
         {/* Characters quick view */}
         <div className="mt-8">
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-4">// Charaktery</p>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {characters.map((char) => (
               <div key={char.id} className="bg-bg2 border border-border rounded-md p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -171,10 +217,13 @@ export default function Dashboard({ characters, todayStories }: Props) {
                 </div>
               </div>
             ))}
-            <div className="bg-bg2 border border-border border-dashed rounded-md p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-teal/40 transition-colors">
+            <button
+              onClick={() => router.push("/create")}
+              className="bg-bg2 border border-border border-dashed rounded-md p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-teal/40 hover:bg-bg3 transition-colors"
+            >
               <span className="text-2xl text-muted">+</span>
               <span className="font-mono text-[9px] text-muted tracking-wider">NOVÝ CHARAKTER</span>
-            </div>
+            </button>
           </div>
         </div>
       </div>

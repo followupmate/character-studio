@@ -3,6 +3,21 @@ export type CharacterDNA = {
   name: string;
   archetype: string;
   soul_id?: string;
+  midjourneyPrompt?: string;
+  lore?: {
+    backstory: string;
+    secret: string;
+    obsession: string;
+    fear: string;
+    goal: string;
+    worldview: string;
+    signatureQuote: string;
+  };
+  contentIdeas?: {
+    tiktokHooks: string[];
+    igCaptions: string[];
+    tweets: string[];
+  };
   identity: {
     ageAppearance: string;
     origin: string;
