@@ -33,7 +33,7 @@ export default async function Home() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 ml-56">
+      <main className="flex-1 lg:ml-56">
         <Dashboard characters={characters} todayStories={todayStories} />
       </main>
     </div>

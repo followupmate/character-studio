@@ -22,7 +22,7 @@ export default function Dashboard({ characters, todayStories }: Props) {
   return (
     <div>
       {/* Topbar */}
-      <div className="sticky top-0 z-40 bg-bg2 border-b border-border px-8 h-13 flex items-center justify-between">
+      <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
         <h1 className="text-white font-medium text-sm tracking-wide">Dashboard</h1>
         <div className="flex items-center gap-4">
           <span className="font-mono text-[10px] text-muted flex items-center gap-1.5">
@@ -47,7 +47,7 @@ export default function Dashboard({ characters, todayStories }: Props) {
         </p>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-3 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
           {[
             { label: "Charaktery", value: characters.length, sub: `${activeChars.length} aktívnych` },
             { label: "Dnešné posty", value: postedMedia.length, sub: `z ${totalMedia.length} médií` },

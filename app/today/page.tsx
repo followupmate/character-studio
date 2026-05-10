@@ -41,14 +41,14 @@ export default async function TodayPage() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 ml-56">
+      <main className="flex-1 lg:ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border px-8 h-13 flex items-center justify-between">
+        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
           <h1 className="text-white font-medium text-sm tracking-wide">Dnešný deň</h1>
           <span className="font-mono text-[10px] text-muted">{today}</span>
         </div>
 
-        <div className="p-8">
+        <div className="p-4 lg:p-8">
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Dnešné príbehy</p>
           <h2 className="text-2xl font-medium text-white mb-1">Dnešný deň</h2>
           <p className="text-sm text-muted2 mb-8">
