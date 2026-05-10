@@ -2,6 +2,7 @@
 
 import { Character, StoryDay, Media } from "@/types";
 import MediaCard from "@/components/dashboard/MediaCard";
+import SoulIdStatus from "@/components/dashboard/SoulIdStatus";
 
 interface Props {
   characters: Character[];
@@ -148,9 +149,9 @@ export default function Dashboard({ characters, todayStories }: Props) {
                   <span className="text-white text-sm font-medium">{char.name}</span>
                   <span className={`w-2 h-2 rounded-full ${char.is_active ? "bg-teal" : "bg-muted"}`} />
                 </div>
-                <div className="font-mono text-[9px] text-muted leading-relaxed">
-                  <div>{char.soul_id ? `Soul: ${char.soul_id.slice(0, 12)}...` : "Soul ID: chýba"}</div>
-                  <div>Posting: {char.posting_time}</div>
+                <div className="space-y-1 mb-1">
+                  <SoulIdStatus soulId={char.soul_id} characterName={char.name} />
+                  <div className="font-mono text-[9px] text-muted">Posting: {char.posting_time}</div>
                 </div>
                 <div className="flex gap-1.5 mt-3">
                   {char.platforms.map((p) => (

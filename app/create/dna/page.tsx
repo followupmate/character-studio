@@ -3,7 +3,159 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
-import { CharacterDNA, VIKA_VOID } from "@/lib/archetypes";
+import { CharacterDNA } from "@/lib/archetypes";
+
+// ─── Soul ID section ─────────────────────────────────────────
+
+const CLI_COMMANDS = "higgsfield auth login\nhiggsfield soul-id list";
+
+function SoulIdSection({
+  soulId,
+  onSave,
+}: {
+  soulId?: string;
+  onSave: (id: string) => void;
+}) {
+  const [editing, setEditing] = useState(!soulId);
+  const [input, setInput] = useState(soulId ?? "");
+  const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function copyCli() {
+    await navigator.clipboard.writeText(CLI_COMMANDS);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function save() {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    onSave(trimmed);
+    setSaved(true);
+    setTimeout(() => { setSaved(false); setEditing(false); }, 900);
+  }
+
+  // ── State B — soul id set ────────────────────────────────
+  if (soulId && !editing) {
+    return (
+      <div className="bg-bg2 border border-border rounded-md p-5 flex items-center justify-between">
+        <div className="space-y-1">
+          <p className="font-mono text-[9px] text-muted uppercase tracking-widest">
+            // Visual Identity — Soul ID
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-teal flex-shrink-0" />
+            <span className="font-mono text-[11px] text-teal font-medium">Soul ID aktívny</span>
+          </div>
+          <p className="font-mono text-[10px] text-ink">
+            {soulId.slice(0, 8)}...{soulId.slice(-4)}
+          </p>
+          <p className="text-[11px] text-muted">
+            Všetky generácie používajú tento Soul ID automaticky.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setEditing(true); setInput(soulId); }}
+          className="font-mono text-[9px] text-muted2 hover:text-ink underline transition-colors flex-shrink-0 ml-6"
+        >
+          Zmeniť Soul ID
+        </button>
+      </div>
+    );
+  }
+
+  // ── State A — no soul id / editing ──────────────────────
+  return (
+    <div className="bg-bg2 border border-border rounded-md overflow-hidden">
+      <div className="bg-bg3 px-5 py-4 border-b border-border flex items-center justify-between">
+        <p className="font-mono text-[9px] text-muted uppercase tracking-widest">
+          // Visual Identity — Soul ID
+        </p>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber" />
+          <span className="font-mono text-[9px] text-amber">Soul ID chýba</span>
+        </div>
+      </div>
+
+      <div className="p-5">
+        <p className="text-[12px] text-muted2 mb-5 leading-relaxed">
+          Soul ID zabezpečuje konzistentnú tvár naprieč všetkými generovaniami.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Krok 1 */}
+          <div>
+            <p className="font-mono text-[9px] text-muted uppercase tracking-widest mb-2">
+              Krok 1: Vytvor Soul v Higgsfield
+            </p>
+            <p className="text-[12px] text-muted2 mb-4 leading-relaxed">
+              Nahraj 15–20 fotiek charakteru do Higgsfield Soul trénera. Počkaj na dokončenie
+              trénovania (5–10 minút).
+            </p>
+            <a
+              href="https://higgsfield.ai/character"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block font-mono text-[10px] bg-amber/10 border border-amber/30 text-amber px-4 py-2 rounded hover:bg-amber/20 transition-colors"
+            >
+              Otvoriť Higgsfield Soul →
+            </a>
+            <p className="font-mono text-[9px] text-muted mt-2">
+              Potrebuješ Higgsfield účet s aktívnym plánom.
+            </p>
+          </div>
+
+          {/* Krok 2 */}
+          <div>
+            <p className="font-mono text-[9px] text-muted uppercase tracking-widest mb-2">
+              Krok 2: Získaj Soul ID
+            </p>
+            <p className="text-[12px] text-muted2 mb-2 leading-relaxed">
+              Po dokončení trénovania spusti tieto príkazy v termináli:
+            </p>
+
+            {/* Code block */}
+            <div className="relative mb-3">
+              <pre className="bg-[#050709] border border-border rounded px-4 py-3 font-mono text-[11px] text-teal leading-relaxed pr-20">
+                {CLI_COMMANDS}
+              </pre>
+              <button
+                type="button"
+                onClick={copyCli}
+                className="absolute top-2 right-2 font-mono text-[8px] bg-bg2 border border-border text-muted2 px-2 py-1 rounded hover:text-ink hover:border-border2 transition-colors"
+              >
+                {copied ? "✓" : "Kopírovať"}
+              </button>
+            </div>
+
+            <p className="text-[11px] text-muted mb-2">
+              Skopíruj ID tvojho charakteru zo stĺpca ID a vlož ho sem:
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && save()}
+                placeholder="Vlož Soul ID... (napr. fb42bf59-4397-...)"
+                className="flex-1 min-w-0 bg-bg3 border border-border2 rounded px-3 py-2 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-teal transition-colors"
+              />
+              <button
+                type="button"
+                onClick={save}
+                disabled={!input.trim()}
+                className="flex-shrink-0 font-mono text-[10px] bg-teal/10 border border-teal/30 text-teal px-3 py-2 rounded hover:bg-teal/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {saved ? "✓ Uložené" : "Uložiť Soul ID"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const PLATFORMS = ["TikTok", "Instagram", "X/Twitter", "YouTube"];
 
@@ -245,6 +397,14 @@ export default function DnaPage() {
     });
   }
 
+  function saveSoulId(id: string) {
+    setDna((d) => {
+      const updated = { ...d, soul_id: id };
+      localStorage.setItem("character_dna", JSON.stringify(updated));
+      return updated;
+    });
+  }
+
   function saveDna() {
     localStorage.setItem("character_dna", JSON.stringify(dna));
     setSaved(true);
@@ -297,6 +457,9 @@ export default function DnaPage() {
               Vyplň DNA profil. Všetky polia sa použijú na generovanie promptov a obsahu.
             </p>
           </div>
+
+          {/* Soul ID */}
+          <SoulIdSection soulId={dna.soul_id} onSave={saveSoulId} />
 
           {/* Name + archetype (top-level) */}
           <div className="bg-bg2 border border-border rounded-md p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
