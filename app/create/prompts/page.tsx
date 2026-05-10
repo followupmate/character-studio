@@ -155,7 +155,25 @@ export default function PromptsPage() {
 
               {/* Generated prompt */}
               <div>
-                <p className="font-mono text-[9px] text-muted uppercase tracking-widest mb-3">// Vygenerovaný prompt</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-mono text-[9px] text-muted uppercase tracking-widest">// Vygenerovaný prompt</p>
+                  {hasDna && (
+                    dna.soul_id ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal flex-shrink-0" />
+                        <span className="font-mono text-[9px] text-teal">Soul ID aktívny — tvár bude konzistentná</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber flex-shrink-0" />
+                        <span className="font-mono text-[9px] text-amber">
+                          Soul ID chýba — tvár nebude konzistentná.{" "}
+                          <a href="/create/dna" className="underline hover:text-white transition-colors">Pridaj Soul ID →</a>
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
                 <textarea
                   readOnly
                   value={prompt}

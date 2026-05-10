@@ -2,6 +2,7 @@ export type CharacterDNA = {
   id: string;
   name: string;
   archetype: string;
+  soul_id?: string;
   identity: {
     ageAppearance: string;
     origin: string;
@@ -46,6 +47,7 @@ export const VIKA_VOID: CharacterDNA = {
   id: "vika-void",
   name: "VIKA VOID",
   archetype: "Slavic Cyber Muse",
+  soul_id: undefined,
   identity: {
     ageAppearance: "22-26",
     origin: "post-soviet futuristic cyber city",
@@ -94,6 +96,7 @@ export const LUNA: CharacterDNA = {
   id: "luna",
   name: "LUNA",
   archetype: "Soft AI Girlfriend",
+  soul_id: undefined,
   identity: {
     ageAppearance: "20-24",
     origin: "digital companion born from internet warmth",
@@ -142,6 +145,7 @@ export const MARA: CharacterDNA = {
   id: "mara",
   name: "MARA",
   archetype: "Luxury Villain",
+  soul_id: undefined,
   identity: {
     ageAppearance: "25-30",
     origin: "unknown — somewhere between Monaco and a black card",

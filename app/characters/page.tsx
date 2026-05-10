@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { Character } from "@/types";
 import Sidebar from "@/components/dashboard/Sidebar";
+import SoulIdStatus from "@/components/dashboard/SoulIdStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -56,13 +57,8 @@ export default async function CharactersPage() {
                 </div>
 
                 {/* Soul ID */}
-                <div className="font-mono text-[9px] bg-bg3 border border-border rounded px-3 py-2 mb-3">
-                  <span className="text-muted">Soul ID: </span>
-                  {char.soul_id ? (
-                    <span className="text-teal">{char.soul_id.slice(0, 16)}…</span>
-                  ) : (
-                    <span className="text-amber">chýba</span>
-                  )}
+                <div className="bg-bg3 border border-border rounded px-3 py-2 mb-3">
+                  <SoulIdStatus soulId={char.soul_id} characterName={char.name} />
                 </div>
 
                 {/* Platforms */}
