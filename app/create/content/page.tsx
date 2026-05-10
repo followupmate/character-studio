@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
+import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA } from "@/lib/archetypes";
 import { contentData, ArchetypeContent, ContentScript } from "@/lib/content-data";
 
@@ -104,6 +105,7 @@ export default function ContentPage() {
         </div>
 
         <div className="p-8">
+          <StepProgress current={6} total={8} label="Content Engine" />
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Content Engine</p>
           <h2 className="text-2xl font-medium text-white mb-8">
             Obsah ktorý{" "}
@@ -200,10 +202,16 @@ export default function ContentPage() {
           </div>
 
           {/* Continue */}
-          <div className="mt-8 pt-6 border-t border-border">
+          <div className="mt-8 pt-6 border-t border-border flex items-center gap-3">
+            <button
+              onClick={() => router.push("/create/lore")}
+              className="font-mono text-[11px] border border-border2 text-muted2 px-5 py-2.5 rounded hover:text-ink hover:border-border transition-colors"
+            >
+              ← Späť
+            </button>
             <button onClick={() => router.push("/create/social")}
               className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 rounded hover:bg-blue-400 transition-colors">
-              Pokračovať → Social Preview
+              Pokračovať →
             </button>
           </div>
         </div>
