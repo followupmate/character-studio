@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
+import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA } from "@/lib/archetypes";
 import { contentData, paletteToHex } from "@/lib/content-data";
 
@@ -34,6 +36,7 @@ function Avatar({ name, size = "lg" }: { name: string; size?: "lg" | "sm" }) {
 }
 
 export default function SocialPage() {
+  const router = useRouter();
   const [dna, setDna] = useState<CharacterDNA | null>(null);
   const [tab, setTab] = useState<Tab>("Instagram");
   const [downloaded, setDownloaded] = useState(false);
@@ -73,17 +76,12 @@ export default function SocialPage() {
       <Sidebar />
       <main className="flex-1 ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border px-8 h-13 flex items-center justify-between">
+        <div className="sticky top-0 z-40 bg-bg2 border-b border-border px-8 h-13 flex items-center">
           <h1 className="text-white font-medium text-sm tracking-wide">Social Preview</h1>
-          <button
-            onClick={downloadDna}
-            className="font-mono text-[10px] bg-teal/10 border border-teal/30 text-teal px-3 py-1.5 rounded hover:bg-teal/20 transition-colors"
-          >
-            {downloaded ? "✓ Stiahnuté" : "Uložiť a exportovať JSON"}
-          </button>
         </div>
 
         <div className="p-8">
+          <StepProgress current={7} total={8} label="Social Preview" />
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Social Preview</p>
           <h2 className="text-2xl font-medium text-white mb-8">
             Ako bude vyzerať{" "}
@@ -255,14 +253,19 @@ export default function SocialPage() {
             </>
           )}
 
-          {/* Download */}
-          <div className="mt-8 pt-6 border-t border-border">
+          {/* Bottom nav */}
+          <div className="mt-8 pt-6 border-t border-border flex items-center gap-3">
             <button
-              onClick={downloadDna}
-              className="font-mono text-[11px] bg-teal/10 border border-teal/30 text-teal px-5 py-2.5 rounded hover:bg-teal/20 transition-colors"
+              onClick={() => router.push("/create/content")}
+              className="font-mono text-[11px] border border-border2 text-muted2 px-5 py-2.5 rounded hover:text-ink hover:border-border transition-colors"
             >
-              {downloaded ? "✓ Stiahnuté" : "Uložiť a exportovať"}{" "}
-              <span className="text-muted">({dna?.name ?? "—"}_DNA.json)</span>
+              ← Späť
+            </button>
+            <button
+              onClick={() => router.push("/create/launch")}
+              className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 rounded hover:bg-blue-400 transition-colors"
+            >
+              Spustiť charakter →
             </button>
           </div>
         </div>

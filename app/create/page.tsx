@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
+import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA, VIKA_VOID, LUNA, MARA } from "@/lib/archetypes";
 
 interface ArchetypeCard {
@@ -61,6 +62,8 @@ export default function CreatePage() {
         </div>
 
         <div className="p-8 max-w-5xl">
+          <StepProgress current={1} total={8} label="Vyber archetype" />
+
           {/* Header */}
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-3">
             // Vyber štartovací archetype
@@ -142,7 +145,7 @@ export default function CreatePage() {
                     }}
                     className="w-full font-mono text-[10px] tracking-wider border py-2.5 rounded transition-all duration-200 font-medium"
                   >
-                    Použiť tento archetype →
+                    Vybrať a pokračovať →
                   </button>
                 </div>
               );

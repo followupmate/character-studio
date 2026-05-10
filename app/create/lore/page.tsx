@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
+import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA } from "@/lib/archetypes";
 import { viralLoreHooks } from "@/lib/content-data";
 
@@ -111,6 +112,7 @@ export default function LorePage() {
         </div>
 
         <div className="p-8">
+          <StepProgress current={5} total={8} label="Lore Engine" />
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Lore Engine</p>
           <h2 className="text-2xl font-medium text-white mb-8">
             Príbeh za{" "}
@@ -178,14 +180,16 @@ export default function LorePage() {
           </div>
 
           {/* Bottom actions */}
-          <div className="mt-8 pt-6 border-t border-border flex gap-3">
-            <button onClick={saveLore}
-              className="font-mono text-[11px] bg-teal/10 border border-teal/30 text-teal px-5 py-2.5 rounded hover:bg-teal/20 transition-colors">
-              {saved ? "✓ Uložené" : "Uložiť lore"}
+          <div className="mt-8 pt-6 border-t border-border flex items-center gap-3">
+            <button
+              onClick={() => router.push("/create/prompts")}
+              className="font-mono text-[11px] border border-border2 text-muted2 px-5 py-2.5 rounded hover:text-ink hover:border-border transition-colors"
+            >
+              ← Späť
             </button>
             <button onClick={() => { saveLore(); router.push("/create/content"); }}
               className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 rounded hover:bg-blue-400 transition-colors">
-              Pokračovať → Content Engine
+              Pokračovať →
             </button>
           </div>
         </div>
