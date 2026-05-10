@@ -27,6 +27,7 @@ export default function LaunchPage() {
   const [postingTime, setPostingTime] = useState("10:00");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [launched, setLaunched] = useState(false);
 
   useEffect(() => {
     try {
@@ -47,7 +48,11 @@ export default function LaunchPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Neznáma chyba");
-      router.push("/characters?launched=1");
+      setLaunched(true);
+      localStorage.removeItem("character_dna");
+      localStorage.removeItem("selected_archetype");
+      localStorage.removeItem("create_method");
+      setTimeout(() => router.push("/characters"), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Neznáma chyba");
       setLoading(false);
@@ -84,7 +89,7 @@ export default function LaunchPage() {
         </div>
 
         <div className="p-4 lg:p-8 max-w-2xl">
-          <StepProgress current={8} total={8} label="Spustiť charakter" />
+          <StepProgress current={5} total={5} label="Spustiť charakter" />
 
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Finálny krok</p>
           <h2 className="text-2xl font-medium text-white mb-1">{dna.name}</h2>
@@ -140,6 +145,20 @@ export default function LaunchPage() {
                 <span className="text-ink text-[11px]">{dna.content.pillars.slice(0, 3).join(", ") || "—"}</span>
               </div>
             </div>
+
+            {dna.midjourneyPrompt && (
+              <div className="pt-3 border-t border-border">
+                <span className="font-mono text-[9px] text-muted block mb-1.5">Midjourney prompt</span>
+                <p className="font-mono text-[10px] text-teal leading-relaxed line-clamp-2 break-words">{dna.midjourneyPrompt}</p>
+              </div>
+            )}
+
+            {dna.lore?.backstory && (
+              <div className="pt-3 border-t border-border">
+                <span className="font-mono text-[9px] text-muted block mb-1.5">Lore — backstory</span>
+                <p className="text-[11px] text-muted2 italic leading-relaxed line-clamp-1">{dna.lore.backstory}</p>
+              </div>
+            )}
           </div>
 
           {/* Posting time */}
@@ -157,6 +176,13 @@ export default function LaunchPage() {
               ))}
             </select>
           </div>
+
+          {/* Success banner */}
+          {launched && (
+            <div className="bg-teal/10 border border-teal/30 rounded-md px-4 py-4 mb-4 text-center">
+              <p className="font-mono text-[12px] text-teal font-medium">🎉 {dna.name} je živý! Presmerovávam...</p>
+            </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -177,7 +203,7 @@ export default function LaunchPage() {
           {/* Bottom nav */}
           <div className="flex items-center gap-3 pt-4 border-t border-border">
             <button
-              onClick={() => router.push("/create/social")}
+              onClick={() => router.push("/create/soul")}
               className="font-mono text-[11px] border border-border2 text-muted2 px-5 py-2.5 rounded hover:text-ink hover:border-border transition-colors"
             >
               ← Späť
