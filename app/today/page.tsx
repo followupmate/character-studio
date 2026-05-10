@@ -1,10 +1,8 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Character, StoryDay, Media } from "@/types";
 import Sidebar from "@/components/dashboard/Sidebar";
 import MediaCard from "@/components/dashboard/MediaCard";
+import CharacterSelector from "@/components/today/CharacterSelector";
 
 type TodayStory = StoryDay & {
   chs_media: Media[];
@@ -45,40 +43,36 @@ function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: strin
   );
 }
 
-export default function TodayPage() {
-  const [allStories, setAllStories] = useState<TodayStory[]>([]);
-  const [selectedCharId, setSelectedCharId] = useState<string>("all");
-  const [loading, setLoading] = useState(true);
+export default async function TodayPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ char?: string }>;
+}) {
+  const { char: selectedCharId } = await searchParams;
 
-  useEffect(() => {
-    async function load() {
-      const today = new Date().toISOString().split("T")[0];
-      const { data } = await supabase
-        .from("chs_story_days")
-        .select("*, chs_media(*), chs_characters(*)")
-        .eq("date", today)
-        .order("created_at", { ascending: false });
-      setAllStories((data as TodayStory[]) ?? []);
-      setLoading(false);
-    }
-    load();
-  }, []);
+  const today = new Date().toISOString().split("T")[0];
+  const { data } = await supabase
+    .from("chs_story_days")
+    .select("*, chs_media(*), chs_characters(*)")
+    .eq("date", today)
+    .order("created_at", { ascending: false });
 
-  const today = new Date().toLocaleDateString("sk-SK", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const allStories = (data as TodayStory[]) ?? [];
 
   const characters = Array.from(
     new Map(allStories.map((s) => [s.chs_characters?.id, s.chs_characters])).values()
   ).filter(Boolean) as Character[];
 
-  const stories =
-    selectedCharId === "all"
-      ? allStories
-      : allStories.filter((s) => s.chs_characters?.id === selectedCharId);
+  const stories = selectedCharId
+    ? allStories.filter((s) => s.chs_characters?.id === selectedCharId)
+    : allStories;
+
+  const todayLabel = new Date().toLocaleDateString("sk-SK", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
   return (
     <div className="flex min-h-screen">
@@ -89,18 +83,9 @@ export default function TodayPage() {
           <h1 className="text-white font-medium text-sm tracking-wide">Dnešný deň</h1>
           <div className="flex items-center gap-3">
             {characters.length > 1 && (
-              <select
-                value={selectedCharId}
-                onChange={(e) => setSelectedCharId(e.target.value)}
-                className="bg-bg3 border border-border2 rounded px-2 py-1 font-mono text-[10px] text-ink focus:outline-none focus:border-accent transition-colors"
-              >
-                <option value="all">Všetky</option>
-                {characters.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <CharacterSelector characters={characters} selectedCharId={selectedCharId ?? "all"} />
             )}
-            <span className="font-mono text-[10px] text-muted hidden sm:block">{today}</span>
+            <span className="font-mono text-[10px] text-muted hidden sm:block">{todayLabel}</span>
           </div>
         </div>
 
@@ -111,11 +96,7 @@ export default function TodayPage() {
             Príbehy, médiá a Instagram captions vygenerované dnes.
           </p>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <span className="font-mono text-[11px] text-muted">Načítavam...</span>
-            </div>
-          ) : stories.length === 0 ? (
+          {stories.length === 0 ? (
             <div className="bg-bg2 border border-border border-dashed rounded-md p-12 text-center">
               <div className="text-4xl mb-4">◎</div>
               <p className="text-white font-medium mb-2">Žiadny príbeh dnes</p>
