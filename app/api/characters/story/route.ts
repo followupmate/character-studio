@@ -55,15 +55,16 @@ Personality: ${JSON.stringify(char.personality)}
 Generate today's chapter as valid JSON only. No markdown, no code blocks, just raw JSON.
 
 Required fields:
-- location: string (city + neighborhood, e.g. "Lisabon, Alfama")
-- mood: string (1-3 words, e.g. "Tichá reflexia")
-- narrative: string (2-3 sentences, present tense, intimate first/third person)
+- location: string (city + neighborhood, e.g. "Lisbon, Alfama")
+- mood: string (1-3 words, in English, e.g. "quiet reflection")
+- narrative: string (2-3 sentences, present tense, intimate first/third person, in English)
 - arc_position: one of: opening | rising | peak | turning | falling | quiet
-- next_hint: string (one sentence hint of what comes tomorrow)
-- ig_caption: string (2-3 lines, poetic, authentic, no hashtags)
-- hashtags: array of 10 strings without # symbol
+- next_hint: string (one sentence hint of what comes tomorrow, in English)
+- ig_caption: string (2-3 lines, poetic, authentic, no hashtags — MUST be in English)
+- hashtags: array of 10 strings without # symbol (in English)
 
 Rules:
+- ALL text fields must be written in English
 - narrative should feel like a stolen moment, not a travel blog
 - ig_caption: short, raw, real. No "living my best life" energy.
 - Use 📍 emoji only in ig_caption for location if needed

@@ -36,6 +36,7 @@ export default function MediaCard({ media }: Props) {
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   async function saveUrl() {
     if (!urlInput.trim()) return;
@@ -106,12 +107,19 @@ export default function MediaCard({ media }: Props) {
           <Badge status={media.status} />
         </div>
 
-        {isPhoto && media.media_url && (
+        {isPhoto && media.media_url && !imgError && (
           <img
             src={media.media_url}
             alt="Generated"
             className="w-full rounded border border-border object-cover max-h-48"
+            onError={() => setImgError(true)}
           />
+        )}
+        {isPhoto && media.media_url && imgError && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-bg border border-border rounded">
+            <span className="font-mono text-[8px] bg-teal/10 border border-teal/20 text-teal px-1.5 py-0.5 rounded-sm">✓</span>
+            <span className="font-mono text-[10px] text-muted2">Obrázok nahraný</span>
+          </div>
         )}
 
         {media.media_url && (
