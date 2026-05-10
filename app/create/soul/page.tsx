@@ -50,13 +50,13 @@ export default function SoulPage() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 ml-56">
+      <main className="flex-1 lg:ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border px-8 h-13 flex items-center">
+        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center">
           <h1 className="text-white font-medium text-sm tracking-wide">Soul ID Setup</h1>
         </div>
 
-        <div className="p-8 max-w-4xl">
+        <div className="p-4 lg:p-8 max-w-4xl">
           <StepProgress current={3} total={8} label="Soul ID" />
 
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Visual Identity</p>
