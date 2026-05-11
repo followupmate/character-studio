@@ -165,6 +165,9 @@ export default function MediaCard({ media }: Props) {
       >
         Otvoriť Higgsfield ↗
       </a>
+      <span className="font-mono text-[9px] text-muted">
+        {isPhoto ? "// Higgsfield: aspect_ratio 4:5 → IG Feed" : "// Higgsfield: aspect_ratio 9:16 → Reels / TikTok / Shorts"}
+      </span>
 
       {/* Prompt + copy */}
       <div className="relative">
