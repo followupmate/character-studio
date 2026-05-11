@@ -138,7 +138,7 @@ export default function MediaCard({ media }: Props) {
           disabled={posting}
           className="w-full font-mono text-[10px] bg-accent/10 border border-accent/30 text-accent py-1.5 rounded hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {posting ? "Postuje…" : "Schváliť posting"}
+          {posting ? "Postuje…" : "Označiť ako postnuté"}
         </button>
       </div>
     );
