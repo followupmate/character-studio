@@ -40,6 +40,7 @@ export interface Media {
   higgsfield_prompt: string;
   higgsfield_job_id: string | null;
   media_url: string | null;
+  source_url: string | null;
   thumbnail_url: string | null;
   status: MediaStatus;
   created_at: string;

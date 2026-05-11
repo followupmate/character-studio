@@ -64,6 +64,9 @@ CREATE TABLE IF NOT EXISTS chs_posts (
   created_at       timestamptz DEFAULT now()
 );
 
+-- 4b. Add source_url to media table (stores original Higgsfield URL)
+ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS source_url text;
+
 -- 5. Indexes
 CREATE INDEX IF NOT EXISTS idx_story_days_character ON chs_story_days(character_id);
 CREATE INDEX IF NOT EXISTS idx_story_days_date ON chs_story_days(date);
