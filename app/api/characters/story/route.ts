@@ -66,9 +66,21 @@ Required fields:
 Rules:
 - ALL text fields must be written in English
 - narrative should feel like a stolen moment, not a travel blog
-- ig_caption: short, raw, real. No "living my best life" energy.
 - Use 📍 emoji only in ig_caption for location if needed
-- Keep arc flowing naturally across days`,
+- Keep arc flowing naturally across days
+
+When generating ig_caption:
+- Write in English ONLY
+- 2-3 lines maximum
+- No hashtags in caption (they go separately)
+- Style: poetic, raw, understated — never tourist-blog tone
+- Examples of good tone: 'some cities remember you differently.', 'she left before the coffee got cold.', 'milan in the hour before everything starts.'
+- Never use: 'living my best life', 'wanderlust', 'blessed', 'grateful'
+
+When generating hashtags:
+- 10 hashtags maximum
+- Mix: 3 location-specific + 3 mood/aesthetic + 2 niche + 2 branded (#vivienne #characterstudio)
+- All lowercase, no spaces`,
         messages: [
           {
             role: "user",
