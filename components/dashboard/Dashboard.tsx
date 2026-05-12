@@ -14,16 +14,16 @@ interface Props {
 function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: string[] | null }) {
   return (
     <div className="pt-4 border-t border-border">
-      <p className="font-mono text-[9px] text-muted tracking-wider uppercase mb-3">
+      <p className="font-mono text-[9px] text-muted tracking-[0.15em] uppercase mb-3">
         // Instagram caption
       </p>
       <div className="space-y-2">
         <div className="flex items-start gap-2">
-          <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 rounded-sm flex-shrink-0 mt-0.5">EN</span>
-          <p className="text-xs text-ink italic leading-relaxed">{caption}</p>
+          <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 flex-shrink-0 mt-0.5">EN</span>
+          <p className="text-sm text-ink italic leading-relaxed font-display">{caption}</p>
         </div>
         <div className="flex items-start gap-2">
-          <span className="font-mono text-[8px] bg-border border border-border2 text-muted px-1.5 py-0.5 rounded-sm flex-shrink-0 mt-0.5">SK</span>
+          <span className="font-mono text-[8px] bg-border border border-border2 text-muted px-1.5 py-0.5 flex-shrink-0 mt-0.5">SK</span>
           <p className="text-xs text-muted italic leading-relaxed">(SK preklad bude vygenerovaný)</p>
         </div>
       </div>
@@ -65,23 +65,52 @@ export default function Dashboard({ characters, todayStories }: Props) {
     setTimeout(() => setGenResult(null), 4000);
   }
 
+  const quickActions = [
+    {
+      icon: "auto_awesome",
+      label: "Generuj príbeh",
+      desc: "Nový príbeh pre všetky charaktery",
+      onClick: triggerStory,
+      disabled: isGenerating,
+    },
+    {
+      icon: "add_circle",
+      label: "Nový charakter",
+      desc: "Vytvor nový AI profil",
+      onClick: () => router.push("/create"),
+      disabled: false,
+    },
+    {
+      icon: "open_in_new",
+      label: "Otvoriť Higgsfield",
+      desc: "Generuj foto a video",
+      onClick: () => window.open("https://higgsfield.ai", "_blank"),
+      disabled: false,
+    },
+    {
+      icon: "library_books",
+      label: "Prompt knižnica",
+      desc: "Všetky Higgsfield prompty",
+      onClick: () => router.push("/prompts"),
+      disabled: false,
+    },
+  ];
+
+  // First story for the hero
+  const heroStory = todayStories[0] ?? null;
+  const heroChar = heroStory ? characters.find((c) => c.id === heroStory.character_id) : null;
+  const heroPhoto = heroStory?.chs_media.find((m) => m.type === "photo");
+
   return (
-    <div>
+    <div className="relative">
       {/* Topbar */}
-      <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
-        <h1 className="text-white font-medium text-sm tracking-wide">Dashboard</h1>
+      <div className="sticky top-0 z-40 bg-surface border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
+        <h1 className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted2">Dashboard</h1>
         <div className="flex items-center gap-4">
           <span className="font-mono text-[10px] text-muted flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-teal animate-pulse inline-block" />
             systém aktívny
           </span>
-          <button
-            onClick={triggerStory}
-            disabled={isGenerating}
-            className="text-xs font-medium bg-accent text-white px-3 py-1.5 rounded hover:bg-blue-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isGenerating ? "Generujem..." : "+ Generuj dnes"}
-          </button>
         </div>
       </div>
 
@@ -94,72 +123,129 @@ export default function Dashboard({ characters, todayStories }: Props) {
 
       <div className="p-4 lg:p-8">
         {/* Eyebrow */}
-        <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Prehľad</p>
-        <h2 className="text-2xl font-medium text-white mb-1">Character Studio</h2>
-        <p className="text-sm text-muted2 mb-8">
-          Multi-character AI content platform. Každý charakter má vlastný príbeh a automatický posting.
-        </p>
+        <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-1">// Prehľad</p>
+        <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-6">
+          Character Studio
+        </h2>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border mb-8">
           {[
-            { label: "Charaktery", value: characters.length, sub: `${activeChars.length} aktívnych` },
-            { label: "Dnešné posty", value: postedMedia.length, sub: `z ${totalMedia.length} médií` },
-            { label: "Príbehy dnes", value: todayStories.length, sub: "vygenerovaných" },
-            { label: "Platformy", value: 2, sub: "IG + YouTube" },
+            { label: "Charaktery",    value: characters.length, sub: `${activeChars.length} aktívnych` },
+            { label: "Dnešné posty",  value: postedMedia.length, sub: `z ${totalMedia.length} médií` },
+            { label: "Príbehy dnes",  value: todayStories.length, sub: "vygenerovaných" },
+            { label: "Platformy",     value: 2, sub: "IG + YouTube" },
           ].map((s) => (
-            <div key={s.label} className="bg-bg2 border border-border rounded-md p-5">
-              <div className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">{s.label}</div>
-              <div className="text-3xl font-medium text-white leading-none mb-1">{s.value}</div>
-              <div className="text-[11px] text-muted">{s.sub}</div>
+            <div key={s.label} className="bg-surface p-5">
+              <div className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-2">{s.label}</div>
+              <div className="font-display text-[40px] leading-none text-white mb-1">{s.value}</div>
+              <div className="font-mono text-[10px] text-muted">{s.sub}</div>
             </div>
           ))}
         </div>
 
-        {/* Today's stories */}
-        {todayStories.length > 0 ? (
-          <div className="space-y-4">
-            <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Dnešné príbehy</p>
-            {todayStories.map((story) => {
+        {/* Quick Actions */}
+        <div className="mb-8">
+          <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">// Quick Actions</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
+            {quickActions.map((action) => (
+              <button
+                key={action.label}
+                onClick={action.onClick}
+                disabled={action.disabled}
+                className="bg-surface p-4 flex flex-col gap-3 text-left hover:bg-surface-low border border-transparent hover:border-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <span className="material-symbols-outlined text-[20px] text-muted group-hover:text-accent transition-colors">
+                  {action.icon}
+                </span>
+                <div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.05em] text-ink mb-0.5">
+                    {action.label}
+                  </div>
+                  <div className="font-mono text-[9px] text-muted">{action.desc}</div>
+                </div>
+                <span className="material-symbols-outlined text-[14px] text-muted self-end group-hover:text-accent transition-colors">
+                  arrow_forward
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Today's story hero */}
+        {heroStory && heroChar ? (
+          <div className="mb-8">
+            <p className="font-mono text-[9px] tracking-[0.3em] text-muted uppercase mb-4">
+              // Today&apos;s Story — Day {heroStory.day_number}
+            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-12 border border-border">
+              {/* Left — text */}
+              <div className="lg:col-span-8 border-l-[3px] border-vivienne pl-6 py-6 pr-6">
+                <p className="font-mono text-[9px] text-muted uppercase tracking-[0.15em] mb-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[12px]">location_on</span>
+                  {heroStory.location}
+                  <span className="ml-2 border border-border px-1.5 py-0.5">{heroStory.arc_position.toUpperCase()}</span>
+                </p>
+                <h3 className="font-display italic text-[64px] leading-[1.05] text-white mb-4">
+                  {heroChar.name}
+                </h3>
+                <p className="font-display italic text-[20px] text-muted2 leading-relaxed max-w-2xl">
+                  {heroStory.narrative}
+                </p>
+                {heroStory.ig_caption && (
+                  <CaptionBlock caption={heroStory.ig_caption} hashtags={heroStory.hashtags} />
+                )}
+              </div>
+
+              {/* Right — image */}
+              <div className="lg:col-span-4 border-l border-border relative overflow-hidden" style={{ aspectRatio: "4/5", minHeight: "300px" }}>
+                {heroPhoto?.media_url ? (
+                  <>
+                    <img
+                      src={heroPhoto.media_url}
+                      alt={heroChar.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-bg to-transparent" />
+                  </>
+                ) : (
+                  <div className="w-full h-full bg-surface-low flex items-center justify-center">
+                    <span className="font-mono text-[9px] text-muted uppercase tracking-[0.15em]">No Image</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Additional stories */}
+            {todayStories.slice(1).map((story) => {
               const char = characters.find((c) => c.id === story.character_id);
               const photoMedia = story.chs_media.find((m) => m.type === "photo");
               const videoMedia = story.chs_media.find((m) => m.type === "video");
-
               return (
-                <div key={story.id} className="bg-bg2 border border-border rounded-md overflow-hidden">
-                  {/* Story header */}
-                  <div className="bg-bg3 px-5 py-3 border-b border-border flex items-center justify-between">
+                <div key={story.id} className="mt-4 border border-border">
+                  <div className="bg-surface-low px-5 py-3 border-b border-border flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-white text-sm font-medium">◈ {char?.name ?? "Unknown"}</span>
-                      <span className="font-mono text-[9px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-wider">
+                      <span className="text-white font-mono text-[11px] uppercase tracking-[0.05em]">◈ {char?.name ?? "Unknown"}</span>
+                      <span className="font-mono text-[9px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-[0.1em]">
                         DAY {story.day_number}
                       </span>
                     </div>
                     <span className="font-mono text-[9px] text-muted">{story.arc_position}</span>
                   </div>
-
-                  {/* Story body */}
                   <div className="p-5 space-y-4">
-                    <div className="font-mono text-[10px] text-teal tracking-wider">
+                    <div className="font-mono text-[10px] text-teal tracking-[0.05em]">
                       📍 {story.location} · {story.mood}
                     </div>
-                    <p className="text-sm text-ink italic leading-relaxed border-l-2 border-border2 pl-4">
+                    <p className="font-display italic text-[16px] text-ink leading-relaxed border-l-2 border-border2 pl-4">
                       {story.narrative}
                     </p>
-
-                    {/* Production */}
                     {(photoMedia || videoMedia) && (
-                      <div>
-                        <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-3">
-                          // Production
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          {photoMedia && <MediaCard media={photoMedia} />}
-                          {videoMedia && <MediaCard media={videoMedia} />}
-                        </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {photoMedia && <MediaCard media={photoMedia} />}
+                        {videoMedia && <MediaCard media={videoMedia} />}
                       </div>
                     )}
-
                     {story.ig_caption && (
                       <CaptionBlock caption={story.ig_caption} hashtags={story.hashtags} />
                     )}
@@ -167,66 +253,79 @@ export default function Dashboard({ characters, todayStories }: Props) {
                 </div>
               );
             })}
+
+            {/* Production for hero */}
+            {(heroStory.chs_media.length > 0) && (
+              <div className="mt-4">
+                <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">// Production</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border">
+                  {heroStory.chs_media.map((m) => (
+                    <MediaCard key={m.id} media={m} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="bg-bg2 border border-border border-dashed rounded-md p-12 text-center">
-            <div className="text-4xl mb-4">◎</div>
-            <p className="text-white font-medium mb-2">Žiadny príbeh dnes</p>
-            <p className="text-sm text-muted mb-6">
-              Cron job sa spustí o 6:00 automaticky. Alebo vygeneruj manuálne.
+          <div className="border border-border border-dashed p-12 text-center mb-8">
+            <p className="font-display italic text-[32px] text-muted mb-2">Žiadny príbeh dnes</p>
+            <p className="font-mono text-[10px] text-muted mb-6">
+              Cron job sa spustí o 6:00 UTC. Alebo vygeneruj manuálne.
             </p>
             <button
               onClick={triggerStory}
               disabled={isGenerating}
-              className="text-sm font-medium bg-accent text-white px-5 py-2 rounded hover:bg-blue-400 transition-colors disabled:opacity-60"
+              className="font-mono text-[11px] uppercase tracking-[0.1em] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors disabled:opacity-60"
             >
               {isGenerating ? "Generujem..." : "Generuj teraz"}
             </button>
           </div>
         )}
 
-        {/* Characters quick view */}
-        <div className="mt-8">
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-4">// Charaktery</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Character Library */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase">// Character Library</p>
+            <a href="/characters" className="font-mono text-[9px] uppercase tracking-[0.1em] text-accent hover:text-white transition-colors">
+              View All →
+            </a>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-border">
             {characters.map((char) => (
-              <div key={char.id} className="bg-bg2 border border-border rounded-md p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-white text-sm font-medium">{char.name}</span>
-                  <span className={`w-2 h-2 rounded-full ${char.is_active ? "bg-teal" : "bg-muted"}`} />
-                </div>
-                <div className="space-y-1 mb-1">
+              <div key={char.id} className="char-card bg-surface relative overflow-hidden cursor-pointer group" style={{ aspectRatio: "1/1" }}>
+                <div className="w-full h-full bg-surface-low flex flex-col items-center justify-center p-4">
+                  <div className="absolute top-2 right-2">
+                    <span className={`w-2 h-2 rounded-full inline-block ${char.is_active ? "bg-teal" : "bg-muted"}`} />
+                  </div>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink font-medium mb-1">{char.name}</div>
                   <SoulIdStatus soulId={char.soul_id} characterName={char.name} />
-                  <div className="font-mono text-[9px] text-muted">Posting: {char.posting_time}</div>
-                </div>
-                <div className="flex gap-1.5 mt-3">
-                  {char.platforms.map((p) => (
-                    <span
-                      key={p}
-                      className={`font-mono text-[8px] border px-1.5 py-0.5 rounded-sm ${
-                        p === "instagram"
-                          ? "border-red-500/30 text-red-400"
-                          : p === "youtube"
-                          ? "border-amber/30 text-amber"
-                          : "border-accent/30 text-accent"
-                      }`}
-                    >
-                      {p.toUpperCase().slice(0, 2)}
-                    </span>
-                  ))}
+                  <div className="font-mono text-[9px] text-muted mt-1">
+                    {char.platforms.map((p) => p.slice(0, 2).toUpperCase()).join(" · ")}
+                  </div>
                 </div>
               </div>
             ))}
             <button
               onClick={() => router.push("/create")}
-              className="bg-bg2 border border-border border-dashed rounded-md p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-teal/40 hover:bg-bg3 transition-colors"
+              className="bg-surface border border-border border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-teal/40 hover:bg-surface-low transition-colors p-4"
+              style={{ aspectRatio: "1/1" }}
             >
-              <span className="text-2xl text-muted">+</span>
-              <span className="font-mono text-[9px] text-muted tracking-wider">NOVÝ CHARAKTER</span>
+              <span className="material-symbols-outlined text-[24px] text-muted">add</span>
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">Nový charakter</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* FAB — quick generate */}
+      <button
+        onClick={triggerStory}
+        disabled={isGenerating}
+        className="fixed bottom-6 right-6 z-50 bg-accent text-white px-5 py-3 font-mono text-[10px] uppercase tracking-[0.1em] flex items-center gap-2 hover:bg-blue-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+        {isGenerating ? "Generujem..." : "Quick Generate"}
+      </button>
     </div>
   );
 }

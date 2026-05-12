@@ -9,21 +9,49 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: "#080b0f",
-        bg2: "#0d1117",
-        bg3: "#131920",
-        border: "#1c2430",
-        border2: "#243040",
-        ink: "#d4dce8",
-        muted: "#4a5a6a",
-        muted2: "#7a8a9a",
-        accent: "#4a9eff",
-        teal: "#00d4aa",
-        amber: "#f5a623",
+        // ── core surfaces ──────────────────────────────────────
+        bg:               "#080b0f",
+        bg2:              "#111319",  // surface
+        bg3:              "#191b21",  // surface-low
+        surface:          "#111319",
+        "surface-low":    "#191b21",
+        "surface-mid":    "#1d1f25",
+        "surface-high":   "#282a30",
+        "surface-highest":"#33353b",
+        // ── borders ───────────────────────────────────────────
+        border:           "#1c2430",  // border-subtle
+        border2:          "#414752",  // border-strong
+        "border-subtle":  "#1c2430",
+        "border-strong":  "#414752",
+        // ── text ──────────────────────────────────────────────
+        ink:              "#e2e2ea",  // text-primary
+        muted:            "#8a919e",  // text-dim
+        muted2:           "#c0c7d4",  // text-muted
+        "text-primary":   "#e2e2ea",
+        "text-muted":     "#c0c7d4",
+        "text-dim":       "#8a919e",
+        // ── accents ───────────────────────────────────────────
+        accent:           "#4a9eff",  // accent-blue-container
+        "accent-blue":    "#a4c9ff",
+        teal:             "#41eec2",  // accent-teal
+        amber:            "#ffb955",  // accent-amber
+        "accent-teal":    "#41eec2",
+        "accent-amber":   "#ffb955",
+        vivienne:         "#c8956a",
       },
       fontFamily: {
-        sans: ["var(--font-outfit)", "sans-serif"],
-        mono: ["var(--font-fira)", "monospace"],
+        sans:    ["var(--font-inter)", "sans-serif"],
+        mono:    ["var(--font-jetbrains)", "monospace"],
+        display: ["var(--font-garamond)", "serif"],
+      },
+      borderRadius: {
+        DEFAULT: "0px",
+        sm:  "0px",
+        md:  "0px",
+        lg:  "0px",
+        xl:  "0px",
+        "2xl": "0px",
+        full: "9999px",
       },
     },
   },

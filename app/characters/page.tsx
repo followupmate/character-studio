@@ -13,61 +13,61 @@ async function getCharacters(): Promise<Character[]> {
   return (data as Character[]) ?? [];
 }
 
-const platformStyles: Record<string, string> = {
-  instagram: "border-red-500/30 text-red-400",
-  youtube: "border-amber/30 text-amber",
-  tiktok: "border-accent/30 text-accent",
-};
-
 export default async function CharactersPage() {
   const characters = await getCharacters();
+  const activeCount = characters.filter((c) => c.is_active).length;
 
   return (
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 lg:ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
-          <h1 className="text-white font-medium text-sm tracking-wide">Charaktery</h1>
+        <div className="sticky top-0 z-40 bg-surface border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
+          <h1 className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted2">Charaktery</h1>
           <span className="font-mono text-[10px] text-muted">{characters.length} spolu</span>
         </div>
 
         <div className="p-4 lg:p-8">
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Zoznam</p>
-          <h2 className="text-2xl font-medium text-white mb-1">Charaktery</h2>
-          <p className="text-sm text-muted2 mb-8">
-            Každý charakter má vlastný Soul ID, backstory a automatický posting.
-          </p>
+          {/* Eyebrow + heading */}
+          <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-1">DIRECTORY_001</p>
+          <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-8">
+            Active Personalities
+          </h2>
 
-          <div className="grid grid-cols-3 gap-4">
+          {/* Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border mb-px">
             {characters.map((char) => (
-              <div key={char.id} className="bg-bg2 border border-border rounded-md p-5">
+              <div key={char.id} className="bg-surface p-5 flex flex-col gap-3 hover:bg-surface-low transition-colors">
                 {/* Header */}
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-white font-medium text-sm mb-0.5">{char.name}</div>
+                    <div className="font-mono text-[11px] uppercase tracking-[0.05em] font-medium text-ink mb-0.5">
+                      {char.name}
+                    </div>
                     <div className="font-mono text-[9px] text-muted tracking-wider">/{char.slug}</div>
                   </div>
                   <span
-                    className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${
-                      char.is_active ? "bg-teal" : "bg-muted"
-                    }`}
+                    className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${char.is_active ? "bg-teal" : "bg-muted"}`}
                     title={char.is_active ? "Aktívny" : "Neaktívny"}
                   />
                 </div>
 
                 {/* Soul ID */}
-                <div className="bg-bg3 border border-border rounded px-3 py-2 mb-3">
+                <div className="bg-surface-low border border-border px-3 py-2">
                   <SoulIdStatus soulId={char.soul_id} characterName={char.name} />
                 </div>
 
                 {/* Platforms */}
-                <div className="flex gap-1.5 mb-3">
+                <div className="flex gap-1.5">
                   {char.platforms.map((p) => (
                     <span
                       key={p}
-                      className={`font-mono text-[8px] border px-1.5 py-0.5 rounded-sm ${
-                        platformStyles[p] ?? "border-border2 text-muted2"
+                      className={`font-mono text-[8px] border px-1.5 py-0.5 ${
+                        p === "instagram"
+                          ? "border-red-500/30 text-red-400"
+                          : p === "youtube"
+                          ? "border-amber/30 text-amber"
+                          : "border-accent/30 text-accent"
                       }`}
                     >
                       {p.toUpperCase().slice(0, 2)}
@@ -82,13 +82,29 @@ export default async function CharactersPage() {
               </div>
             ))}
 
-            {/* New character placeholder */}
-            <div className="bg-bg2 border border-border border-dashed rounded-md p-5 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-teal/40 hover:bg-bg3 transition-colors min-h-[160px]">
-              <span className="text-3xl text-muted">+</span>
-              <span className="font-mono text-[9px] text-muted tracking-wider">NOVÝ CHARAKTER</span>
-              <span className="font-mono text-[8px] text-muted/60 text-center leading-relaxed">
-                SQL INSERT do<br />chs_characters
-              </span>
+            {/* New character */}
+            <a
+              href="/create"
+              className="bg-surface border border-border border-dashed flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-teal/40 hover:bg-surface-low transition-colors p-5 min-h-[180px]"
+            >
+              <span className="material-symbols-outlined text-[28px] text-muted">add_circle</span>
+              <div className="text-center">
+                <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">Nový charakter</div>
+                <div className="font-mono text-[8px] text-muted/60 mt-1">→ /create</div>
+              </div>
+            </a>
+          </div>
+
+          {/* Footer stats */}
+          <div className="flex items-center gap-8 border border-border px-5 py-3 bg-surface">
+            <div className="font-mono text-[9px] text-muted">
+              TOTAL_ENTITIES <span className="text-ink ml-2">{characters.length}</span>
+            </div>
+            <div className="font-mono text-[9px] text-muted">
+              ACTIVE <span className="text-teal ml-2">{activeCount}</span>
+            </div>
+            <div className="font-mono text-[9px] text-muted">
+              SYSTEM <span className="text-teal ml-2">ONLINE</span>
             </div>
           </div>
         </div>

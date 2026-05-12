@@ -31,7 +31,7 @@ const emptyDna: CharacterDNA = {
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <label className="block font-mono text-[9px] text-muted uppercase tracking-widest mb-1.5">
+    <label className="block font-mono text-[9px] text-muted uppercase tracking-[0.15em] mb-1.5">
       {children}
     </label>
   );
@@ -52,7 +52,7 @@ function Input({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full bg-bg border border-border2 rounded px-3 py-2 font-mono text-[11px] text-ink placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+      className="form-input-base"
     />
   );
 }
@@ -74,7 +74,7 @@ function Textarea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full bg-bg border border-border2 rounded px-3 py-2 font-mono text-[11px] text-ink placeholder:text-muted focus:outline-none focus:border-accent transition-colors resize-none"
+      className="form-input-base resize-none"
     />
   );
 }
@@ -152,16 +152,14 @@ function Section({
 }) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="bg-bg2 border border-border rounded-md overflow-hidden">
+    <div className="bg-surface border border-border overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-bg3 hover:bg-bg2 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 bg-surface-low hover:bg-surface-mid transition-colors"
       >
-        <span className="font-mono text-[9px] tracking-widest text-muted uppercase">{title}</span>
-        <span className={`text-muted text-xs transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
-          ▾
-        </span>
+        <span className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase">{title}</span>
+        <span className={`text-muted text-xs transition-transform duration-200 ${open ? "rotate-180" : ""}`}>▾</span>
       </button>
       {open && (
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -181,16 +179,14 @@ function FullWidthSection({
 }) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="bg-bg2 border border-border rounded-md overflow-hidden">
+    <div className="bg-surface border border-border overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-bg3 hover:bg-bg2 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 bg-surface-low hover:bg-surface-mid transition-colors"
       >
-        <span className="font-mono text-[9px] tracking-widest text-muted uppercase">{title}</span>
-        <span className={`text-muted text-xs transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
-          ▾
-        </span>
+        <span className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase">{title}</span>
+        <span className={`text-muted text-xs transition-transform duration-200 ${open ? "rotate-180" : ""}`}>▾</span>
       </button>
       {open && <div className="p-5 space-y-4">{children}</div>}
     </div>
@@ -263,13 +259,13 @@ export default function DnaPage() {
       <Sidebar />
       <main className="flex-1 lg:ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
+        <div className="sticky top-0 z-40 bg-surface border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-white font-medium text-sm tracking-wide">
+            <h1 className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted2">
               {dna.name || "Nový charakter"}
             </h1>
             {dna.archetype && (
-              <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-wider">
+              <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-[0.1em]">
                 {dna.archetype.toUpperCase()}
               </span>
             )}
@@ -278,14 +274,14 @@ export default function DnaPage() {
             <button
               type="button"
               onClick={saveDna}
-              className="font-mono text-[10px] bg-teal/10 border border-teal/30 text-teal px-4 py-1.5 rounded hover:bg-teal/20 transition-colors"
+              className="font-mono text-[10px] uppercase tracking-[0.05em] bg-teal/10 border border-teal/30 text-teal px-4 py-1.5 hover:bg-teal/20 transition-colors"
             >
               {saved ? "✓ Uložené" : "Uložiť DNA"}
             </button>
             <button
               type="button"
               onClick={() => { saveDna(); router.push("/create/midjourney"); }}
-              className="font-mono text-[10px] bg-accent text-white px-4 py-1.5 rounded hover:bg-blue-400 transition-colors"
+              className="font-mono text-[10px] uppercase tracking-[0.05em] bg-accent text-white px-4 py-1.5 hover:bg-blue-400 transition-colors"
             >
               Uložiť a pokračovať →
             </button>
@@ -295,31 +291,31 @@ export default function DnaPage() {
         <div className="p-4 lg:p-8 max-w-4xl space-y-5">
           <div>
             <StepProgress current={2} total={5} label="DNA Review" />
-            <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">
+            <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-2">
               // Character DNA
             </p>
-            <h2 className="text-2xl font-medium text-white mb-1">
+            <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-1">
               {dna.name || "Nový charakter"}
             </h2>
-            <p className="text-sm text-muted2">
+            <p className="font-mono text-[10px] text-muted2">
               Vyplň DNA profil. Všetky polia sa použijú na generovanie promptov a obsahu.
             </p>
           </div>
 
           {/* Create method banner */}
           {createMethod === "ai" && (
-            <div className="bg-teal/5 border border-teal/20 rounded-md px-4 py-3 font-mono text-[11px] text-teal">
+            <div className="bg-teal/5 border border-teal/20 px-4 py-3 font-mono text-[11px] text-teal">
               ✓ AI vygeneroval tvoj charakter. Skontroluj a uprav podľa potreby.
             </div>
           )}
           {createMethod === "preset" && (
-            <div className="bg-accent/5 border border-accent/20 rounded-md px-4 py-3 font-mono text-[11px] text-accent">
+            <div className="bg-accent/5 border border-accent/20 px-4 py-3 font-mono text-[11px] text-accent">
               Preset načítaný. Uprav podľa potreby.
             </div>
           )}
 
           {/* Name + archetype (top-level) */}
-          <div className="bg-bg2 border border-border rounded-md p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-surface border border-border p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field
               label="Character name"
               value={dna.name}
@@ -471,7 +467,7 @@ export default function DnaPage() {
                       key={p}
                       type="button"
                       onClick={() => togglePlatform(p)}
-                      className={`font-mono text-[10px] border px-3 py-1.5 rounded transition-colors ${
+                      className={`font-mono text-[10px] uppercase tracking-[0.05em] border px-3 py-1.5 transition-colors ${
                         active
                           ? "bg-accent/10 border-accent/40 text-accent"
                           : "border-border2 text-muted2 hover:border-border hover:text-ink"
@@ -532,7 +528,7 @@ export default function DnaPage() {
                 max={1000}
                 value={dna.promptSettings.stylize}
                 onChange={(e) => setPrompt("stylize", Number(e.target.value))}
-                className="w-full bg-bg border border-border2 rounded px-3 py-2 font-mono text-[11px] text-ink focus:outline-none focus:border-accent transition-colors"
+                className="form-input-base"
               />
             </div>
             <Field
@@ -596,14 +592,14 @@ export default function DnaPage() {
             <button
               type="button"
               onClick={() => router.push("/create")}
-              className="font-mono text-[11px] border border-border2 text-muted2 px-5 py-2.5 rounded hover:text-ink hover:border-border transition-colors"
+              className="font-mono text-[11px] uppercase tracking-[0.05em] border border-border2 text-muted2 px-5 py-2.5 hover:text-ink hover:border-border transition-colors"
             >
               ← Späť
             </button>
             <button
               type="button"
               onClick={() => { saveDna(); router.push("/create/midjourney"); }}
-              className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 rounded hover:bg-blue-400 transition-colors"
+              className="font-mono text-[11px] uppercase tracking-[0.05em] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors"
             >
               Uložiť a pokračovať →
             </button>
