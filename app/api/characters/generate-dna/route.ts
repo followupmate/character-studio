@@ -2,7 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
+
+async function callWithRetry(concept: string, retries = 3): Promise<string> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const msg = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 8192,
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: `Create a complete AI influencer character based on this concept: "${concept}"`,
+          },
+        ],
+      });
+      return msg.content[0].type === "text" ? msg.content[0].text : "";
+    } catch (err: any) {
+      const status = err?.status ?? err?.error?.status;
+      const isOverloaded = status === 529 || err?.message?.includes("overloaded");
+      if (isOverloaded && attempt < retries) {
+        const delay = attempt * 8000; // 8s, 16s
+        console.warn(`[generate-dna] Overloaded, retry ${attempt}/${retries} in ${delay}ms`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
 
 const SYSTEM_PROMPT = `You are a creative director for AI influencer characters.
 Generate a complete character DNA profile from a concept description.
@@ -74,19 +104,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing concept" }, { status: 400 });
     }
 
-    const msg = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Create a complete AI influencer character based on this concept: "${concept}"`,
-        },
-      ],
-    });
-
-    const raw = msg.content[0].type === "text" ? msg.content[0].text : "";
+    const raw = await callWithRetry(concept);
     const cleaned = raw
       .replace(/^```json\s*/i, "")
       .replace(/^```\s*/i, "")

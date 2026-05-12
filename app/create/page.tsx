@@ -42,7 +42,13 @@ export default function CreatePage() {
         body: JSON.stringify({ concept }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Generovanie zlyhalo");
+      if (!res.ok) {
+        const msg = data.error ?? "Generovanie zlyhalo";
+        const friendly = msg.toLowerCase().includes("overload")
+          ? "API je momentálne preťažené. Skús znova o chvíľu."
+          : msg;
+        throw new Error(friendly);
+      }
       localStorage.setItem("character_dna", JSON.stringify(data.dna));
       localStorage.removeItem("selected_archetype");
       localStorage.setItem("create_method", "ai");
@@ -63,10 +69,10 @@ export default function CreatePage() {
         </div>
 
         <div className="p-4 lg:p-8 max-w-5xl">
-          <StepProgress current={1} total={5} label="Štart" />
+          <StepProgress current={1} total={6} label="Štart" />
 
           <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">
-            // Krok 1 z 5 — Štart
+            // Krok 1 z 6 — Štart
           </p>
           <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-2">
             Kto bude tvoj influencer?
