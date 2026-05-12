@@ -33,6 +33,7 @@ export default function MediaCard({ media }: { media: Media }) {
   const [urlInput, setUrlInput] = useState(media.media_url ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [posting, setPosting] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -40,14 +41,22 @@ export default function MediaCard({ media }: { media: Media }) {
   async function saveUrl() {
     if (!urlInput.trim()) return;
     setSaving(true);
-    await fetch("/api/characters/save-media-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mediaId: media.id, url: urlInput.trim() }),
-    });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => window.location.reload(), 600);
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/characters/save-media-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId: media.id, url: urlInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Chyba ${res.status}`);
+      setSaved(true);
+      setTimeout(() => window.location.reload(), 600);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Chyba pri ukladaní");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function copyPrompt() {
@@ -185,22 +194,27 @@ export default function MediaCard({ media }: { media: Media }) {
       </div>
 
       {/* URL input */}
-      <div className="flex gap-2">
-        <input
-          type="url"
-          value={urlInput}
-          onChange={(e) => setUrlInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && saveUrl()}
-          placeholder="Vlož URL z Higgsfield..."
-          className="form-input-base flex-1 min-w-0"
-        />
-        <button
-          onClick={saveUrl}
-          disabled={saving || !urlInput.trim()}
-          className="flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.05em] bg-teal/10 border border-teal/30 text-teal px-3 py-1.5 hover:bg-teal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saved ? "✓" : saving ? "Ukladám…" : "Uložiť"}
-        </button>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex gap-2">
+          <input
+            type="url"
+            value={urlInput}
+            onChange={(e) => { setUrlInput(e.target.value); setSaveError(null); }}
+            onKeyDown={(e) => e.key === "Enter" && saveUrl()}
+            placeholder="Vlož URL z Higgsfield..."
+            className="form-input-base flex-1 min-w-0"
+          />
+          <button
+            onClick={saveUrl}
+            disabled={saving || !urlInput.trim()}
+            className="flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.05em] bg-teal/10 border border-teal/30 text-teal px-3 py-1.5 hover:bg-teal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saved ? "✓" : saving ? "Ukladám…" : "Uložiť"}
+          </button>
+        </div>
+        {saveError && (
+          <p className="font-mono text-[9px] text-red-400">{saveError}</p>
+        )}
       </div>
     </div>
   );
