@@ -290,7 +290,7 @@ export default function DnaPage() {
 
         <div className="p-4 lg:p-8 max-w-4xl space-y-5">
           <div>
-            <StepProgress current={2} total={5} label="DNA Review" />
+            <StepProgress current={2} total={6} label="DNA Review" />
             <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-2">
               // Character DNA
             </p>
