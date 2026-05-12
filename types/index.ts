@@ -9,6 +9,7 @@ export interface Character {
   name: string;
   slug: string;
   soul_id: string | null;
+  photo_url: string | null;
   visual_brief: string;
   backstory: string;
   personality: Record<string, string>;
