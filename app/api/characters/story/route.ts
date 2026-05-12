@@ -44,7 +44,7 @@ export async function GET() {
 
       // Generate story with Claude
       const msg = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 1200,
         system: `You are the story director for ${char.name}.
 
@@ -128,15 +128,19 @@ When generating hashtags:
 
       if (storyError) throw storyError;
 
-      // Trigger prompt generation
-      await fetch(`${process.env.APP_URL}/api/characters/prompts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storyDayId: storyDay.id,
-          characterId: char.id,
-        }),
-      });
+      // Trigger prompt generation (non-fatal — prompts can be regenerated separately)
+      try {
+        const appUrl = process.env.APP_URL ?? process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : "http://localhost:3000";
+        await fetch(`${appUrl}/api/characters/prompts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ storyDayId: storyDay.id, characterId: char.id }),
+        });
+      } catch (promptErr) {
+        console.warn("[story] prompt generation skipped:", promptErr);
+      }
 
       results.push({
         character: char.name,

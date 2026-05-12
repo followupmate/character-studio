@@ -5,10 +5,11 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const nav = [
-  { label: "Dashboard",   href: "/",           icon: "dashboard" },
-  { label: "Charaktery",  href: "/characters",  icon: "person" },
-  { label: "Dnešný deň", href: "/today",        icon: "today" },
-  { label: "História",    href: "/history",     icon: "history" },
+  { label: "Dashboard",       href: "/",           icon: "dashboard" },
+  { label: "Charaktery",      href: "/characters",  icon: "person" },
+  { label: "Dnešný deň",     href: "/today",        icon: "today" },
+  { label: "Prompt Knižnica", href: "/prompts",     icon: "library_books" },
+  { label: "História",        href: "/history",     icon: "history" },
 ];
 
 const createSteps = [
