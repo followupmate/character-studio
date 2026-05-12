@@ -43,6 +43,31 @@ export default function Dashboard({ characters, todayStories }: Props) {
   const postedMedia = totalMedia.filter((m) => m.status === "posted");
   const [isGenerating, setIsGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  async function deleteCharacter(characterId: string) {
+    setDeletingId(characterId);
+    setConfirmDeleteId(null);
+    try {
+      const res = await fetch("/api/characters/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterId }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setGenResult({ ok: false, msg: data.error ?? "Chyba pri mazaní" });
+        setTimeout(() => setGenResult(null), 4000);
+      }
+    } catch {
+      setGenResult({ ok: false, msg: "Sieťová chyba" });
+      setTimeout(() => setGenResult(null), 4000);
+    }
+    setDeletingId(null);
+  }
 
   async function triggerStory() {
     setIsGenerating(true);
@@ -253,15 +278,47 @@ export default function Dashboard({ characters, todayStories }: Props) {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-border">
             {characters.map((char) => (
-              <div key={char.id} className="char-card bg-surface relative overflow-hidden cursor-pointer group" style={{ aspectRatio: "1/1" }}>
+              <div key={char.id} className="char-card bg-surface relative overflow-hidden group" style={{ aspectRatio: "1/1" }}>
                 <div className="w-full h-full bg-surface-low flex flex-col items-center justify-center p-4">
-                  <div className="absolute top-2 right-2">
+                  <div className="absolute top-2 right-2 flex items-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full inline-block ${char.is_active ? "bg-teal" : "bg-muted"}`} />
                   </div>
                   <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink font-medium mb-1">{char.name}</div>
                   <SoulIdStatus soulId={char.soul_id} characterName={char.name} />
                   <div className="font-mono text-[9px] text-muted mt-1">
                     {char.platforms.map((p) => p.slice(0, 2).toUpperCase()).join(" · ")}
+                  </div>
+
+                  {/* Delete controls — visible on hover */}
+                  <div className="absolute bottom-0 left-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {confirmDeleteId === char.id ? (
+                      <div className="bg-[#1a0a0a] border-t border-red-500/30 px-3 py-2 flex items-center justify-between gap-2">
+                        <span className="font-mono text-[9px] text-red-400">Vymazať?</span>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="font-mono text-[8px] uppercase tracking-[0.05em] border border-border px-2 py-0.5 text-muted hover:text-ink transition-colors"
+                          >
+                            Nie
+                          </button>
+                          <button
+                            onClick={() => deleteCharacter(char.id)}
+                            disabled={deletingId === char.id}
+                            className="font-mono text-[8px] uppercase tracking-[0.05em] border border-red-500/40 px-2 py-0.5 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                          >
+                            {deletingId === char.id ? "..." : "Áno"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(char.id)}
+                        className="w-full bg-[#0d0d10] border-t border-border px-3 py-1.5 font-mono text-[8px] uppercase tracking-[0.08em] text-muted hover:text-red-400 hover:border-red-500/30 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[11px]">delete</span>
+                        Vymazať
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
