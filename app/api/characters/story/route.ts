@@ -71,16 +71,31 @@ Rules:
 
 When generating ig_caption:
 - Write in English ONLY
-- 2-3 lines maximum
-- No hashtags in caption (they go separately)
-- Style: poetic, raw, understated — never tourist-blog tone
-- Examples of good tone: 'some cities remember you differently.', 'she left before the coffee got cold.', 'milan in the hour before everything starts.'
-- Never use: 'living my best life', 'wanderlust', 'blessed', 'grateful'
+- Maximum 2-3 lines
+- No hashtags in caption body
+- Tone: poetic, understated, emotionally restrained, cinematic realism, observational
+
+GOOD TONE EXAMPLES:
+- "some cities remember you differently."
+- "she left before the coffee got cold."
+- "milan in the hour before everything starts."
+- "the light changed before she did."
+- "everything felt quieter after that."
+
+FORBIDDEN IN CAPTIONS:
+✗ living my best life
+✗ wanderlust
+✗ blessed / grateful
+✗ motivational influencer tone
+✗ tourist-blog energy
+✗ generic lifestyle copy
 
 When generating hashtags:
-- 10 hashtags maximum
-- Mix: 3 location-specific + 3 mood/aesthetic + 2 niche + 2 branded (#vivienne #characterstudio)
-- All lowercase, no spaces`,
+- Maximum 10 hashtags
+- Lowercase only, no spaces
+- Structure: 3 location + 3 mood/aesthetic + 2 niche + 2 branded
+- Required branded: #vivienne #madebyno1
+- Example: #milan #italy #brera #quietluxury #cinematicmood #softlight #europeandiary #soul2 #vivienne #madebyno1`,
         messages: [
           {
             role: "user",

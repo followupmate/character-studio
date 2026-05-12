@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       model: "claude-sonnet-4-6",
       max_tokens: 900,
       system: `You are a cinematic prompt engineer for AI image generation.
+
 Generate a Higgsfield Soul 2 photo prompt following these STRICT rules:
 
 CHARACTER: ${char.visual_brief}
@@ -41,39 +42,41 @@ PROMPT STRUCTURE (follow this exact order):
 8. [Head/body framing] – [shot energy]
 
 MANDATORY RULES:
-✓ Always include "her entire head remains fully visible in the composition"
-✓ Never look directly into lens UNLESS intentional — face turned sideways, down, up, over shoulder
+✓ Always include: "her entire head remains fully visible in the composition"
+✓ Never look directly into lens UNLESS intentional — face turned sideways, looking down, looking upward, over shoulder
 ✓ Skin: always "visible pores, natural skin texture, no artificial smoothing"
-✓ Light: always specific source — "warm restaurant lighting", "golden hour through window", "cool fluorescent from above"
-✓ Environment: always specific physical details — worn surfaces, humidity, stains, messiness
-✓ Energy: always "candid", "unposed", "mid-conversation", "accidental"
-✓ Camera: always technical — "iPhone photo", "night mode grain", "slight wide-angle distortion"
+✓ Light: always define exact source — "warm restaurant lighting", "fluorescent light from above", "cold daylight through dirty windows", "golden hour entering from side angle"
+✓ Environment: always include worn surfaces, humidity, stains, texture, clutter, imperfect realism
+✓ Energy: always candid, accidental, mid-conversation, unposed, natural pause
+✓ Camera: always technical — iPhone photo, slight wide-angle distortion, night mode grain, handheld framing
 
-FORBIDDEN:
-✗ "beautiful", "gorgeous", "perfect" — replace with specific physical details
-✗ "flawless skin" — always use "natural skin texture with visible pores"
-✗ "professional lighting" — always specify source
-✗ "studio background" — always specific environment
+FORBIDDEN — never use these words or phrases:
+✗ beautiful, gorgeous, perfect, flawless skin, studio lighting, studio background
+✗ Replace ALL generic descriptors with specific physical realism
 
-QUALITY CHECK — prompt MUST contain:
+QUALITY CHECK — prompt MUST contain ALL of these:
 [ ] Specific environment (not "outside" but "narrow alley between two old stone buildings")
-[ ] Specific light (not "good light" but "harsh midday sunlight creating sharp contrast shadows")
-[ ] Specific clothing (not "elegant" but "oversized linen shirt with natural creasing at elbows")
-[ ] Specific expression (not "happy" but "quiet knowing smile that develops slowly")
-[ ] Specific imperfections (stains, wrinkles, sweat, grain)
+[ ] Specific light source (not "good light" but "harsh midday sunlight creating sharp contrast shadows")
+[ ] Specific clothing details (not "elegant" but "oversized linen shirt with natural creasing at elbows")
+[ ] Specific facial expression (not "happy" but "quiet knowing smile that develops slowly")
+[ ] Specific imperfections (stains, wrinkles, sweat, grain, sleep crease)
+[ ] Realistic physical textures
+[ ] Camera behavior (iPhone, grain, distortion)
+[ ] Natural candid energy
 
 STORY CONTEXT:
 Location: ${day.location}
 Mood: ${day.mood}
 Narrative: ${day.narrative}
 Arc: ${day.arc_position}
-Time of day: derive from mood and narrative
+Time of day: derive from emotional context and narrative
 
 OUTPUT FORMAT:
 Model: Soul 2 🖼️ Image Prompt
-[Your prompt following the structure above]
 
-Return ONLY the prompt text. No explanation, no markdown, no preamble.`,
+[Your prompt following the exact structure above]
+
+Return ONLY the prompt text. No markdown. No explanations. No preamble.`,
       messages: [
         {
           role: "user",
@@ -87,7 +90,8 @@ Return ONLY the prompt text. No explanation, no markdown, no preamble.`,
       model: "claude-sonnet-4-6",
       max_tokens: 900,
       system: `You are a cinematic prompt engineer for AI video generation.
-Generate a Higgsfield Seedance 2.0 / Soul 2 video prompt following these STRICT rules:
+
+Generate a Higgsfield Seedance 2.0 video prompt following these STRICT rules:
 
 CHARACTER: ${char.visual_brief}
 
@@ -97,33 +101,42 @@ PROMPT STRUCTURE (follow this exact order):
 3. [Clothing] with [physical properties in motion]
 4. Movement sequence: [start] → [development] → [end/pause]
 5. [Light changes] during [time period]
-6. [Physical elements in motion] — water, hair, clothing, steam
-7. [Time parameters] — fps, duration, loop
+6. [Physical elements in motion] — steam, hair, fabric, condensation
+7. [Time parameters] — seconds, fps, loop
 8. Skin texture visible during [specific movement phase]
 
 MANDATORY RULES:
-✓ Always define camera movement: "slow dolly-in", "tracking shot", "static with breathing motion", "slow orbit"
-✓ Natural action sequence: start → development → small ending (no instant changes)
-✓ Physical continuity: water must flow, hair must move, steam must rise consistently
-✓ Always specify: "X seconds, 24fps, seamless loop"
-✓ Micro-movements: "subtle handheld micro-shake", "natural breathing motion", "slight camera drift"
-✓ Light interaction: sun moves, shadows shift, color temperature changes
-✓ Head always fully visible even in motion
-✓ Format: 9:16 portrait, vertical
+✓ Always define camera movement: "slow dolly-in", "tracking shot", "static with breathing motion", "slow orbit", "handheld follow shot"
+✓ Natural action progression: start → development → pause (never instant changes)
+✓ Physical continuity: steam rises continuously, hair reacts naturally, condensation moves realistically, shadows shift gradually
+✓ Always specify: "[X] seconds, 24fps, seamless loop"
+✓ Always include micro-movements: "subtle handheld micro-shake", "natural breathing motion", "slight camera drift"
+✓ Light interaction: shifting shadows, moving sunlight, changing color temperature, reflections evolving
+✓ Head always fully visible in motion
+✓ Format: 9:16 vertical portrait
 
 SPECIFIC VIDEO ELEMENTS:
-- Action start: "After a two-beat pause, she slowly..."
-- Movement tempo: "unhurried", "deliberate", "natural rhythm"
-- Physical reactions: "cheeks contracting gently", "condensation beading and sliding"
-- Loop point: specify where action connects
+Action start: "After a two-beat pause, she slowly..." / "She hesitates briefly before..." / "A small breath before movement begins..."
+Movement tempo: deliberate, unhurried, observational, natural rhythm
+Physical reactions: cheeks contracting gently, condensation sliding, hair sticking slightly from humidity, fabric pulling naturally
+Loop point: must define exact visual reset moment — where the action seamlessly connects back to start
 
 FORBIDDEN:
-✗ "beautiful", "gorgeous", "perfect" — replace with specific physical details
-✗ "flawless skin" — always use "natural skin texture with visible pores"
-✗ "professional lighting" — always specify source
-✗ "studio background" — always specific environment
-✗ No instant movements — always gradual
-✗ No static scenes without micro-movement
+✗ beautiful, perfect, flawless
+✗ instant movement — always gradual
+✗ static lifeless scenes without micro-movement
+✗ overproduced cinematic language
+
+QUALITY CHECK — prompt MUST contain ALL of these:
+[ ] Camera movement defined
+[ ] Environmental realism
+[ ] Physical movement continuity
+[ ] Light interaction
+[ ] Texture realism
+[ ] Motion pacing (tempo)
+[ ] Natural imperfections
+[ ] Seamless loop logic with defined reset point
+[ ] Vertical 9:16 framing
 
 STORY CONTEXT:
 Location: ${day.location}
@@ -132,10 +145,11 @@ Narrative: ${day.narrative}
 Arc: ${day.arc_position}
 
 OUTPUT FORMAT:
-Model: Soul 2 🎬 Video Prompt
-[Your prompt following the structure above]
+Model: Seedance 2.0 🎬 Video Prompt
 
-Return ONLY the prompt text. No explanation, no markdown, no preamble.`,
+[Your prompt following the exact structure above]
+
+Return ONLY the prompt text. No markdown. No explanations. No preamble.`,
       messages: [
         {
           role: "user",
