@@ -96,11 +96,6 @@ export default function Dashboard({ characters, todayStories }: Props) {
     },
   ];
 
-  // First story for the hero
-  const heroStory = todayStories[0] ?? null;
-  const heroChar = heroStory ? characters.find((c) => c.id === heroStory.character_id) : null;
-  const heroPhoto = heroStory?.chs_media.find((m) => m.type === "photo");
-
   return (
     <div className="relative">
       {/* Topbar */}
@@ -172,99 +167,65 @@ export default function Dashboard({ characters, todayStories }: Props) {
           </div>
         </div>
 
-        {/* Today's story hero */}
-        {heroStory && heroChar ? (
-          <div className="mb-8">
-            <p className="font-mono text-[9px] tracking-[0.3em] text-muted uppercase mb-4">
-              // Today&apos;s Story — Day {heroStory.day_number}
-            </p>
-            <div className="grid grid-cols-1 lg:grid-cols-12 border border-border">
-              {/* Left — text */}
-              <div className="lg:col-span-8 border-l-[3px] border-vivienne pl-6 py-6 pr-6">
-                <p className="font-mono text-[9px] text-muted uppercase tracking-[0.15em] mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[12px]">location_on</span>
-                  {heroStory.location}
-                  <span className="ml-2 border border-border px-1.5 py-0.5">{heroStory.arc_position.toUpperCase()}</span>
-                </p>
-                <h3 className="font-display italic text-[64px] leading-[1.05] text-white mb-4">
-                  {heroChar.name}
-                </h3>
-                <p className="font-display italic text-[20px] text-muted2 leading-relaxed max-w-2xl">
-                  {heroStory.narrative}
-                </p>
-                {heroStory.ig_caption && (
-                  <CaptionBlock caption={heroStory.ig_caption} hashtags={heroStory.hashtags} />
-                )}
-              </div>
-
-              {/* Right — image */}
-              <div className="lg:col-span-4 border-l border-border relative overflow-hidden" style={{ aspectRatio: "4/5", minHeight: "300px" }}>
-                {heroPhoto?.media_url ? (
-                  <>
-                    <img
-                      src={heroPhoto.media_url}
-                      alt={heroChar.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
-                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-bg to-transparent" />
-                  </>
-                ) : (
-                  <div className="w-full h-full bg-surface-low flex items-center justify-center">
-                    <span className="font-mono text-[9px] text-muted uppercase tracking-[0.15em]">No Image</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Additional stories */}
-            {todayStories.slice(1).map((story) => {
+        {/* Today's stories — one self-contained card per character */}
+        {todayStories.length > 0 ? (
+          <div className="mb-8 space-y-px">
+            <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">// Dnešné príbehy</p>
+            {todayStories.map((story) => {
               const char = characters.find((c) => c.id === story.character_id);
               const photoMedia = story.chs_media.find((m) => m.type === "photo");
               const videoMedia = story.chs_media.find((m) => m.type === "video");
               return (
-                <div key={story.id} className="mt-4 border border-border">
-                  <div className="bg-surface-low px-5 py-3 border-b border-border flex items-center justify-between">
+                <div key={story.id} className="border border-border">
+                  {/* Story header */}
+                  <div className="bg-surface-low px-5 py-3 border-b border-border flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-3">
-                      <span className="text-white font-mono text-[11px] uppercase tracking-[0.05em]">◈ {char?.name ?? "Unknown"}</span>
+                      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink font-medium">
+                        {char?.name ?? "Unknown"}
+                      </span>
                       <span className="font-mono text-[9px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-[0.1em]">
                         DAY {story.day_number}
                       </span>
+                      <span className="font-mono text-[9px] text-muted hidden sm:inline">
+                        <span className="material-symbols-outlined text-[11px] align-middle mr-0.5">location_on</span>
+                        {story.location}
+                      </span>
                     </div>
-                    <span className="font-mono text-[9px] text-muted">{story.arc_position}</span>
+                    <span className="font-mono text-[9px] border border-border px-2 py-0.5 text-muted uppercase tracking-[0.1em]">
+                      {story.arc_position}
+                    </span>
                   </div>
-                  <div className="p-5 space-y-4">
-                    <div className="font-mono text-[10px] text-teal tracking-[0.05em]">
-                      📍 {story.location} · {story.mood}
+
+                  {/* Story body */}
+                  <div className="p-5 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6">
+                    {/* Left: narrative + caption */}
+                    <div className="space-y-4 border-l-2 border-vivienne pl-5">
+                      <p className="font-mono text-[9px] text-muted uppercase tracking-[0.1em] sm:hidden">
+                        📍 {story.location} · {story.mood}
+                      </p>
+                      <p className="font-mono text-[9px] text-muted uppercase tracking-[0.1em] hidden sm:block">
+                        {story.mood}
+                      </p>
+                      <p className="font-display italic text-[18px] leading-relaxed text-ink">
+                        {story.narrative}
+                      </p>
+                      {story.ig_caption && (
+                        <CaptionBlock caption={story.ig_caption} hashtags={story.hashtags} />
+                      )}
                     </div>
-                    <p className="font-display italic text-[16px] text-ink leading-relaxed border-l-2 border-border2 pl-4">
-                      {story.narrative}
-                    </p>
+
+                    {/* Right: production media */}
                     {(photoMedia || videoMedia) && (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-px lg:w-64 xl:w-72">
+                        <p className="font-mono text-[9px] text-muted uppercase tracking-[0.1em] mb-2">// Production</p>
                         {photoMedia && <MediaCard media={photoMedia} />}
                         {videoMedia && <MediaCard media={videoMedia} />}
                       </div>
-                    )}
-                    {story.ig_caption && (
-                      <CaptionBlock caption={story.ig_caption} hashtags={story.hashtags} />
                     )}
                   </div>
                 </div>
               );
             })}
-
-            {/* Production for hero */}
-            {(heroStory.chs_media.length > 0) && (
-              <div className="mt-4">
-                <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">// Production</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border">
-                  {heroStory.chs_media.map((m) => (
-                    <MediaCard key={m.id} media={m} />
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <div className="border border-border border-dashed p-12 text-center mb-8">
