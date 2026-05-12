@@ -113,15 +113,31 @@ function CharCard({
   setConfirmDeleteId: (id: string | null) => void;
   onDelete: (id: string) => void;
 }) {
+  const effectivePhoto = char.photo_url ?? photoUrl;
   const [imgErr, setImgErr] = useState(false);
+  const [editingPhoto, setEditingPhoto] = useState(false);
+  const [photoInput, setPhotoInput] = useState(char.photo_url ?? "");
+  const [savingPhoto, setSavingPhoto] = useState(false);
+
+  async function savePhoto() {
+    setSavingPhoto(true);
+    await fetch("/api/characters/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ characterId: char.id, photo_url: photoInput.trim() || null }),
+    });
+    setSavingPhoto(false);
+    setEditingPhoto(false);
+    window.location.reload();
+  }
 
   return (
     <div className="bg-surface border border-border hover:border-border2 transition-colors flex flex-col group">
       {/* Portrait */}
       <div className="relative overflow-hidden bg-surface-low" style={{ aspectRatio: "3/4" }}>
-        {photoUrl && !imgErr ? (
+        {effectivePhoto && !imgErr ? (
           <img
-            src={photoUrl}
+            src={effectivePhoto}
             alt={char.name}
             className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105"
             onError={() => setImgErr(true)}
@@ -131,6 +147,13 @@ function CharCard({
             <span className="material-symbols-outlined text-[48px] text-muted/30">person</span>
           </div>
         )}
+        <button
+          onClick={() => { setEditingPhoto(true); setImgErr(false); }}
+          className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity bg-surface/80 border border-border p-1 hover:border-accent hover:text-accent text-muted"
+          title="Zmeniť foto"
+        >
+          <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+        </button>
         <div className="absolute top-2.5 left-2.5">
           <span className={`font-mono text-[8px] tracking-[0.1em] px-2 py-0.5 border flex items-center gap-1.5 ${
             char.is_active
@@ -142,6 +165,33 @@ function CharCard({
           </span>
         </div>
       </div>
+
+      {/* Photo URL edit */}
+      {editingPhoto && (
+        <div className="p-3 bg-surface-low border-b border-border flex flex-col gap-2">
+          <p className="font-mono text-[8px] text-muted uppercase tracking-[0.1em]">URL fotky</p>
+          <input
+            type="url"
+            value={photoInput}
+            onChange={(e) => setPhotoInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && savePhoto()}
+            placeholder="https://..."
+            className="form-input-base w-full text-[10px]"
+            autoFocus
+          />
+          <div className="flex gap-1.5">
+            <button
+              onClick={savePhoto}
+              disabled={savingPhoto}
+              className="flex-1 font-mono text-[8px] uppercase tracking-[0.05em] bg-accent/10 border border-accent/30 text-accent py-1 hover:bg-accent/20 transition-colors disabled:opacity-50"
+            >{savingPhoto ? "Ukladám..." : "Uložiť"}</button>
+            <button
+              onClick={() => setEditingPhoto(false)}
+              className="font-mono text-[8px] uppercase tracking-[0.05em] border border-border text-muted px-3 py-1 hover:text-ink transition-colors"
+            >Zrušiť</button>
+          </div>
+        </div>
+      )}
 
       {/* Info */}
       <div className="p-4 flex flex-col gap-3 flex-1">

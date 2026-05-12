@@ -13,11 +13,12 @@ const nav = [
 ];
 
 const createSteps = [
-  { step: 1, label: "Štart",      href: "/create" },
-  { step: 2, label: "DNA Review", href: "/create/dna" },
-  { step: 3, label: "Midjourney", href: "/create/midjourney" },
-  { step: 4, label: "Soul ID",    href: "/create/soul" },
-  { step: 5, label: "Spustiť",   href: "/create/launch" },
+  { step: 1, label: "Štart",       href: "/create" },
+  { step: 2, label: "DNA Review",  href: "/create/dna" },
+  { step: 3, label: "Midjourney",  href: "/create/midjourney" },
+  { step: 4, label: "Higgsfield",  href: "/create/higgsfield" },
+  { step: 5, label: "Soul ID",     href: "/create/soul" },
+  { step: 6, label: "Spustiť",    href: "/create/launch" },
 ];
 
 const buildNav = [
@@ -33,7 +34,9 @@ function getCompletedSteps(): Set<number> {
     const dna = dnaRaw ? JSON.parse(dnaRaw) : null;
     if (archetype || dna?.name) done.add(1);
     if (dna?.name) done.add(2);
-    if (dna?.soul_id) done.add(3);
+    if (dna?.midjourneyPrompt) done.add(3);
+    if (dna?.soul_id) done.add(4);
+    if (dna?.soul_id) done.add(5);
   } catch {}
   return done;
 }
