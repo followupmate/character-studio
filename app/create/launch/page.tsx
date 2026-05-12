@@ -89,7 +89,7 @@ export default function LaunchPage() {
         </div>
 
         <div className="p-4 lg:p-8 max-w-2xl">
-          <StepProgress current={5} total={5} label="Spustiť charakter" />
+          <StepProgress current={6} total={6} label="Spustiť charakter" />
 
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Finálny krok</p>
           <h2 className="text-2xl font-medium text-white mb-1">{dna.name}</h2>

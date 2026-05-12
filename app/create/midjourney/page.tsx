@@ -85,7 +85,7 @@ export default function MidjourneyPage() {
         </div>
 
         <div className="p-4 lg:p-8 max-w-3xl">
-          <StepProgress current={3} total={5} label="Midjourney" />
+          <StepProgress current={3} total={6} label="Midjourney" />
 
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Krok 3 z 5</p>
           <h2 className="text-2xl font-medium text-white mb-1">
@@ -185,10 +185,10 @@ export default function MidjourneyPage() {
               ← Späť
             </button>
             <button
-              onClick={() => router.push("/create/soul")}
-              className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 rounded hover:bg-blue-400 transition-colors"
+              onClick={() => router.push("/create/higgsfield")}
+              className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors"
             >
-              Mám fotky, pokračujem →
+              Pokračovať do Higgsfield →
             </button>
           </div>
         </div>
