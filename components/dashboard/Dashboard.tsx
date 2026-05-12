@@ -3,40 +3,127 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Character, StoryDay, Media } from "@/types";
-import MediaCard from "@/components/dashboard/MediaCard";
-import SoulIdStatus from "@/components/dashboard/SoulIdStatus";
 
 interface Props {
   characters: Character[];
   todayStories: (StoryDay & { chs_media: Media[] })[];
+  photoMap: Record<string, string>;
 }
 
-function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: string[] | null }) {
+function uptimeHours(createdAt: string): string {
+  const h = Math.floor((Date.now() - new Date(createdAt).getTime()) / 3_600_000);
+  return h.toLocaleString("sk-SK") + "H";
+}
+
+function charType(platforms: string[]): string {
+  if (platforms.includes("youtube") && platforms.includes("instagram")) return "MULTI_PLATFORM";
+  if (platforms.includes("youtube")) return "VIDEO_ARCH";
+  if (platforms.includes("tiktok")) return "SHORT_FORM";
+  return "CONTENT_LEAD";
+}
+
+function CharacterCard({
+  char,
+  photoUrl,
+  onDelete,
+  deletingId,
+  confirmDeleteId,
+  setConfirmDeleteId,
+}: {
+  char: Character;
+  photoUrl?: string;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
+  confirmDeleteId: string | null;
+  setConfirmDeleteId: (id: string | null) => void;
+}) {
+  const [imgErr, setImgErr] = useState(false);
+
   return (
-    <div className="pt-4 border-t border-border">
-      <p className="font-mono text-[9px] text-muted tracking-[0.15em] uppercase mb-3">
-        // Instagram caption
-      </p>
-      <div className="space-y-2">
-        <div className="flex items-start gap-2">
-          <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 flex-shrink-0 mt-0.5">EN</span>
-          <p className="text-sm text-ink italic leading-relaxed font-display">{caption}</p>
-        </div>
-        <div className="flex items-start gap-2">
-          <span className="font-mono text-[8px] bg-border border border-border2 text-muted px-1.5 py-0.5 flex-shrink-0 mt-0.5">SK</span>
-          <p className="text-xs text-muted italic leading-relaxed">(SK preklad bude vygenerovaný)</p>
+    <div className="bg-surface border border-border hover:border-border2 transition-colors flex flex-col group">
+      {/* Portrait image */}
+      <div className="relative overflow-hidden bg-surface-low" style={{ aspectRatio: "3/4" }}>
+        {photoUrl && !imgErr ? (
+          <img
+            src={photoUrl}
+            alt={char.name}
+            className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105"
+            onError={() => setImgErr(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="material-symbols-outlined text-[48px] text-muted/30">person</span>
+          </div>
+        )}
+        {/* Active badge */}
+        <div className="absolute top-2.5 left-2.5">
+          <span className={`font-mono text-[8px] tracking-[0.1em] px-2 py-0.5 border flex items-center gap-1.5 ${
+            char.is_active
+              ? "bg-teal/10 border-teal/30 text-teal"
+              : "bg-surface/80 border-border text-muted"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full inline-block ${char.is_active ? "bg-teal animate-pulse" : "bg-muted"}`} />
+            {char.is_active ? "ACTIVE" : "PAUSED"}
+          </span>
         </div>
       </div>
-      {hashtags && hashtags.length > 0 && (
-        <p className="font-mono text-[10px] text-muted mt-2">
-          {hashtags.map((h) => `#${h}`).join(" ")}
-        </p>
-      )}
+
+      {/* Info */}
+      <div className="p-4 flex flex-col gap-3 flex-1">
+        <div>
+          <div className="font-display italic text-[22px] leading-none text-white mb-1.5">{char.name}</div>
+          <p className="font-mono text-[9px] text-muted2 leading-relaxed line-clamp-2">
+            {char.visual_brief || char.backstory}
+          </p>
+        </div>
+
+        {/* Stats row */}
+        <div className="flex gap-4 mt-auto pt-3 border-t border-border">
+          <div>
+            <div className="font-mono text-[8px] tracking-[0.1em] text-muted uppercase mb-0.5">Type</div>
+            <div className="font-mono text-[9px] text-ink">{charType(char.platforms)}</div>
+          </div>
+          <div>
+            <div className="font-mono text-[8px] tracking-[0.1em] text-muted uppercase mb-0.5">Uptime</div>
+            <div className="font-mono text-[9px] text-ink">{uptimeHours(char.created_at)}</div>
+          </div>
+        </div>
+
+        {/* Delete */}
+        <div className="border-t border-border pt-2">
+          {confirmDeleteId === char.id ? (
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-[9px] text-red-400">Vymazať?</span>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="font-mono text-[8px] uppercase border border-border px-2 py-0.5 text-muted hover:text-ink transition-colors"
+                >Nie</button>
+                <button
+                  onClick={() => onDelete(char.id)}
+                  disabled={deletingId === char.id}
+                  className="font-mono text-[8px] uppercase border border-red-500/40 px-2 py-0.5 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                >
+                  {deletingId === char.id ? "..." : "Áno"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDeleteId(char.id)}
+              className="font-mono text-[8px] uppercase tracking-[0.08em] text-muted hover:text-red-400 transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[11px]">delete</span>
+              Vymazať
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-export default function Dashboard({ characters, todayStories }: Props) {
+export default function Dashboard({ characters, todayStories, photoMap }: Props) {
   const router = useRouter();
   const activeChars = characters.filter((c) => c.is_active);
   const totalMedia = todayStories.flatMap((s) => s.chs_media);
@@ -45,6 +132,26 @@ export default function Dashboard({ characters, todayStories }: Props) {
   const [genResult, setGenResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  async function triggerStory() {
+    setIsGenerating(true);
+    setGenResult(null);
+    try {
+      const res = await fetch("/api/characters/story");
+      if (res.ok) {
+        setGenResult({ ok: true, msg: "Príbeh vygenerovaný! Stránka sa aktualizuje..." });
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setGenResult({ ok: false, msg: data.error ?? `Chyba ${res.status}` });
+        setIsGenerating(false);
+      }
+    } catch (err) {
+      setGenResult({ ok: false, msg: err instanceof Error ? err.message : "Sieťová chyba" });
+      setIsGenerating(false);
+    }
+    setTimeout(() => setGenResult(null), 4000);
+  }
 
   async function deleteCharacter(characterId: string) {
     setDeletingId(characterId);
@@ -67,27 +174,6 @@ export default function Dashboard({ characters, todayStories }: Props) {
       setTimeout(() => setGenResult(null), 4000);
     }
     setDeletingId(null);
-  }
-
-  async function triggerStory() {
-    setIsGenerating(true);
-    setGenResult(null);
-    try {
-      const res = await fetch("/api/characters/story");
-      if (res.ok) {
-        setGenResult({ ok: true, msg: "Príbeh vygenerovaný! Stránka sa aktualizuje..." });
-        setTimeout(() => window.location.reload(), 1500);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setGenResult({ ok: false, msg: data.error ?? `Chyba ${res.status}` });
-        setIsGenerating(false);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Sieťová chyba";
-      setGenResult({ ok: false, msg });
-      setIsGenerating(false);
-    }
-    setTimeout(() => setGenResult(null), 4000);
   }
 
   const quickActions = [
@@ -134,7 +220,7 @@ export default function Dashboard({ characters, todayStories }: Props) {
         </div>
       </div>
 
-      {/* Generation result banner */}
+      {/* Banner */}
       {genResult && (
         <div className={`px-8 py-2.5 font-mono text-[11px] border-b ${genResult.ok ? "bg-teal/5 border-teal/20 text-teal" : "bg-red-900/10 border-red-500/20 text-red-400"}`}>
           {genResult.msg}
@@ -142,7 +228,7 @@ export default function Dashboard({ characters, todayStories }: Props) {
       )}
 
       <div className="p-4 lg:p-8">
-        {/* Eyebrow */}
+        {/* Heading */}
         <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-1">// Prehľad</p>
         <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-6">
           Character Studio
@@ -151,10 +237,10 @@ export default function Dashboard({ characters, todayStories }: Props) {
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border mb-8">
           {[
-            { label: "Charaktery",    value: characters.length, sub: `${activeChars.length} aktívnych` },
-            { label: "Dnešné posty",  value: postedMedia.length, sub: `z ${totalMedia.length} médií` },
-            { label: "Príbehy dnes",  value: todayStories.length, sub: "vygenerovaných" },
-            { label: "Platformy",     value: 2, sub: "IG + YouTube" },
+            { label: "Charaktery",   value: characters.length,   sub: `${activeChars.length} aktívnych` },
+            { label: "Dnešné posty", value: postedMedia.length,  sub: `z ${totalMedia.length} médií` },
+            { label: "Príbehy dnes", value: todayStories.length, sub: "vygenerovaných" },
+            { label: "Platformy",    value: 2,                   sub: "IG + YouTube" },
           ].map((s) => (
             <div key={s.label} className="bg-surface p-5">
               <div className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-2">{s.label}</div>
@@ -165,7 +251,7 @@ export default function Dashboard({ characters, todayStories }: Props) {
         </div>
 
         {/* Quick Actions */}
-        <div className="mb-8">
+        <div className="mb-10">
           <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">// Quick Actions</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
             {quickActions.map((action) => (
@@ -192,82 +278,6 @@ export default function Dashboard({ characters, todayStories }: Props) {
           </div>
         </div>
 
-        {/* Today's stories — one self-contained card per character */}
-        {todayStories.length > 0 ? (
-          <div className="mb-8 space-y-px">
-            <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">// Dnešné príbehy</p>
-            {todayStories.map((story) => {
-              const char = characters.find((c) => c.id === story.character_id);
-              const photoMedia = story.chs_media.find((m) => m.type === "photo");
-              const videoMedia = story.chs_media.find((m) => m.type === "video");
-              return (
-                <div key={story.id} className="border border-border">
-                  {/* Story header */}
-                  <div className="bg-surface-low px-5 py-3 border-b border-border flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink font-medium">
-                        {char?.name ?? "Unknown"}
-                      </span>
-                      <span className="font-mono text-[9px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-[0.1em]">
-                        DAY {story.day_number}
-                      </span>
-                      <span className="font-mono text-[9px] text-muted hidden sm:inline">
-                        <span className="material-symbols-outlined text-[11px] align-middle mr-0.5">location_on</span>
-                        {story.location}
-                      </span>
-                    </div>
-                    <span className="font-mono text-[9px] border border-border px-2 py-0.5 text-muted uppercase tracking-[0.1em]">
-                      {story.arc_position}
-                    </span>
-                  </div>
-
-                  {/* Story body */}
-                  <div className="p-5 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6">
-                    {/* Left: narrative + caption */}
-                    <div className="space-y-4 border-l-2 border-vivienne pl-5">
-                      <p className="font-mono text-[9px] text-muted uppercase tracking-[0.1em] sm:hidden">
-                        📍 {story.location} · {story.mood}
-                      </p>
-                      <p className="font-mono text-[9px] text-muted uppercase tracking-[0.1em] hidden sm:block">
-                        {story.mood}
-                      </p>
-                      <p className="font-display italic text-[18px] leading-relaxed text-ink">
-                        {story.narrative}
-                      </p>
-                      {story.ig_caption && (
-                        <CaptionBlock caption={story.ig_caption} hashtags={story.hashtags} />
-                      )}
-                    </div>
-
-                    {/* Right: production media */}
-                    {(photoMedia || videoMedia) && (
-                      <div className="flex flex-col gap-px lg:w-64 xl:w-72">
-                        <p className="font-mono text-[9px] text-muted uppercase tracking-[0.1em] mb-2">// Production</p>
-                        {photoMedia && <MediaCard media={photoMedia} />}
-                        {videoMedia && <MediaCard media={videoMedia} />}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="border border-border border-dashed p-12 text-center mb-8">
-            <p className="font-display italic text-[32px] text-muted mb-2">Žiadny príbeh dnes</p>
-            <p className="font-mono text-[10px] text-muted mb-6">
-              Cron job sa spustí o 6:00 UTC. Alebo vygeneruj manuálne.
-            </p>
-            <button
-              onClick={triggerStory}
-              disabled={isGenerating}
-              className="font-mono text-[11px] uppercase tracking-[0.1em] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors disabled:opacity-60"
-            >
-              {isGenerating ? "Generujem..." : "Generuj teraz"}
-            </button>
-          </div>
-        )}
-
         {/* Character Library */}
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -278,55 +288,20 @@ export default function Dashboard({ characters, todayStories }: Props) {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-border">
             {characters.map((char) => (
-              <div key={char.id} className="char-card bg-surface relative overflow-hidden group" style={{ aspectRatio: "1/1" }}>
-                <div className="w-full h-full bg-surface-low flex flex-col items-center justify-center p-4">
-                  <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full inline-block ${char.is_active ? "bg-teal" : "bg-muted"}`} />
-                  </div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink font-medium mb-1">{char.name}</div>
-                  <SoulIdStatus soulId={char.soul_id} characterName={char.name} />
-                  <div className="font-mono text-[9px] text-muted mt-1">
-                    {char.platforms.map((p) => p.slice(0, 2).toUpperCase()).join(" · ")}
-                  </div>
-
-                  {/* Delete controls — visible on hover */}
-                  <div className="absolute bottom-0 left-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {confirmDeleteId === char.id ? (
-                      <div className="bg-[#1a0a0a] border-t border-red-500/30 px-3 py-2 flex items-center justify-between gap-2">
-                        <span className="font-mono text-[9px] text-red-400">Vymazať?</span>
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => setConfirmDeleteId(null)}
-                            className="font-mono text-[8px] uppercase tracking-[0.05em] border border-border px-2 py-0.5 text-muted hover:text-ink transition-colors"
-                          >
-                            Nie
-                          </button>
-                          <button
-                            onClick={() => deleteCharacter(char.id)}
-                            disabled={deletingId === char.id}
-                            className="font-mono text-[8px] uppercase tracking-[0.05em] border border-red-500/40 px-2 py-0.5 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                          >
-                            {deletingId === char.id ? "..." : "Áno"}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmDeleteId(char.id)}
-                        className="w-full bg-[#0d0d10] border-t border-border px-3 py-1.5 font-mono text-[8px] uppercase tracking-[0.08em] text-muted hover:text-red-400 hover:border-red-500/30 transition-colors flex items-center justify-center gap-1"
-                      >
-                        <span className="material-symbols-outlined text-[11px]">delete</span>
-                        Vymazať
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <CharacterCard
+                key={char.id}
+                char={char}
+                photoUrl={photoMap[char.id]}
+                onDelete={deleteCharacter}
+                deletingId={deletingId}
+                confirmDeleteId={confirmDeleteId}
+                setConfirmDeleteId={setConfirmDeleteId}
+              />
             ))}
             <button
               onClick={() => router.push("/create")}
-              className="bg-surface border border-border border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-teal/40 hover:bg-surface-low transition-colors p-4"
-              style={{ aspectRatio: "1/1" }}
+              className="bg-surface border border-border border-dashed flex flex-col items-center justify-center gap-2 hover:border-teal/40 hover:bg-surface-low transition-colors p-4"
+              style={{ minHeight: "260px" }}
             >
               <span className="material-symbols-outlined text-[24px] text-muted">add</span>
               <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">Nový charakter</span>
@@ -335,7 +310,7 @@ export default function Dashboard({ characters, todayStories }: Props) {
         </div>
       </div>
 
-      {/* FAB — quick generate */}
+      {/* FAB */}
       <button
         onClick={triggerStory}
         disabled={isGenerating}
