@@ -4,29 +4,28 @@ import { useState } from "react";
 import { Media } from "@/types";
 
 const statusStyles: Record<string, string> = {
-  pending: "bg-border text-muted2 border-border2",
+  pending:    "bg-surface-high text-muted border-border",
   generating: "bg-amber/10 text-amber border-amber/20 animate-pulse",
-  ready: "bg-teal/10 text-teal border-teal/20",
-  posted: "bg-accent/10 text-accent border-accent/20",
-  failed: "bg-red-500/10 text-red-400 border-red-500/20",
+  ready:      "bg-teal/10 text-teal border-teal/20",
+  posted:     "bg-accent/10 text-accent border-accent/20",
+  failed:     "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 function Badge({ status }: { status: string }) {
   return (
-    <span className={`font-mono text-[8px] tracking-wider px-2 py-0.5 border rounded-sm ${statusStyles[status] ?? statusStyles.pending}`}>
+    <span className={`font-mono text-[8px] tracking-[0.1em] px-2 py-0.5 border ${statusStyles[status] ?? statusStyles.pending}`}>
       {status.toUpperCase()}
     </span>
   );
 }
 
-interface Props {
-  media: Media;
-}
-
-export default function MediaCard({ media }: Props) {
+export default function MediaCard({ media }: { media: Media }) {
   const isPhoto = media.type === "photo";
   const label = isPhoto ? "FOTO" : "VIDEO";
-  const model = isPhoto ? "Seedance 2.0" : "Cinema Studio 3.5";
+  const model = isPhoto ? "Soul 2" : "Seedance 2.0";
+  const formatHint = isPhoto
+    ? "// aspect_ratio 4:5 → IG Feed"
+    : "// aspect_ratio 9:16 → Reels / TikTok / Shorts";
   const higgsfieldUrl = isPhoto
     ? "https://higgsfield.ai/character"
     : "https://higgsfield.ai/cinema-studio";
@@ -71,13 +70,13 @@ export default function MediaCard({ media }: Props) {
   // ── posted ────────────────────────────────────────────────
   if (media.status === "posted") {
     return (
-      <div className="bg-bg3 border border-border rounded-md p-4 flex flex-col gap-3">
+      <div className="bg-[#050709] border border-border p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[9px] text-muted2 uppercase tracking-wider">{label}</span>
-            <span className="font-mono text-[8px] text-muted">{model}</span>
+          <div>
+            <div className="font-mono text-[8px] tracking-[0.15em] text-muted uppercase mb-0.5">Asset Category</div>
+            <div className="font-mono text-[11px] tracking-[0.05em] font-medium text-ink uppercase">{label}</div>
           </div>
-          <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-sm tracking-wider">
+          <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-[0.1em]">
             POSTNUTÉ
           </span>
         </div>
@@ -98,11 +97,11 @@ export default function MediaCard({ media }: Props) {
   // ── ready ─────────────────────────────────────────────────
   if (media.status === "ready") {
     return (
-      <div className="bg-bg3 border border-border rounded-md p-4 flex flex-col gap-3">
+      <div className="bg-[#050709] border border-border hover:border-teal transition-colors p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[9px] text-muted2 uppercase tracking-wider">{label}</span>
-            <span className="font-mono text-[8px] text-muted">{model}</span>
+          <div>
+            <div className="font-mono text-[8px] tracking-[0.15em] text-muted uppercase mb-0.5">Asset Category</div>
+            <div className="font-mono text-[11px] tracking-[0.05em] font-medium text-ink uppercase">{label}</div>
           </div>
           <Badge status={media.status} />
         </div>
@@ -111,13 +110,13 @@ export default function MediaCard({ media }: Props) {
           <img
             src={media.media_url}
             alt="Generated"
-            className="w-full rounded border border-border object-cover max-h-48"
+            className="w-full object-cover max-h-48"
             onError={() => setImgError(true)}
           />
         )}
         {isPhoto && media.media_url && imgError && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-bg border border-border rounded">
-            <span className="font-mono text-[8px] bg-teal/10 border border-teal/20 text-teal px-1.5 py-0.5 rounded-sm">✓</span>
+          <div className="flex items-center gap-2 px-3 py-2 bg-surface-low border border-border">
+            <span className="font-mono text-[8px] bg-teal/10 border border-teal/20 text-teal px-1.5 py-0.5">✓</span>
             <span className="font-mono text-[10px] text-muted2">Obrázok nahraný</span>
           </div>
         )}
@@ -136,7 +135,7 @@ export default function MediaCard({ media }: Props) {
         <button
           onClick={approvePost}
           disabled={posting}
-          className="w-full font-mono text-[10px] bg-accent/10 border border-accent/30 text-accent py-1.5 rounded hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full font-mono text-[10px] uppercase tracking-[0.05em] bg-accent/10 border border-accent/30 text-accent py-1.5 hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {posting ? "Postuje…" : "Označiť ako postnuté"}
         </button>
@@ -146,43 +145,46 @@ export default function MediaCard({ media }: Props) {
 
   // ── pending / generating ──────────────────────────────────
   return (
-    <div className="bg-bg3 border border-border rounded-md p-4 flex flex-col gap-3">
+    <div className="bg-[#050709] border border-border hover:border-border2 transition-colors p-4 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[9px] text-muted2 uppercase tracking-wider">{label}</span>
-          <span className="font-mono text-[8px] text-muted">{model}</span>
+        <div>
+          <div className="font-mono text-[8px] tracking-[0.15em] text-muted uppercase mb-0.5">Asset Category</div>
+          <div className="font-mono text-[11px] tracking-[0.05em] font-medium text-ink uppercase">{label}
+            <span className="ml-2 text-muted normal-case font-normal text-[9px]">{model}</span>
+          </div>
         </div>
         <Badge status={media.status} />
       </div>
 
-      {/* Higgsfield link */}
-      <a
-        href={higgsfieldUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="self-start font-mono text-[9px] bg-amber/10 border border-amber/30 text-amber px-3 py-1 rounded hover:bg-amber/20 transition-colors"
-      >
-        Otvoriť Higgsfield ↗
-      </a>
-      <span className="font-mono text-[9px] text-muted">
-        {isPhoto ? "// Higgsfield: aspect_ratio 4:5 → IG Feed" : "// Higgsfield: aspect_ratio 9:16 → Reels / TikTok / Shorts"}
-      </span>
+      {/* Higgsfield link + format hint */}
+      <div>
+        <a
+          href={higgsfieldUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 font-mono text-[9px] bg-amber/10 border border-amber/30 text-amber px-3 py-1 hover:bg-amber/20 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+          Otvoriť Higgsfield
+        </a>
+        <p className="font-mono text-[9px] text-muted mt-1.5">{formatHint}</p>
+      </div>
 
-      {/* Prompt + copy */}
+      {/* Prompt */}
       <div className="relative">
-        <pre className="bg-bg border border-border rounded p-3 font-mono text-[10px] text-ink leading-relaxed whitespace-pre-wrap break-words pr-20 max-h-44 overflow-y-auto">
+        <pre className="bg-bg border border-border p-3 font-mono text-[10px] text-teal leading-relaxed whitespace-pre-wrap break-words pr-20 max-h-44 overflow-y-auto">
           {media.higgsfield_prompt}
         </pre>
         <button
           onClick={copyPrompt}
-          className="absolute top-2 right-2 font-mono text-[8px] bg-bg2 border border-border text-muted2 px-2 py-1 rounded hover:text-ink hover:border-border2 transition-colors"
+          className="absolute top-2 right-2 font-mono text-[8px] bg-surface border border-border text-muted2 px-2 py-1 hover:text-ink hover:border-border2 transition-colors"
         >
           {copied ? "✓ OK" : "Kopírovať"}
         </button>
       </div>
 
-      {/* URL input + save */}
+      {/* URL input */}
       <div className="flex gap-2">
         <input
           type="url"
@@ -190,12 +192,12 @@ export default function MediaCard({ media }: Props) {
           onChange={(e) => setUrlInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && saveUrl()}
           placeholder="Vlož URL z Higgsfield..."
-          className="flex-1 min-w-0 bg-bg border border-border rounded px-3 py-1.5 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-border2 transition-colors"
+          className="form-input-base flex-1 min-w-0"
         />
         <button
           onClick={saveUrl}
           disabled={saving || !urlInput.trim()}
-          className="flex-shrink-0 font-mono text-[10px] bg-teal/10 border border-teal/30 text-teal px-3 py-1.5 rounded hover:bg-teal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.05em] bg-teal/10 border border-teal/30 text-teal px-3 py-1.5 hover:bg-teal/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saved ? "✓" : saving ? "Ukladám…" : "Uložiť"}
         </button>
