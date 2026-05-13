@@ -5,7 +5,7 @@ import { generateAndSavePrompts } from "@/lib/generatePrompts";
 import { Character, StoryDay } from "@/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET() {
   try {
@@ -20,10 +20,15 @@ export async function GET() {
       return NextResponse.json({ success: true, message: "No active characters" });
     }
 
-    const results = [];
+    // Phase 1: generate + save all stories sequentially
+    const storyResults: Array<{
+      char: Character;
+      storyDay: { id: string };
+      story: { location: string; mood: string; narrative: string; arc_position: string };
+      dayNumber: number;
+    }> = [];
 
     for (const char of characters as Character[]) {
-      // Load last 7 days of history
       const { data: history } = await supabase
         .from("chs_story_days")
         .select("day_number, location, mood, narrative, arc_position")
@@ -32,18 +37,11 @@ export async function GET() {
         .limit(7);
 
       const dayNumber = ((history as StoryDay[])?.[0]?.day_number ?? 0) + 1;
-
       const historyText =
         (history as StoryDay[])?.length > 0
-          ? (history as StoryDay[])
-              .map(
-                (d) =>
-                  `Day ${d.day_number}: ${d.location} — ${d.mood} — ${d.narrative}`
-              )
-              .join("\n")
+          ? (history as StoryDay[]).map((d) => `Day ${d.day_number}: ${d.location} — ${d.mood} — ${d.narrative}`).join("\n")
           : "First day. Fresh start. No history yet.";
 
-      // Generate story with Claude
       const msg = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 1200,
@@ -57,51 +55,18 @@ Generate today's chapter as valid JSON only. No markdown, no code blocks, just r
 
 Required fields:
 - location: string (city + neighborhood, e.g. "Lisbon, Alfama")
-- mood: string (1-3 words, in English, e.g. "quiet reflection")
+- mood: string (1-3 words, in English)
 - narrative: string (2-3 sentences, present tense, intimate first/third person, in English)
 - arc_position: one of: opening | rising | peak | turning | falling | quiet
 - next_hint: string (one sentence hint of what comes tomorrow, in English)
-- ig_caption: string (2-3 lines, poetic, authentic, no hashtags — MUST be in English)
-- hashtags: array of 10 strings without # symbol (in English)
+- ig_caption: string (2-3 lines, poetic, authentic, no hashtags, in English)
+- hashtags: array of 10 strings without # symbol (3 location + 3 mood/aesthetic + 2 niche + 2 branded for this character)
 
-Rules:
-- ALL text fields must be written in English
-- narrative should feel like a stolen moment, not a travel blog
-- Use 📍 emoji only in ig_caption for location if needed
-- Keep arc flowing naturally across days
-
-When generating ig_caption:
-- Write in English ONLY
-- Maximum 2-3 lines
-- No hashtags in caption body
-- Tone: poetic, understated, emotionally restrained, cinematic realism, observational
-
-GOOD TONE EXAMPLES:
-- "some cities remember you differently."
-- "she left before the coffee got cold."
-- "milan in the hour before everything starts."
-- "the light changed before she did."
-- "everything felt quieter after that."
-
-FORBIDDEN IN CAPTIONS:
-✗ living my best life
-✗ wanderlust
-✗ blessed / grateful
-✗ motivational influencer tone
-✗ tourist-blog energy
-✗ generic lifestyle copy
-
-When generating hashtags:
-- Maximum 10 hashtags
-- Lowercase only, no spaces
-- Structure: 3 location + 3 mood/aesthetic + 2 niche + 2 branded
-- Required branded: #vivienne #madebyno1
-- Example: #milan #italy #brera #quietluxury #cinematicmood #softlight #europeandiary #soul2 #vivienne #madebyno1`,
+Caption tone — GOOD: "some cities remember you differently." / "the light changed before she did."
+Caption tone — FORBIDDEN: living my best life, wanderlust, blessed, grateful, motivational, tourist-blog.
+ALL text fields must be in English.`,
         messages: [
-          {
-            role: "user",
-            content: `Day ${dayNumber}. Recent history:\n${historyText}\n\nGenerate today's story. Natural continuation.`,
-          },
+          { role: "user", content: `Day ${dayNumber}. Recent history:\n${historyText}\n\nGenerate today's story. Natural continuation.` },
         ],
       });
 
@@ -109,7 +74,6 @@ When generating hashtags:
       const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
       const story = JSON.parse(jsonText);
 
-      // Save story day
       const { data: storyDay, error: storyError } = await supabase
         .from("chs_story_days")
         .insert({
@@ -128,10 +92,13 @@ When generating hashtags:
         .single();
 
       if (storyError) throw storyError;
+      storyResults.push({ char, storyDay, story, dayNumber });
+    }
 
-      // Generate Higgsfield prompts directly (no self-referencing HTTP call)
-      try {
-        await generateAndSavePrompts({
+    // Phase 2: generate all Higgsfield prompts in parallel across all characters
+    const promptResults = await Promise.allSettled(
+      storyResults.map(({ char, storyDay, story }) =>
+        generateAndSavePrompts({
           storyDayId: storyDay.id,
           characterId: char.id,
           location: story.location,
@@ -140,18 +107,23 @@ When generating hashtags:
           arc_position: story.arc_position,
           visualBrief: char.visual_brief,
           soulId: char.soul_id,
-        });
-      } catch (promptErr) {
-        console.warn("[story] prompt generation failed (non-fatal):", promptErr);
-      }
+        })
+      )
+    );
 
-      results.push({
-        character: char.name,
-        day: dayNumber,
-        location: story.location,
-        mood: story.mood,
-      });
-    }
+    promptResults.forEach((r, i) => {
+      if (r.status === "rejected") {
+        console.error(`[story] prompt gen failed for ${storyResults[i].char.name}:`, r.reason);
+      }
+    });
+
+    const results = storyResults.map(({ char, story, dayNumber }, i) => ({
+      character: char.name,
+      day: dayNumber,
+      location: story.location,
+      mood: story.mood,
+      promptsGenerated: promptResults[i].status === "fulfilled",
+    }));
 
     return NextResponse.json({ success: true, processed: results });
   } catch (error) {

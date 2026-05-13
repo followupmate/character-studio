@@ -115,11 +115,27 @@ const VIDEO_MOTION_RULES = `VIDEO MOTION — movement must obey physics:
 
 AVOID: robotic motion, sudden action changes, overdramatic gestures.`;
 
+async function claudeWithRetry(params: { model: string; max_tokens: number; system: string; messages: Array<{ role: "user" | "assistant"; content: string }> }, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await anthropic.messages.create(params as any);
+    } catch (err: any) {
+      const isOverloaded = err?.status === 529 || String(err).includes("overloaded");
+      if (isOverloaded && attempt < retries) {
+        await new Promise((r) => setTimeout(r, attempt * 6000));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
 export async function generateAndSavePrompts(ctx: StoryContext): Promise<void> {
   const arcNote = ARC_TRANSLATION[ctx.arc_position] ?? ARC_TRANSLATION.quiet;
 
   const [photoMsg, videoMsg] = await Promise.all([
-    anthropic.messages.create({
+    claudeWithRetry({
       model: "claude-sonnet-4-6",
       max_tokens: 1200,
       system: `${CORE_PHILOSOPHY}
@@ -161,7 +177,7 @@ OUTPUT: Model: Soul 2 🖼️ Image Prompt — then the prompt. No markdown, no 
       messages: [{ role: "user", content: "Generate the photo prompt." }],
     }),
 
-    anthropic.messages.create({
+    claudeWithRetry({
       model: "claude-sonnet-4-6",
       max_tokens: 1200,
       system: `${CORE_PHILOSOPHY}
