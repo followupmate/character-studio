@@ -20,15 +20,51 @@ export async function GET() {
       return NextResponse.json({ success: true, message: "No active characters" });
     }
 
-    // Phase 1: generate + save all stories sequentially
+    // Phase 1: generate + save all stories sequentially (skip if already exists today)
     const storyResults: Array<{
       char: Character;
       storyDay: { id: string };
       story: { location: string; mood: string; narrative: string; arc_position: string };
       dayNumber: number;
+      skipped: boolean;
     }> = [];
 
+    const today = new Date().toISOString().split("T")[0];
+
     for (const char of characters as Character[]) {
+      // Check if story already exists for today
+      const { data: existing } = await supabase
+        .from("chs_story_days")
+        .select("id, location, mood, narrative, arc_position, day_number")
+        .eq("character_id", char.id)
+        .eq("date", today)
+        .maybeSingle();
+
+      if (existing) {
+        // Story exists — check if prompts are missing and regenerate if needed
+        const { data: existingMedia } = await supabase
+          .from("chs_media")
+          .select("id, type")
+          .eq("story_day_id", existing.id);
+
+        const hasPhoto = existingMedia?.some((m) => m.type === "photo");
+        const hasVideo = existingMedia?.some((m) => m.type === "video");
+
+        storyResults.push({
+          char,
+          storyDay: { id: existing.id },
+          story: {
+            location: existing.location,
+            mood: existing.mood,
+            narrative: existing.narrative,
+            arc_position: existing.arc_position,
+          },
+          dayNumber: existing.day_number,
+          skipped: !!(hasPhoto && hasVideo), // only skip prompt gen if both exist
+        });
+        continue;
+      }
+
       const { data: history } = await supabase
         .from("chs_story_days")
         .select("day_number, location, mood, narrative, arc_position")
@@ -79,7 +115,7 @@ ALL text fields must be in English.`,
         .insert({
           character_id: char.id,
           day_number: dayNumber,
-          date: new Date().toISOString().split("T")[0],
+          date: today,
           location: story.location,
           mood: story.mood,
           narrative: story.narrative,
@@ -92,12 +128,13 @@ ALL text fields must be in English.`,
         .single();
 
       if (storyError) throw storyError;
-      storyResults.push({ char, storyDay, story, dayNumber });
+      storyResults.push({ char, storyDay, story, dayNumber, skipped: false });
     }
 
-    // Phase 2: generate all Higgsfield prompts in parallel across all characters
+    // Phase 2: generate missing prompts in parallel
+    const toPrompt = storyResults.filter((r) => !r.skipped);
     const promptResults = await Promise.allSettled(
-      storyResults.map(({ char, storyDay, story }) =>
+      toPrompt.map(({ char, storyDay, story }) =>
         generateAndSavePrompts({
           storyDayId: storyDay.id,
           characterId: char.id,
@@ -113,17 +150,24 @@ ALL text fields must be in English.`,
 
     promptResults.forEach((r, i) => {
       if (r.status === "rejected") {
-        console.error(`[story] prompt gen failed for ${storyResults[i].char.name}:`, r.reason);
+        console.error(`[story] prompt gen failed for ${toPrompt[i].char.name}:`, r.reason);
       }
     });
 
-    const results = storyResults.map(({ char, story, dayNumber }, i) => ({
-      character: char.name,
-      day: dayNumber,
-      location: story.location,
-      mood: story.mood,
-      promptsGenerated: promptResults[i].status === "fulfilled",
-    }));
+    const results = storyResults.map(({ char, story, dayNumber, skipped }, i) => {
+      const promptIdx = toPrompt.findIndex((r) => r.char.id === char.id);
+      return {
+        character: char.name,
+        day: dayNumber,
+        location: story.location,
+        storySkipped: skipped,
+        promptsGenerated: skipped
+          ? "existing"
+          : promptIdx >= 0 && promptResults[promptIdx]?.status === "fulfilled"
+          ? true
+          : false,
+      };
+    });
 
     return NextResponse.json({ success: true, processed: results });
   } catch (error) {
