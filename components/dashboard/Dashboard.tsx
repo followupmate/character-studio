@@ -204,6 +204,26 @@ export default function Dashboard({ characters, todayStories, photoMap }: Props)
     setTimeout(() => setGenResult(null), 4000);
   }
 
+  async function triggerRegeneratePrompts() {
+    setIsGenerating(true);
+    setGenResult(null);
+    try {
+      const res = await fetch("/api/characters/regenerate-prompts", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setGenResult({ ok: true, msg: "Prompty pregenerované! Stránka sa aktualizuje..." });
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        setGenResult({ ok: false, msg: data.error ?? `Chyba ${res.status}` });
+        setIsGenerating(false);
+      }
+    } catch (err) {
+      setGenResult({ ok: false, msg: err instanceof Error ? err.message : "Sieťová chyba" });
+      setIsGenerating(false);
+    }
+    setTimeout(() => setGenResult(null), 5000);
+  }
+
   async function deleteCharacter(characterId: string) {
     setDeletingId(characterId);
     setConfirmDeleteId(null);
@@ -233,6 +253,13 @@ export default function Dashboard({ characters, todayStories, photoMap }: Props)
       label: "Generuj príbeh",
       desc: "Nový príbeh pre všetky charaktery",
       onClick: triggerStory,
+      disabled: isGenerating,
+    },
+    {
+      icon: "refresh",
+      label: "Regeneruj prompty",
+      desc: "Nové Higgsfield prompty pre dnešok",
+      onClick: triggerRegeneratePrompts,
       disabled: isGenerating,
     },
     {
@@ -304,7 +331,7 @@ export default function Dashboard({ characters, todayStories, photoMap }: Props)
         {/* Quick Actions */}
         <div className="mb-10">
           <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">// Quick Actions</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-px bg-border">
             {quickActions.map((action) => (
               <button
                 key={action.label}
