@@ -28,6 +28,7 @@ export async function POST(req: Request) {
       arc_position: day.arc_position,
       visualBrief: char.visual_brief,
       soulId: char.soul_id,
+      visualTone: (char as any).visual_tone ?? null,
     });
 
     return NextResponse.json({ success: true, character: char.name });

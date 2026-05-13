@@ -144,6 +144,7 @@ ALL text fields must be in English.`,
           arc_position: story.arc_position,
           visualBrief: char.visual_brief,
           soulId: char.soul_id,
+          visualTone: (char as any).visual_tone ?? null,
         })
       )
     );

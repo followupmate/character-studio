@@ -41,6 +41,7 @@ export async function POST() {
           arc_position: day.arc_position,
           visualBrief: day.chs_characters?.visual_brief ?? "",
           soulId: day.chs_characters?.soul_id ?? null,
+          visualTone: (day.chs_characters as any)?.visual_tone ?? null,
         })
       )
     );
