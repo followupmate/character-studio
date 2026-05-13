@@ -182,7 +182,7 @@ export default function MediaCard({ media }: { media: Media }) {
 
       {/* Prompt */}
       <div className="relative">
-        <pre className="bg-bg border border-border p-3 font-mono text-[10px] text-teal leading-relaxed whitespace-pre-wrap break-words pr-20 max-h-44 overflow-y-auto">
+        <pre className="bg-bg border border-border p-3 font-mono text-[10px] text-teal leading-relaxed whitespace-pre-wrap break-words pr-20 max-h-72 overflow-y-auto">
           {media.higgsfield_prompt}
         </pre>
         <button

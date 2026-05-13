@@ -174,7 +174,7 @@ The tone must be felt physically, not described abstractly. Never write the tone
   const [photoMsg, videoMsg] = await Promise.all([
     claudeWithRetry({
       model: "claude-sonnet-4-6",
-      max_tokens: 1200,
+      max_tokens: 2000,
       system: `${MASTER_DOCTRINE}
 
 ${arcNote}
@@ -207,7 +207,7 @@ OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the prompt. N
 
     claudeWithRetry({
       model: "claude-sonnet-4-6",
-      max_tokens: 1200,
+      max_tokens: 2000,
       system: `${MASTER_DOCTRINE}
 
 ${VIDEO_MOTION_RULES}
