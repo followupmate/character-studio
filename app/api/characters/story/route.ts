@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { anthropic } from "@/lib/anthropic";
+import { generateAndSavePrompts } from "@/lib/generatePrompts";
 import { Character, StoryDay } from "@/types";
 
 export const runtime = "nodejs";
@@ -128,18 +129,20 @@ When generating hashtags:
 
       if (storyError) throw storyError;
 
-      // Trigger prompt generation (non-fatal — prompts can be regenerated separately)
+      // Generate Higgsfield prompts directly (no self-referencing HTTP call)
       try {
-        const appUrl = process.env.APP_URL ?? process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : "http://localhost:3000";
-        await fetch(`${appUrl}/api/characters/prompts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ storyDayId: storyDay.id, characterId: char.id }),
+        await generateAndSavePrompts({
+          storyDayId: storyDay.id,
+          characterId: char.id,
+          location: story.location,
+          mood: story.mood,
+          narrative: story.narrative,
+          arc_position: story.arc_position,
+          visualBrief: char.visual_brief,
+          soulId: char.soul_id,
         });
       } catch (promptErr) {
-        console.warn("[story] prompt generation skipped:", promptErr);
+        console.warn("[story] prompt generation failed (non-fatal):", promptErr);
       }
 
       results.push({
