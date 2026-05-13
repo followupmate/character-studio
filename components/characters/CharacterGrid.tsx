@@ -118,6 +118,9 @@ function CharCard({
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [photoInput, setPhotoInput] = useState(char.photo_url ?? "");
   const [savingPhoto, setSavingPhoto] = useState(false);
+  const [editingTone, setEditingTone] = useState(false);
+  const [toneInput, setToneInput] = useState(char.visual_tone ?? "");
+  const [savingTone, setSavingTone] = useState(false);
 
   async function savePhoto() {
     setSavingPhoto(true);
@@ -128,6 +131,18 @@ function CharCard({
     });
     setSavingPhoto(false);
     setEditingPhoto(false);
+    window.location.reload();
+  }
+
+  async function saveTone() {
+    setSavingTone(true);
+    await fetch("/api/characters/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ characterId: char.id, visual_tone: toneInput.trim() || null }),
+    });
+    setSavingTone(false);
+    setEditingTone(false);
     window.location.reload();
   }
 
@@ -200,6 +215,46 @@ function CharCard({
           <p className="font-mono text-[9px] text-muted2 leading-relaxed line-clamp-2">
             {char.visual_brief || char.backstory}
           </p>
+        </div>
+
+        {/* Visual Tone */}
+        <div className="border border-border bg-surface-low px-3 py-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-mono text-[8px] tracking-[0.1em] text-muted uppercase">Visual Tone</span>
+            <button
+              onClick={() => setEditingTone((v) => !v)}
+              className="font-mono text-[8px] text-muted hover:text-accent transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[11px]">edit</span>
+            </button>
+          </div>
+          {editingTone ? (
+            <div className="flex flex-col gap-1.5 mt-1">
+              <textarea
+                value={toneInput}
+                onChange={(e) => setToneInput(e.target.value)}
+                placeholder="seductive, elegant, luxurious..."
+                rows={2}
+                className="form-input-base w-full text-[10px] resize-none"
+                autoFocus
+              />
+              <div className="flex gap-1.5">
+                <button
+                  onClick={saveTone}
+                  disabled={savingTone}
+                  className="flex-1 font-mono text-[8px] uppercase tracking-[0.05em] bg-accent/10 border border-accent/30 text-accent py-1 hover:bg-accent/20 transition-colors disabled:opacity-50"
+                >{savingTone ? "Ukladám..." : "Uložiť"}</button>
+                <button
+                  onClick={() => { setEditingTone(false); setToneInput(char.visual_tone ?? ""); }}
+                  className="font-mono text-[8px] uppercase tracking-[0.05em] border border-border text-muted px-3 py-1 hover:text-ink transition-colors"
+                >Zrušiť</button>
+              </div>
+            </div>
+          ) : (
+            <p className="font-mono text-[9px] text-muted2 italic leading-relaxed">
+              {char.visual_tone || <span className="text-muted/50">— nenastavený —</span>}
+            </p>
+          )}
         </div>
 
         <div className="flex gap-4 mt-auto pt-3 border-t border-border">

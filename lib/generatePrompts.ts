@@ -10,6 +10,7 @@ interface StoryContext {
   arc_position: string;
   visualBrief: string;
   soulId: string | null;
+  visualTone: string | null;
 }
 
 const MASTER_DOCTRINE = `You are not generating aesthetic AI prompts.
@@ -152,6 +153,23 @@ async function claudeWithRetry(params: { model: string; max_tokens: number; syst
 
 export async function generateAndSavePrompts(ctx: StoryContext): Promise<void> {
   const arcNote = ARC_TRANSLATION[ctx.arc_position] ?? ARC_TRANSLATION.quiet;
+  const toneBlock = ctx.visualTone
+    ? `CHARACTER VISUAL TONE:
+This character has a defined aesthetic direction that must be layered on top of physical realism — it does not replace realism, it shapes how the scene is composed and what details are emphasized.
+
+Tone directive: ${ctx.visualTone}
+
+Apply this tone through:
+- choice of clothing texture and how fabric falls or clings
+- posture and body language (tension, ease, deliberate positioning)
+- gaze direction and eye behavior
+- proximity of camera to subject
+- how light interacts with skin and clothing
+- what environmental details are included or excluded
+- spatial relationship between subject and surroundings
+
+The tone must be felt physically, not described abstractly. Never write the tone words directly into the prompt.`
+    : "";
 
   const [photoMsg, videoMsg] = await Promise.all([
     claudeWithRetry({
@@ -160,7 +178,7 @@ export async function generateAndSavePrompts(ctx: StoryContext): Promise<void> {
       system: `${MASTER_DOCTRINE}
 
 ${arcNote}
-
+${toneBlock ? `\n${toneBlock}` : ""}
 CHARACTER: ${ctx.visualBrief}
 SOUL ID: ${ctx.soulId ?? "derive physical consistency from visual brief"}
 
@@ -195,7 +213,7 @@ OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the prompt. N
 ${VIDEO_MOTION_RULES}
 
 ${arcNote}
-
+${toneBlock ? `\n${toneBlock}` : ""}
 CHARACTER: ${ctx.visualBrief}
 
 VIDEO PROMPT STRUCTURE (follow this exact order):
