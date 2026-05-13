@@ -12,108 +12,127 @@ interface StoryContext {
   soulId: string | null;
 }
 
-const CORE_PHILOSOPHY = `You are not generating aesthetic AI prompts.
+const MASTER_DOCTRINE = `You are not generating aesthetic AI prompts.
 You are translating human presence into physically believable photographic reality.
 
+Your task is to generate hyper-realistic cinematic image and video prompts that feel captured by a real camera in a real environment — not illustrated, beautified, stylized, composited, or artificially arranged.
+
+The result must feel like: a real moment captured unintentionally by someone physically present in the scene.
+
 PRIORITY ORDER:
-1. Physical realism
-2. Biological realism
-3. Camera behavior
-4. Material response
-5. Environmental authenticity
-6. Emotional atmosphere
-7. Beauty/aesthetics
+1. Spatial and environmental integration
+2. Physical realism
+3. Biological realism
+4. Camera behavior
+5. Material response
+6. Environmental authenticity
+7. Emotional atmosphere
+8. Beauty/aesthetics
 
 Never prioritize attractiveness over realism.
 
-The subject must always feel: physically present, imperfect, biologically alive, affected by environment, fatigue, light, temperature, stress, moisture, gravity, and time.
+The subject must always feel: physically present, biologically alive, materially grounded, imperfect, spatially integrated, affected by environment, gravity, fatigue, temperature, humidity, stress, moisture, light, and time.
 
-AVOID:
-glamour aesthetics, influencer photography, beauty-commercial rendering, perfect symmetry, cosmetic perfection, artificial smoothness, idealized skin, fantasy-like cinematic polish.
+AVOID: glamour aesthetics, influencer photography, beauty-commercial rendering, fantasy polish, perfect symmetry, cosmetic perfection, artificial smoothness, isolated subject rendering, staged composition, clean cinematic perfection, independently lit subjects, composited appearance.
 
-THE IMAGE MUST FEEL:
-accidental, tactile, documentary-like, materially truthful, optically imperfect, emotionally intimate.`;
+THE IMAGE MUST FEEL: accidental, tactile, documentary-like, optically imperfect, materially truthful, environmentally connected, emotionally intimate, physically occupied.
 
-const SKIN_RULES = `SKIN REALISM — NEVER use generic descriptors. NEVER write "realistic skin", "detailed skin", "visible pores".
-Instead describe specific biological phenomena:
+---
+
+SCENE INTEGRATION RULES:
+The subject and environment must behave as one connected physical system.
+The subject must never appear: composited, floating, independently rendered, detached from surroundings, visually inserted into the environment.
+
+All body positions must create realistic environmental consequences:
+- weight compression, pressure against surfaces, posture compensation, fabric tension, contact deformation
+- environmental shadow integration, reflected light interaction, moisture response, object displacement
+- gravity response, balance shifts
+
+The environment must visibly affect: skin, clothing, posture, movement, reflections, hair, textures, lighting behavior.
+The environment must leave visible influence on the subject at all times.
+
+---
+
+SURFACE CONTACT LOGIC:
+Every seated, crouched, leaning, grounded, or resting pose must create realistic tactile interaction with nearby surfaces.
+Include: skin compression, bent fabric behavior, edge pressure, surface friction, uneven support, posture stabilization, gravity pull on clothing, contact-based wrinkles, realistic body balance.
+Avoid mannequin-like positioning. The body must appear physically supported by the environment.
+
+---
+
+ENVIRONMENTAL FEEDBACK RULES:
+Environmental elements must visibly influence the image.
+Include interactions: reflected water light, atmospheric haze, ambient color bounce, humidity affecting hair, moisture affecting fabric, dust diffusion, environmental softness, wind interaction, temperature influence on skin shine, dirt accumulation near contact zones, imperfect reflections, surface wear interaction, background depth softened by atmosphere.
+Avoid disconnected subjects unaffected by surroundings.
+
+---
+
+SKIN REALISM RULES:
+NEVER describe skin generically. DO NOT write: "realistic skin", "detailed skin", "visible pores".
+Instead describe specific biological and material phenomena:
 - varying pore density across facial zones
 - epidermal micro-relief
+- skin translucency
 - capillary flush beneath thin skin
-- subsurface scattering in cheek hollows
-- vellus facial hair caught in raking light
-- dehydration texture on lip margins
-- oil distribution variation (T-zone vs. cheek perimeter)
-- compression wrinkles from posture or fabric contact
-- fine anatomical asymmetry
+- subsurface scattering
+- vellus facial hair
+- dehydration texture
+- lip micro-cracks
+- oil distribution variation
 - pigmentation inconsistency
-- under-eye swelling from fatigue or fluid
-- lip dehydration lines
-- skin translucency at temples and inner eyelid
-- natural facial imbalance`;
+- fine asymmetry
+- under-eye swelling
+- compression wrinkles
+- facial fatigue
+- natural facial imbalance
+- non-uniform skin reflection
+- biological irregularity
 
-const CAMERA_RULES = `CAMERA REALISM — simulate real optical behavior:
-- focus falloff at focal plane edges
-- lens breathing on subject proximity shift
-- chromatic aberration at high-contrast edges
-- sensor bloom on overexposed highlights
-- highlight halation around practical light sources
-- exposure clipping on skin oils
-- shallow focus inconsistencies across face plane
-- motion softness on fast micro-movement
-- depth compression at telephoto focal lengths
-- environmental haze reducing micro-contrast
-- film grain or sensor noise in shadow regions
-- rolling shutter feel on handheld horizontal pans
-- handheld instability — never perfectly still
+---
 
-Result must feel photographed, not rendered.`;
+CAMERA REALISM RULES:
+All prompts must simulate real optical behavior. The result must feel photographed, not rendered.
+Include physical camera phenomena: focus falloff, shallow focus inconsistencies, lens breathing, chromatic aberration, sensor bloom, highlight halation, motion softness, rolling shutter feel, exposure clipping, depth compression, environmental haze, handheld instability, accidental framing, imperfect focus acquisition, natural motion blur, analog film grain, edge softness.
+AVOID: hyper-clean rendering, synthetic sharpness, unreal optical clarity, perfectly balanced framing.
+The camera must observe the scene as one unified physical event. Avoid scene separation.
 
-const LIGHT_RULES = `LIGHTING — always originate from a believable physical source. NEVER use generic cinematic lighting.
-Specify exact sources:
-fluorescent ceiling tube, dirty window daylight (diffused through grime), sodium-vapor street lamp, bare incandescent practicals, phone screen spill, passing car headlights, bathroom mirror strip, candlelight, restaurant warm practicals, shop display LED.
+---
 
-Describe physical light interaction with:
-- skin oil creating specular micro-highlights
-- open pores catching shadow
-- moisture on lip edge refracting
-- hair strands becoming translucent
-- fabric absorbing vs. reflecting
-- smoke or steam scattering
-- condensation halating light source`;
+LIGHTING RULES:
+Light must always originate from believable physical sources. NEVER use generic cinematic lighting.
+Specify real sources: dirty window daylight, fluorescent ceiling light, warm restaurant practicals, candlelight, passing car headlights, sodium-vapor street lamps, bathroom mirror lighting, overcast sky bounce, reflected water light, phone screen spill, hallway tungsten light.
+Describe how light physically interacts with: skin oil, pores, moisture, hair, fabric, dust, smoke, humidity, condensation, surrounding surfaces.
+Lighting, atmosphere, depth, reflections, and imperfections must affect both subject and environment consistently.
+The subject must never appear independently lit from the environment.
 
-const ENVIRONMENT_RULES = `ENVIRONMENT — must contain wear, disorder, texture, age, humidity, stains, scratches, imperfect surfaces, accidental details. AVOID clean cinematic environments.`;
+---
 
-const EMOTION_RULES = `EMOTIONAL REALISM — emotion must emerge through physical observation only.
-NEVER say "she looks sad", "she feels hopeful", "emotional moment".
-INSTEAD describe:
-- tightened masseter muscle
-- tired eye focus with slow blink recovery
-- restless finger position change
-- delayed blinking rate
-- uneven breath rhythm (shallow chest rise)
-- subtle facial tension at orbital rim
-- jaw set angle
-- posture weight distribution`;
+ENVIRONMENT RULES:
+Environments must contain: wear, disorder, humidity, stains, scratches, texture variation, imperfect surfaces, accidental details, material aging, environmental noise, realistic depth layering, spatial obstruction, atmospheric softness.
+AVOID clean cinematic environments, sterile composition.
+The environment must feel physically lived in.
+
+---
+
+EMOTIONAL REALISM:
+Emotion must emerge through: posture, muscle tension, stillness, fatigue, gesture, breathing, gaze behavior, eye refocus, micro-expression, delayed reaction, body imbalance.
+NEVER describe emotion abstractly. DO NOT write: "she looks sad", "he feels nervous".
+INSTEAD describe: tightened jaw, uneven breathing, delayed blinking, restless fingers, distant eye focus, shoulder tension, unstable posture, facial compression, subtle exhaustion.`;
 
 const ARC_TRANSLATION: Record<string, string> = {
-  opening: `ARC: OPENING — exploratory framing, more environmental context, softer realism, wider shot allowing space around subject, natural light, low contrast, subject partially absorbed by environment`,
-  rising: `ARC: RISING — increased movement energy, tighter framing closing in, stronger lighting contrast, more skin texture visibility, heightened sensory detail`,
-  peak: `ARC: PEAK — extreme intimacy, aggressive close-ups, harsh directional light revealing every biological detail, sweat, micro-fatigue, emotional pressure visible in musculature`,
-  turning: `ARC: TURNING — asymmetrical framing, unstable compositions with visual tension, mixed color temperatures in same frame, body language contradictions`,
-  falling: `ARC: FALLING — drained atmosphere, static composition with minimal motion, reduced environmental detail, emotionally distant framing, cooler color temperature`,
-  quiet: `ARC: QUIET — intimate realism at close range, soft natural light from single source, subtle human biological detail, calm environmental stillness with micro-imperfection`,
+  opening:  `ARC — OPENING: exploratory framing, softer realism, environmental distance, observational atmosphere. Wider shot, subject partially absorbed by surroundings, soft natural light, low contrast.`,
+  rising:   `ARC — RISING: tighter framing closing in, stronger contrast, increased movement, more environmental interaction, stronger texture visibility, heightened sensory detail.`,
+  peak:     `ARC — PEAK: aggressive intimacy, close physical proximity, harsh directional light revealing every biological detail, sweat, fatigue, unstable framing, emotional pressure visible in musculature.`,
+  turning:  `ARC — TURNING: asymmetrical compositions, mixed color temperatures in same frame, posture instability, emotional tension, environmental fragmentation.`,
+  falling:  `ARC — FALLING: static compositions, drained atmosphere, reduced movement, emotional distance, weakened environmental energy, cooler color temperature.`,
+  quiet:    `ARC — QUIET: intimate realism, soft natural light from single source, minimal movement, subtle environmental detail, calm physical stillness, micro-imperfection at close range.`,
 };
 
-const VIDEO_MOTION_RULES = `VIDEO MOTION — movement must obey physics:
-- fabric inertia: cloth settles 0.3–0.5s after body stops
-- delayed cloth movement on direction reversal
-- subtle breathing motion lifting shoulders 2–4mm per cycle
-- involuntary eye refocus micro-saccade between resting gaze shifts
-- posture weight shifts redistributing pressure gradually
-- facial muscle micro-movement: cheek hollow tension, lip compression
-- environmental interaction: steam rising, hair reacting to body heat or AC draft
-
-AVOID: robotic motion, sudden action changes, overdramatic gestures.`;
+const VIDEO_MOTION_RULES = `VIDEO MOTION RULES:
+Movement must always obey physics.
+Include: fabric inertia (cloth settles 0.3–0.5s after body stops), delayed cloth response on direction reversal, subtle breathing motion (shoulders lift 2–4mm per cycle), involuntary eye refocus micro-saccade, posture weight shifts redistributing gradually, facial muscle micro-movement, environmental interaction, natural balance correction, motion continuity, gravity-driven movement, environmental resistance.
+AVOID: robotic motion, overdramatic gestures, abrupt movement changes, animation-like body behavior.
+All movement must feel physically carried by body weight and momentum.`;
 
 async function claudeWithRetry(params: { model: string; max_tokens: number; system: string; messages: Array<{ role: "user" | "assistant"; content: string }> }, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -138,32 +157,23 @@ export async function generateAndSavePrompts(ctx: StoryContext): Promise<void> {
     claudeWithRetry({
       model: "claude-sonnet-4-6",
       max_tokens: 1200,
-      system: `${CORE_PHILOSOPHY}
-
-${SKIN_RULES}
-
-${CAMERA_RULES}
-
-${LIGHT_RULES}
-
-${ENVIRONMENT_RULES}
-
-${EMOTION_RULES}
+      system: `${MASTER_DOCTRINE}
 
 ${arcNote}
 
 CHARACTER: ${ctx.visualBrief}
-SOUL ID: ${ctx.soulId ?? "derive from visual brief — maintain physical consistency"}
+SOUL ID: ${ctx.soulId ?? "derive physical consistency from visual brief"}
 
-PROMPT STRUCTURE (this exact order):
-1. Camera and shot geometry — device, focal length, framing
-2. Environment — specific location with material and sensory detail
-3. Light — exact source, direction, physical interaction with surfaces
-4. Subject position and action — specific, non-posed, caught mid-moment
-5. Clothing — fabric physics, wrinkle state, material behavior under this light
-6. Skin — biological detail using specific phenomena (NOT generic descriptors)
-7. Emotional state — expressed only through physical observation
-8. Head framing note — "her entire head remains fully visible in the composition"
+PHOTO PROMPT STRUCTURE (follow this exact order):
+1. Camera and shot geometry — device, focal length, exact framing, handheld behavior
+2. Environment — specific location with material texture, depth layering, atmospheric conditions
+3. Light — exact physical source, direction, how it interacts with both subject AND environment surfaces
+4. Subject — position, what they are doing, surface contact and its physical consequences
+5. Clothing — fabric type, gravity behavior, contact wrinkles, environmental influence
+6. Skin — describe using specific biological phenomena only (no generic descriptors)
+7. Emotional state — expressed only through physical observation of body and face
+8. Scene integration note — confirm subject is physically grounded in environment, not composited
+9. Head framing — "her entire head remains fully visible in the composition"
 
 STORY CONTEXT:
 Location: ${ctx.location}
@@ -171,26 +181,16 @@ Mood: ${ctx.mood}
 Narrative: ${ctx.narrative}
 Arc: ${ctx.arc_position}
 
-LANGUAGE STYLE: Write like a cinematographer or forensic observer. Technical, observational. NOT like a novelist or fashion editor.
+LANGUAGE: Write like a cinematographer or forensic observer. Technical, observational. NOT like a novelist or fashion editor.
 
-OUTPUT: Model: Soul 2 🖼️ Image Prompt — then the prompt. No markdown, no preamble, no explanation.`,
+OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the prompt. No markdown, no preamble, no explanation.`,
       messages: [{ role: "user", content: "Generate the photo prompt." }],
     }),
 
     claudeWithRetry({
       model: "claude-sonnet-4-6",
       max_tokens: 1200,
-      system: `${CORE_PHILOSOPHY}
-
-${SKIN_RULES}
-
-${CAMERA_RULES}
-
-${LIGHT_RULES}
-
-${ENVIRONMENT_RULES}
-
-${EMOTION_RULES}
+      system: `${MASTER_DOCTRINE}
 
 ${VIDEO_MOTION_RULES}
 
@@ -198,15 +198,16 @@ ${arcNote}
 
 CHARACTER: ${ctx.visualBrief}
 
-VIDEO PROMPT STRUCTURE (this exact order):
-1. Camera movement — device, movement type, speed, axis (e.g. "slow handheld dolly-in from 1.2m to 0.6m, slight rightward drift")
-2. Environment — specific location, material texture, ambient sound implied by visual detail
-3. Light — exact source, physical behavior across duration of shot
-4. Action sequence — start state → micro-development → rest state (natural physics)
-5. Clothing in motion — fabric inertia, settle delay, material response
-6. Skin biological detail — specific phenomena visible during motion
-7. Seamless loop definition — exact visual reset point described precisely
-8. Technical parameters — duration in seconds, 24fps, 9:16 vertical
+VIDEO PROMPT STRUCTURE (follow this exact order):
+1. Camera movement — device, movement type, axis, speed, starting distance (e.g. "slow handheld dolly-in from 1.4m to 0.7m, slight rightward drift, 24fps")
+2. Environment — specific location, material surface detail, atmospheric conditions, depth layers
+3. Light — exact physical source, how it behaves across the duration, how it affects both subject and environment
+4. Subject action sequence — start state → micro-development → rest state (governed by physics and inertia)
+5. Clothing in motion — fabric type, inertia timing, settle delay, gravity response
+6. Skin biological detail — specific phenomena visible during motion phase
+7. Environmental interaction — how surroundings physically respond to or affect the subject during the shot
+8. Seamless loop definition — exact visual moment where the action resets, described precisely
+9. Technical parameters — duration in seconds, 24fps, 9:16 vertical portrait
 
 STORY CONTEXT:
 Location: ${ctx.location}
@@ -214,9 +215,9 @@ Mood: ${ctx.mood}
 Narrative: ${ctx.narrative}
 Arc: ${ctx.arc_position}
 
-LANGUAGE STYLE: Write like a documentary cinematographer briefing a camera operator. Technical, physical, precise.
+LANGUAGE: Write like a documentary cinematographer briefing a camera operator. Technical, physical, precise.
 
-OUTPUT: Model: Seedance 2.0 🎬 Video Prompt — then the prompt. No markdown, no preamble, no explanation.`,
+OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt. No markdown, no preamble, no explanation.`,
       messages: [{ role: "user", content: "Generate the video prompt." }],
     }),
   ]);
