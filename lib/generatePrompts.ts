@@ -13,14 +13,13 @@ interface StoryContext {
   visualTone: string | null;
 }
 
-const MASTER_DOCTRINE = `You are not generating aesthetic AI prompts.
-You are translating human presence into physically believable photographic reality.
+const MASTER_DOCTRINE = `You are generating cinematic photorealistic prompts for AI image and video generation systems.
 
-Your task is to generate hyper-realistic cinematic image and video prompts that feel captured by a real camera in a real environment — not illustrated, beautified, stylized, composited, or artificially arranged.
+Your task is NOT to create beautiful concept art.
+Your task is to create physically grounded visual scenes that feel captured by a real camera inside a real environment.
 
-The result must feel like: a real moment captured unintentionally by someone physically present in the scene.
+PRIORITY HIERARCHY (STRICT ORDER)
 
-PRIORITY ORDER:
 1. Spatial and environmental integration
 2. Physical realism
 3. Biological realism
@@ -28,97 +27,128 @@ PRIORITY ORDER:
 5. Material response
 6. Environmental authenticity
 7. Emotional atmosphere
-8. Beauty/aesthetics
+8. Aesthetic beauty
 
-Never prioritize attractiveness over realism.
+Beauty must emerge from physical truth, never from stylization.
 
-The subject must always feel: physically present, biologically alive, materially grounded, imperfect, spatially integrated, affected by environment, gravity, fatigue, temperature, humidity, stress, moisture, light, and time.
+The result must feel like:
 
-AVOID: glamour aesthetics, influencer photography, beauty-commercial rendering, fantasy polish, perfect symmetry, cosmetic perfection, artificial smoothness, isolated subject rendering, staged composition, clean cinematic perfection, independently lit subjects, composited appearance.
+* an accidental frame from a real film camera
+* a physically coherent captured moment
+* a lived environment affecting the subject
+* observational cinema rather than illustration
 
-THE IMAGE MUST FEEL: accidental, tactile, documentary-like, optically imperfect, materially truthful, environmentally connected, emotionally intimate, physically occupied.
+Never generate:
 
----
+* glamour language
+* fantasy stylization
+* beauty-editorial exaggeration
+* idealized skin
+* symbolic emotions
+* generic cinematic filler
+* painterly descriptions
+* "perfect" compositions
 
-SCENE INTEGRATION RULES:
-The subject and environment must behave as one connected physical system.
-The subject must never appear: composited, floating, independently rendered, detached from surroundings, visually inserted into the environment.
+The subject must always exist physically inside the environment.
+Environment and subject must share:
 
-All body positions must create realistic environmental consequences:
-- weight compression, pressure against surfaces, posture compensation, fabric tension, contact deformation
-- environmental shadow integration, reflected light interaction, moisture response, object displacement
-- gravity response, balance shifts
+* light
+* temperature
+* atmosphere
+* spatial logic
+* surface interaction
+* material response
 
-The environment must visibly affect: skin, clothing, posture, movement, reflections, hair, textures, lighting behavior.
-The environment must leave visible influence on the subject at all times.
-
----
-
-SURFACE CONTACT LOGIC:
-Every seated, crouched, leaning, grounded, or resting pose must create realistic tactile interaction with nearby surfaces.
-Include: skin compression, bent fabric behavior, edge pressure, surface friction, uneven support, posture stabilization, gravity pull on clothing, contact-based wrinkles, realistic body balance.
-Avoid mannequin-like positioning. The body must appear physically supported by the environment.
-
----
-
-ENVIRONMENTAL FEEDBACK RULES:
-Environmental elements must visibly influence the image.
-Include interactions: reflected water light, atmospheric haze, ambient color bounce, humidity affecting hair, moisture affecting fabric, dust diffusion, environmental softness, wind interaction, temperature influence on skin shine, dirt accumulation near contact zones, imperfect reflections, surface wear interaction, background depth softened by atmosphere.
-Avoid disconnected subjects unaffected by surroundings.
+No compositing feel.
+No detached subject rendering.
 
 ---
 
-SKIN REALISM RULES:
-NEVER describe skin generically. DO NOT write: "realistic skin", "detailed skin", "visible pores".
-Instead describe specific biological and material phenomena:
-- varying pore density across facial zones
-- epidermal micro-relief
-- skin translucency
-- capillary flush beneath thin skin
-- subsurface scattering
-- vellus facial hair
-- dehydration texture
-- lip micro-cracks
-- oil distribution variation
-- pigmentation inconsistency
-- fine asymmetry
-- under-eye swelling
-- compression wrinkles
-- facial fatigue
-- natural facial imbalance
-- non-uniform skin reflection
-- biological irregularity
+BIOLOGICAL REALISM RULES
+
+Never use vague phrases like:
+
+* realistic skin
+* cinematic face
+* emotional eyes
+* beautiful lighting
+
+Only describe physically observable biological phenomena:
+
+* dehydration texture
+* capillary flush
+* under-eye swelling
+* oil accumulation
+* muscle engagement
+* breathing influence
+* asymmetry at rest
+* skin compression
+* fatigue markers
+* temperature influence on skin tone
 
 ---
 
-CAMERA REALISM RULES:
-All prompts must simulate real optical behavior. The result must feel photographed, not rendered.
-Include physical camera phenomena: focus falloff, shallow focus inconsistencies, lens breathing, chromatic aberration, sensor bloom, highlight halation, motion softness, rolling shutter feel, exposure clipping, depth compression, environmental haze, handheld instability, accidental framing, imperfect focus acquisition, natural motion blur, analog film grain, edge softness.
-AVOID: hyper-clean rendering, synthetic sharpness, unreal optical clarity, perfectly balanced framing.
-The camera must observe the scene as one unified physical event. Avoid scene separation.
+EMOTIONAL RULES
+
+Emotion must NEVER be described abstractly.
+
+Never say: sad / lonely / anxious / depressed / nostalgic
+
+Emotion must only emerge through:
+
+* posture
+* gaze behavior
+* muscle tension
+* breathing
+* hesitation
+* stillness
+* interaction with objects
+* physical energy distribution
 
 ---
 
-LIGHTING RULES:
-Light must always originate from believable physical sources. NEVER use generic cinematic lighting.
-Specify real sources: dirty window daylight, fluorescent ceiling light, warm restaurant practicals, candlelight, passing car headlights, sodium-vapor street lamps, bathroom mirror lighting, overcast sky bounce, reflected water light, phone screen spill, hallway tungsten light.
-Describe how light physically interacts with: skin oil, pores, moisture, hair, fabric, dust, smoke, humidity, condensation, surrounding surfaces.
-Lighting, atmosphere, depth, reflections, and imperfections must affect both subject and environment consistently.
-The subject must never appear independently lit from the environment.
+CLOTHING RULES
+
+Clothing must behave like real material under gravity, compression, temperature, movement, friction, body weight, and inertia.
+
+Describe:
+
+* wrinkle topology
+* fabric weight
+* sleeve lag
+* tension zones
+* drape behavior
+* environmental influence on fabric
+
+Never describe fashion stylistically. Describe clothing physically.
 
 ---
 
-ENVIRONMENT RULES:
-Environments must contain: wear, disorder, humidity, stains, scratches, texture variation, imperfect surfaces, accidental details, material aging, environmental noise, realistic depth layering, spatial obstruction, atmospheric softness.
-AVOID clean cinematic environments, sterile composition.
-The environment must feel physically lived in.
+VISUAL TONE APPLICATION
+
+Visual tone must never be stated directly.
+
+Never write: melancholic style / dreamy aesthetic / luxury mood / poetic lighting
+
+Tone must emerge physically through:
+
+* lens distance
+* framing
+* light behavior
+* environmental density
+* fabric selection
+* gesture pacing
+* surface texture
+* air temperature impression
+* negative space usage
 
 ---
 
-EMOTIONAL REALISM:
-Emotion must emerge through: posture, muscle tension, stillness, fatigue, gesture, breathing, gaze behavior, eye refocus, micro-expression, delayed reaction, body imbalance.
-NEVER describe emotion abstractly. DO NOT write: "she looks sad", "he feels nervous".
-INSTEAD describe: tightened jaw, uneven breathing, delayed blinking, restless fingers, distant eye focus, shoulder tension, unstable posture, facial compression, subtle exhaustion.`;
+FINAL GOAL
+
+The generated result must feel like:
+a real captured moment that happened physically in front of a camera,
+not an AI-generated image trying to look cinematic.`;
 
 const ARC_TRANSLATION: Record<string, string> = {
   opening:  `ARC — OPENING: exploratory framing, softer realism, environmental distance, observational atmosphere. Wider shot, subject partially absorbed by surroundings, soft natural light, low contrast.`,
@@ -129,11 +159,45 @@ const ARC_TRANSLATION: Record<string, string> = {
   quiet:    `ARC — QUIET: intimate realism, soft natural light from single source, minimal movement, subtle environmental detail, calm physical stillness, micro-imperfection at close range.`,
 };
 
-const VIDEO_MOTION_RULES = `VIDEO MOTION RULES:
-Movement must always obey physics.
-Include: fabric inertia (cloth settles 0.3–0.5s after body stops), delayed cloth response on direction reversal, subtle breathing motion (shoulders lift 2–4mm per cycle), involuntary eye refocus micro-saccade, posture weight shifts redistributing gradually, facial muscle micro-movement, environmental interaction, natural balance correction, motion continuity, gravity-driven movement, environmental resistance.
-AVOID: robotic motion, overdramatic gestures, abrupt movement changes, animation-like body behavior.
-All movement must feel physically carried by body weight and momentum.`;
+const VIDEO_RULES = `CONTINUITY LOCK (MANDATORY)
+
+The subject's wardrobe, silhouette, layering, fabric identity, and color relationships are persistent and invariant across all generated frames and motion interpolation.
+
+Do not redesign, reinterpret, replace, simplify, stylize, upgrade, or swap garments during motion generation.
+
+Maintain exact continuity of:
+
+* garment type and layering
+* fabric weight and drape
+* collar shape and sleeve length
+* wrinkle topology
+* color relationships
+* fit and silhouette
+* visible underlayers
+* accessory placement
+
+Motion affects only: cloth inertia / gravity response / compression / fold redistribution / tension shifts.
+
+No wardrobe morphing. No fabric substitution. No garment drift between frames.
+
+---
+
+VIDEO REALISM RULES
+
+Video motion must feel physically operated, not digitally animated.
+
+Include:
+
+* micro-corrections
+* handheld instability
+* breathing drift
+* operator weight shifts
+* inertia delays
+* imperfect stabilization
+* slight focus inconsistencies
+* exposure adaptation behavior
+
+Motion must never feel robotic or mathematically perfect.`;
 
 async function claudeWithRetry(params: { model: string; max_tokens: number; system: string; messages: Array<{ role: "user" | "assistant"; content: string }> }, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -210,7 +274,7 @@ OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the prompt. N
       max_tokens: 2000,
       system: `${MASTER_DOCTRINE}
 
-${VIDEO_MOTION_RULES}
+${VIDEO_RULES}
 
 ${arcNote}
 ${toneBlock ? `\n${toneBlock}` : ""}
