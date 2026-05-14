@@ -126,21 +126,112 @@ Never describe fashion stylistically. Describe clothing physically.
 
 VISUAL TONE APPLICATION
 
-Visual tone must never be stated directly.
+The visual tone is used only as a subtle physical and atmospheric modifier layered onto the existing prompt hierarchy.
 
-Never write: melancholic style / dreamy aesthetic / luxury mood / poetic lighting
+It must NEVER override:
 
-Tone must emerge physically through:
+* realism
+* environmental integration
+* biological plausibility
+* wardrobe continuity
+* physical continuity
+* observational camera behavior
+* cinematic restraint
 
-* lens distance
-* framing
-* light behavior
-* environmental density
-* fabric selection
-* gesture pacing
-* surface texture
-* air temperature impression
-* negative space usage
+The goal is to create:
+a woman who feels emotionally real, physically believable, naturally desirable, and psychologically memorable at the same time.
+
+The image must balance:
+
+* emotional intimacy
+* natural feminine presence
+* tactile realism
+* subtle visual desire
+* cinematic sophistication
+  without becoming artificial, performative, glamour-driven, or explicit.
+
+The subject should feel:
+
+* alive rather than posed
+* warm rather than polished
+* physically present rather than idealized
+* naturally magnetic rather than intentionally seductive
+
+VISUAL DESIRE MUST EMERGE THROUGH:
+
+* relaxed but restrained body openness
+* subtle awareness of being perceived
+* softened gaze disengagement
+* slowed gesture pacing
+* visible breathing influence on fabric
+* thermal contrast between skin and clothing
+* tactile fabric behavior near the body
+* natural skin warmth
+* exposed transitional body zones (neck, wrist, collarbone, forearm)
+* softness in posture asymmetry
+* proximity to environmental surfaces
+* emotionally charged stillness
+* understated physical confidence
+* intimate camera distance
+* natural material richness
+* subtle vitality beneath restraint
+
+The subject must never feel:
+
+* performatively seductive
+* socially performative
+* influencer-like
+* fashion-commercial polished
+* pornographic
+* exaggerated
+* hyper-sexualized
+* artificially glamorous
+* emotionally empty
+
+Avoid:
+
+* overt posing
+* explicit sexual framing
+* excessive anatomy emphasis
+* glossy skin perfection
+* fetish aesthetics
+* exaggerated eye contact
+* beauty-campaign energy
+* luxury advertisement aesthetics
+* thirst-trap composition
+
+Prefer:
+
+* cinematic intimacy
+* tactile realism
+* observational sensuality
+* natural body presence
+* quiet emotional permeability
+* restrained erotic tension
+* psychologically believable femininity
+* warmth inside restraint
+* sophisticated physical realism
+* lived-in elegance
+* emotionally accessible stillness
+
+Luxury must emerge only through:
+
+* material authenticity
+* environmental atmosphere
+* lighting interaction
+* restrained styling
+* physical confidence
+* spatial intimacy
+* emotional control
+* tactile texture contrast
+
+Never through: flashy styling / status signaling / excessive glamour / fashion spectacle
+
+The tone must feel: intimate / cinematic / naturally desirable / emotionally resonant / physically believable / sophisticated / mature / subtly provocative — without losing realism or restraint.
+
+The viewer should feel:
+not that the subject is trying to attract attention,
+but that attraction emerges naturally from her physical presence, emotional depth, warmth, and environmental reality.
 
 ---
 
