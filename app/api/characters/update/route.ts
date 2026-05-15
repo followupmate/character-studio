@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { characterId, photo_url, visual_tone } = await req.json();
+    const { characterId, photo_url, visual_tone, prompt_doctrine } = await req.json();
     if (!characterId) {
       return NextResponse.json({ error: "Missing characterId" }, { status: 400 });
     }
@@ -11,6 +11,7 @@ export async function PATCH(req: NextRequest) {
     const patch: Record<string, unknown> = {};
     if (photo_url !== undefined) patch.photo_url = photo_url;
     if (visual_tone !== undefined) patch.visual_tone = visual_tone;
+    if (prompt_doctrine !== undefined) patch.prompt_doctrine = prompt_doctrine;
 
     const { error } = await supabase
       .from("chs_characters")

@@ -145,6 +145,7 @@ ALL text fields must be in English.`,
           visualBrief: char.visual_brief,
           soulId: char.soul_id,
           visualTone: (char as any).visual_tone ?? null,
+          doctrine: (char as any).prompt_doctrine ?? "cinematic",
         })
       )
     );

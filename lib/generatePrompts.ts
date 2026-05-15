@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import { anthropic } from "@/lib/anthropic";
 
+type PromptDoctrine = "cinematic" | "instagram";
+
 interface StoryContext {
   storyDayId: string;
   characterId: string;
@@ -11,6 +13,7 @@ interface StoryContext {
   visualBrief: string;
   soulId: string | null;
   visualTone: string | null;
+  doctrine?: PromptDoctrine;
 }
 
 const MASTER_DOCTRINE = `You are generating cinematic photorealistic prompts for AI image and video generation systems.
@@ -338,6 +341,51 @@ Micro-saccadic lens drift (mandatory for intimate distances):
 
 Motion must never feel robotic or mathematically perfect.`;
 
+const INSTAGRAM_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string) => `You are generating a photorealistic image prompt in the style of authentic social media photography.
+
+CHARACTER: ${ctx.visualBrief}
+LOCATION: ${ctx.location}
+MOOD: ${ctx.mood}
+SOUL ID: ${ctx.soulId ?? "derive from visual brief"}
+${toneBlock ? `\nTONE: ${toneBlock}` : ""}
+
+Generate a SHORT, TAG-BASED image prompt (60-120 words max) in the following style:
+
+- Start with quality/device tags: "Ultra realistic, [device], [shot type]"
+- List subject attributes directly: physical features, hair, expression, pose
+- List clothing as direct tags: specific garments, fit, coverage
+- Setting as atmosphere tag: location, lighting mood
+- End with quality reinforcement tags
+
+Use natural social media language. Mood and expression words are allowed (suggestive, cheeky, confident, playful). Direct eye contact is allowed. The image should feel like it was captured spontaneously in real life.
+
+PHOTO STYLE: authentic selfie / candid / lifestyle photography
+LIGHTING: natural or phone flash — describe briefly
+AVOID: cinematic language, technical optical specifications, long paragraphs
+
+OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the tag-based prompt. Keep it punchy and direct.`;
+
+const INSTAGRAM_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string) => `You are generating a short-form video prompt in the style of authentic social media content.
+
+CHARACTER: ${ctx.visualBrief}
+LOCATION: ${ctx.location}
+MOOD: ${ctx.mood}
+${toneBlock ? `\nTONE: ${toneBlock}` : ""}
+
+Generate a SHORT, DIRECT video prompt (60-120 words max):
+
+- Shot type + device: "handheld iPhone, [shot description]"
+- Subject action: simple, natural micro-movement (hair, breath, slight turn, smile)
+- Setting + lighting: 1-2 words
+- Loop logic: describe the simple reset moment
+- Duration + format: seconds, 9:16
+
+STYLE: authentic, candid, social media lifestyle
+MOVEMENT: subtle, natural — breathing, micro-adjustment, soft gesture
+AVOID: cinematic doctrine language, technical camera specs, complex action sequences
+
+OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt. Keep it short and direct.`;
+
 async function claudeWithRetry(params: { model: string; max_tokens: number; system: string; messages: Array<{ role: "user" | "assistant"; content: string }> }, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -355,8 +403,11 @@ async function claudeWithRetry(params: { model: string; max_tokens: number; syst
 }
 
 export async function generateAndSavePrompts(ctx: StoryContext): Promise<void> {
+  const doctrine = ctx.doctrine ?? "cinematic";
   const arcNote = ARC_TRANSLATION[ctx.arc_position] ?? ARC_TRANSLATION.quiet;
-  const toneBlock = ctx.visualTone
+  const toneBlock = ctx.visualTone ?? "";
+
+  const cinematicToneBlock = ctx.visualTone
     ? `CHARACTER VISUAL TONE:
 Tone directive: ${ctx.visualTone}
 
@@ -378,6 +429,34 @@ Never describe "she looks [tone word]". Describe instead:
 - her skin temperature differential creates 1.5°C contrast with ambient air, visible at fabric edge`
     : "";
 
+  // Instagram doctrine — short tag-based prompts
+  if (doctrine === "instagram") {
+    const [photoMsg, videoMsg] = await Promise.all([
+      claudeWithRetry({
+        model: "claude-sonnet-4-6",
+        max_tokens: 400,
+        system: INSTAGRAM_DOCTRINE_PHOTO(ctx, toneBlock),
+        messages: [{ role: "user", content: "Generate the photo prompt." }],
+      }),
+      claudeWithRetry({
+        model: "claude-sonnet-4-6",
+        max_tokens: 400,
+        system: INSTAGRAM_DOCTRINE_VIDEO(ctx, toneBlock),
+        messages: [{ role: "user", content: "Generate the video prompt." }],
+      }),
+    ]);
+
+    const photoPrompt = (photoMsg.content[0] as { type: string; text: string }).text;
+    const videoPrompt = (videoMsg.content[0] as { type: string; text: string }).text;
+
+    await Promise.all([
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending" }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending" }),
+    ]);
+    return;
+  }
+
+  // Cinematic doctrine (default)
   const [photoMsg, videoMsg] = await Promise.all([
     claudeWithRetry({
       model: "claude-sonnet-4-6",
@@ -387,7 +466,7 @@ Never describe "she looks [tone word]". Describe instead:
 ${SENSOR_REALISM}
 
 ${arcNote}
-${toneBlock ? `\n${toneBlock}` : ""}
+${cinematicToneBlock ? `\n${cinematicToneBlock}` : ""}
 CHARACTER: ${ctx.visualBrief}
 SOUL ID: ${ctx.soulId ?? "derive physical consistency from visual brief"}
 

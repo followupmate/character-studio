@@ -3,6 +3,7 @@ export type MediaType = "photo" | "video";
 export type MediaStatus = "pending" | "generating" | "ready" | "posted" | "failed";
 export type PostStatus = "scheduled" | "posted" | "failed";
 export type ArcPosition = "opening" | "rising" | "peak" | "turning" | "falling" | "quiet";
+export type PromptDoctrine = "cinematic" | "instagram";
 
 export interface Character {
   id: string;
@@ -11,6 +12,7 @@ export interface Character {
   soul_id: string | null;
   photo_url: string | null;
   visual_tone: string | null;
+  prompt_doctrine: PromptDoctrine | null;
   visual_brief: string;
   backstory: string;
   personality: Record<string, string>;

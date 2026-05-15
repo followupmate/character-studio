@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       visualBrief: char.visual_brief,
       soulId: char.soul_id,
       visualTone: (char as any).visual_tone ?? null,
+      doctrine: (char as any).prompt_doctrine ?? "cinematic",
     });
 
     return NextResponse.json({ success: true, character: char.name });
