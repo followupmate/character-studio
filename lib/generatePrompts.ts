@@ -289,62 +289,6 @@ Video sensor behavior:
 * Compression artifact: macroblocking in flat areas, mosquito noise on edges (subtle, not dominant)
 * Bit depth banding: visible in gradients, accepted as reality, not smoothed`;
 
-const INTIMATE_EXPOSURE = `INTIMATE_EXPOSURE — physical intimacy through material and light
-
-Use when: subject is partially or fully exposed, wearing sheer fabric, underwear, hosiery, or when nudity is a physical fact, not a performance.
-
-Exposure hierarchy (information layers):
-1. Skin — primary surface, all biological processes visible
-2. Sheer / translucent material — skin modifier, not cover: denier, translucency, tension
-3. Underwear — functional layer: elasticity, compression, silhouette beneath fabric
-4. Hosiery — structural sheerness: denier gradient, runs, toe reinforcement
-5. Opaque — only when physically necessary
-
-Material physics:
-
-Chiffon / polyamide sheer (10-20 den, 40-60% light transmission):
-Skin tone shift, silhouette as tonal form, shear lines from tension zones.
-
-Lace (30-70% transmission):
-Pattern shadow on skin, geometric caustic from openwork, pressure points where solid meets flesh.
-
-Cotton jersey underwear (120-180g/m², opaque dry, 3-5% translucency under tension):
-Silhouette of underlayer as shadow, elastic indentation, waistband fatigue line.
-
-Nylon hosiery (10-40 den, 80-20% transmission gradient):
-Denier variation by body zone, knee/ankle compression shadow, run as 100% transmission gap with frayed edges.
-
-Silk charmeuse (12-19 momme, 50% transmission, high specular):
-Cling to body contours, electrostatic separation, moisture darkening at contact zones.
-
-Linen sheer (60-80g/m², 30% transmission, rigid drape):
-Fold memory, humidity curl, gravity crease as body map.
-
-Body under material — physiological map:
-
-* Thermal gradient: skin under fabric is 0.5-2°C above ambient, visible as color shift at fabric edge
-* Moisture: sweat film under tensioned material increases translucency 5-15%, visible as darkening or cling
-* Compression: elastic creates 2-5mm indentation, skin bulge above/below, transition zone 1-3mm
-* Silhouette: form under sheer is not "seen" but "inferred" — mass, gravity, posture written in fabric tension
-* Pulse: superficial arteries visible as rhythmic distortion under thin material or at fabric edge
-
-Light through material:
-
-* Transmission: direct light passes through, skin visible as continuous tone shift, not image
-* Diffusion: scattered light erases detail, creates glow zone where fabric meets skin
-* Shadow: opaque elements (elastic, seams, reinforcement) cast hard shadow on body beneath
-* Caustic: sheer folds act as lenses, creating bright lines on skin — optical, not decorative
-* Specular: oil/moisture on skin creates highlight through fabric, refracted by material structure
-
-Framing rules for intimate scenes:
-
-* Nudity or exposure is a physical state, not a goal
-* Intimacy is physical distance, not emotional quality
-* Frame partially, not fully — what is outside frame matters as much as what is inside
-* Face may be absent, peripheral, or incidental — body is the subject
-* Observational distance: 0.6-1.2m — close for texture, distant for context
-* Never "nude" as objective — never "sexy" as atmosphere`;
-
 const ARC_TRANSLATION: Record<string, string> = {
   opening: `ARC — OPENING: exploratory framing, softer realism, environmental distance, observational atmosphere. Wider shot, subject partially absorbed by surroundings, soft natural light, low contrast.
 Optical specification: 35-50mm equivalent, mild barrel distortion, edge softness, natural vignetting, no aggressive compression.`,
@@ -442,8 +386,6 @@ Never describe "she looks [tone word]". Describe instead:
 
 ${SENSOR_REALISM}
 
-${INTIMATE_EXPOSURE}
-
 ${arcNote}
 ${toneBlock ? `\n${toneBlock}` : ""}
 CHARACTER: ${ctx.visualBrief}
@@ -481,8 +423,6 @@ OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the prompt. N
 ${VIDEO_RULES}
 
 ${SENSOR_REALISM}
-
-${INTIMATE_EXPOSURE}
 
 ${arcNote}
 ${toneBlock ? `\n${toneBlock}` : ""}
