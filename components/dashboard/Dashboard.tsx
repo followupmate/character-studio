@@ -45,6 +45,7 @@ function CharacterCard({
   const [editingTone, setEditingTone] = useState(false);
   const [toneInput, setToneInput] = useState(char.visual_tone ?? "");
   const [savingTone, setSavingTone] = useState(false);
+  const [savingDoctrine, setSavingDoctrine] = useState(false);
 
   async function savePhoto() {
     setSavingPhoto(true);
@@ -181,6 +182,43 @@ function CharacterCard({
               {char.visual_tone || <span className="text-muted/50">— nenastavený —</span>}
             </p>
           )}
+        </div>
+
+        {/* Prompt Doctrine */}
+        <div className="border border-border bg-surface-low px-3 py-2">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-mono text-[8px] tracking-[0.1em] text-muted uppercase">Prompt Doctrine</span>
+            {savingDoctrine && <span className="font-mono text-[8px] text-muted">Ukladám...</span>}
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            {(["cinematic", "instagram", "deepseek"] as const).map((d) => {
+              const active = (char.prompt_doctrine ?? "cinematic") === d;
+              const label = d === "cinematic" ? "🎬 Cinematic" : d === "instagram" ? "📱 Instagram" : "🎯 Deepseek";
+              return (
+                <button
+                  key={d}
+                  disabled={savingDoctrine}
+                  onClick={async () => {
+                    setSavingDoctrine(true);
+                    await fetch("/api/characters/update", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ characterId: char.id, prompt_doctrine: d }),
+                    });
+                    setSavingDoctrine(false);
+                    window.location.reload();
+                  }}
+                  className={`flex-1 font-mono text-[8px] uppercase tracking-[0.05em] border py-1 transition-colors disabled:opacity-50 ${
+                    active
+                      ? "bg-accent/10 border-accent/40 text-accent"
+                      : "border-border text-muted hover:text-ink hover:border-border2"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Stats row */}
