@@ -86,11 +86,19 @@ Prefer:
 The image should retain:
 
 * clean lens rendering
-* controlled highlight rolloff
+* controlled highlight rolloff (not clipping)
 * clear midtone separation
 * natural optical softness
 * high-quality lens clarity
   without appearing digitally sharpened or artificially polished.
+
+Permitted optical imperfections (as proof of reality, 2-3 per frame max):
+* authentic lens breathing: 1-3% focal shift during focus pull
+* controlled spherical aberration: edge definition falloff, not center degradation
+* natural axial chromatic aberration: purple/green fringe on high-contrast edges only
+* sensor bloom: highlight overflow at overexposed zones
+* rolling shutter skew: fast pans or vertical lines during motion
+* never more than 1 stop dynamic range reserve — real sensors clip before digital does
 
 ---
 
@@ -118,6 +126,17 @@ Never use vague phrases. Only describe physically observable biological phenomen
 
 TEMPORAL SKIN STATE (mandatory):
 Skin always has a time signature: recent touch (transient erythema), sustained pressure (indentation), readiness for activity (goosebumps), post-activity relaxation (mild flush). Never "neutral flawless".
+
+DERMAL PHYSICS OF CONTACT:
+* Ischemic blanching: skin whitens under finger or elastic pressure (2-5mm radius), recovers to reactive hyperemia (red flush) within 3-8 seconds of release — visible at fabric edges, waistbands, straps
+* Moisture gradient by zone: philtrum / suprasternal notch / lower back accumulate first; translucency shift where moisture is present (refractive index shift n≈1.33 water vs n≈1.44 dry skin)
+* Subsurface scattering variability: ears, fingertips, knuckles transmit more red light (higher scatter coefficient); visible at rim-light or backlight positions
+* Piloerection logic: goosebumps triggered not only by cold but by electrostatic charge between silk/nylon and skin — visible as 1-2mm surface topology change at contact edge
+
+AUTONOMIC RESPONSE (visible, never abstract):
+* Mydriasis / miosis: pupil diameter responds to low light and focal fixation — specify dilation state relative to scene lighting (3-6mm in dim, 2-3mm in bright)
+* Micro-tremor: pre-movement muscle firing — subtle 1-3Hz vibration in limb before gesture initiates, visible as surface texture shift
+* Intermediate states only: never show start or end of an action — show mid-blink, mid-breath, mid-gesture, hand in motion, fabric caught mid-settle
 
 ---
 
@@ -206,6 +225,16 @@ Luxury must emerge only through: material authenticity / environmental atmospher
 Never through: flashy styling / status signaling / excessive glamour / fashion spectacle
 
 The viewer should feel: not that the subject is trying to attract attention, but that attraction emerges naturally from her physical presence, emotional depth, warmth, and environmental reality.
+
+---
+
+THE UNCANNY GAP FILLER
+
+Details that signal 100% physical reality to the human brain:
+
+* Tactile gravity: clothing does not only respond to the figure — it microscopically "sticks" to skin due to friction (μ), then releases; static electricity between silk/nylon and skin creates momentary cling before separation
+* Subsurface scattering variability: blood circulation is uneven — ears, fingertips, and knuckles must show higher scatter coefficient (redder tone) under backlight or rim light
+* Intermediate states: never show the beginning or end of an action — show only the middle: a button half-open, a hand mid-movement, hair caught on a collar, fabric mid-settle after a gesture
 
 ---
 
@@ -357,6 +386,11 @@ Video motion must feel physically operated, not digitally animated.
 Camera as physical mass: operator weight, inertia, breath, micro-corrections, vibration transfer.
 
 Include: micro-corrections / handheld instability / breathing drift / operator weight shifts / inertia delays / imperfect stabilization / focus inconsistencies / exposure adaptation behavior / operator presence signature (accidental micro-pan, focus breathing, framing drift)
+
+Micro-saccadic lens drift (mandatory for intimate distances):
+* Z-axis breathing shift: operator respiration creates ±2mm depth-of-field oscillation at ~0.2Hz — subject sharpness pulses subtly with each breath cycle
+* Focus hunting at close range (≤0.8m): any subject movement of 1-2mm forward triggers visible focus breathing as lens searches for optimal plane — creates sensation of a real operator behind the camera
+* Never lock focus perfectly — sustained perfect sharpness reads as synthetic
 
 Motion must never feel robotic or mathematically perfect.`;
 
