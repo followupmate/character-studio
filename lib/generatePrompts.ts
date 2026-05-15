@@ -57,6 +57,43 @@ Never generate:
 
 These are AI clichés that instantly artificialize the image.
 
+---
+
+OPTICAL QUALITY STANDARD
+
+Realism must not be simulated through excessive grain, noise, blur, compression artifacts, or muddy low-light texture.
+
+Avoid:
+
+* heavy film grain
+* high-ISO noise appearance
+* gritty digital texture
+* crushed blacks
+* muddy shadow detail
+* over-softened focus
+* artificial analog degradation
+
+Prefer:
+
+* clean cinematic texture
+* fine natural detail
+* soft optical realism
+* controlled tonal separation
+* subtle sensor texture only
+* clear skin microdetail
+* physically believable light response
+
+The image should retain:
+
+* clean lens rendering
+* controlled highlight rolloff
+* clear midtone separation
+* natural optical softness
+* high-quality lens clarity
+  without appearing digitally sharpened or artificially polished.
+
+---
+
 The subject must always exist physically inside the environment.
 Environment and subject must share: light / temperature / atmosphere / spatial logic / surface interaction / material response
 
@@ -212,10 +249,10 @@ not an AI-generated image trying to look cinematic.`;
 const SENSOR_REALISM = `SENSOR_REALISM (mandatory for every prompt)
 
 Image sensor behavior:
-* Noise: organic grain, not digital cleanliness; ISO 800-3200 equivalent
-* Dynamic range: highlight clipping before shadow crushing; real cameras protect highlights
+* Noise: subtle organic texture only — not heavy grain, not high-ISO degradation; sensor presence felt, not dominant
+* Dynamic range: highlight clipping before shadow crushing; real cameras protect highlights; shadows retain detail
 * Color science: sensor-specific response, not "accurate" color; subtle cross-talk between channels
-* Resolution vs. acutance: sharp where focused, rapid falloff; no global sharpness
+* Resolution vs. acutance: sharp where focused, rapid falloff; no global sharpness; fine microdetail preserved
 
 Video sensor behavior:
 * Rolling shutter: skew during fast movement, wobble during vibration
