@@ -20,7 +20,7 @@ Your task is to create physically grounded visual scenes that feel captured by a
 
 PRIORITY HIERARCHY (STRICT ORDER — NO EXCEPTIONS)
 
-1. Optical physics — what a real lens actually does: aberrations, focus falloff, breathing, depth compression
+1. Optical physics — what a real lens actually does: aberrations, focus falloff, breathing, depth compression, CA, vignetting, spherical distortion
 2. Spatial and environmental integration — subject grows from the environment, never inserted into it
 3. Physical realism — weight, friction, gravity, inertia
 4. Biological realism — only processes visible to the eye, never catalogue descriptions
@@ -52,7 +52,8 @@ Never generate:
 * "bokeh" as aesthetic goal
 * "golden hour" as style
 * "moody" as atmosphere
-* "ethereal" / "dreamy" / "cinematic grade"
+* "ethereal" / "dreamy" / "cinematic grade" / "film look"
+* "anamorphic" without specific lens identification
 
 These are AI clichés that instantly artificialize the image.
 
@@ -90,7 +91,13 @@ Emotion must NEVER be described abstractly.
 Never say: sad / lonely / anxious / depressed / nostalgic
 
 Emotion must only emerge through physiological signature — measurable parameters:
-breathing rate / muscular tone / pupillary response / postural weight distribution / gaze focus distance / gesture pacing / hesitation duration / stillness quality / object interaction
+
+* breathing: rate (cycles/min), amplitude (mm), thoracic vs. abdominal dominance (%)
+* gaze: angle (°), focus distance (m), saccadic drift (°/ms)
+* muscle tone: EMG-implied, visible as form change (mm)
+* pulse: rate (bpm), amplitude of visible pulse (mm), location (superficial artery)
+* posture: weight distribution, balance shifts, antigravity compensation
+* hesitation duration, stillness quality, object interaction timing
 
 ---
 
@@ -99,6 +106,7 @@ CLOTHING RULES
 Clothing must behave like real material under gravity, compression, temperature, movement, friction, body weight, and inertia.
 
 Describe material memory and environment exchange:
+
 * wrinkle topology from specific contact duration
 * fabric weight and recovery time after deformation
 * sleeve lag and inertia delay
@@ -107,6 +115,14 @@ Describe material memory and environment exchange:
 * humidity effect on fabric feel and drape
 * electrostatic cling
 * environmental influence: temperature, moisture, friction
+
+Material memory — describe history of wear:
+
+* compression set: time of pressure → depth of indentation → recovery time
+* humidity absorption: % moisture → shape loss (curl, sag)
+* gravity crease: time standing → fabric self-organization under own weight
+* elastic fatigue: wear cycles → % elasticity loss → roll/bunch behavior
+* patina: oxidation, friction, sweat → color gradient
 
 Never describe fashion stylistically. Describe clothing physically with material history.
 
@@ -176,6 +192,62 @@ Video sensor behavior:
 * Compression artifact: macroblocking in flat areas, mosquito noise on edges (subtle, not dominant)
 * Bit depth banding: visible in gradients, accepted as reality, not smoothed`;
 
+const INTIMATE_EXPOSURE = `INTIMATE_EXPOSURE — physical intimacy through material and light
+
+Use when: subject is partially or fully exposed, wearing sheer fabric, underwear, hosiery, or when nudity is a physical fact, not a performance.
+
+Exposure hierarchy (information layers):
+1. Skin — primary surface, all biological processes visible
+2. Sheer / translucent material — skin modifier, not cover: denier, translucency, tension
+3. Underwear — functional layer: elasticity, compression, silhouette beneath fabric
+4. Hosiery — structural sheerness: denier gradient, runs, toe reinforcement
+5. Opaque — only when physically necessary
+
+Material physics:
+
+Chiffon / polyamide sheer (10-20 den, 40-60% light transmission):
+Skin tone shift, silhouette as tonal form, shear lines from tension zones.
+
+Lace (30-70% transmission):
+Pattern shadow on skin, geometric caustic from openwork, pressure points where solid meets flesh.
+
+Cotton jersey underwear (120-180g/m², opaque dry, 3-5% translucency under tension):
+Silhouette of underlayer as shadow, elastic indentation, waistband fatigue line.
+
+Nylon hosiery (10-40 den, 80-20% transmission gradient):
+Denier variation by body zone, knee/ankle compression shadow, run as 100% transmission gap with frayed edges.
+
+Silk charmeuse (12-19 momme, 50% transmission, high specular):
+Cling to body contours, electrostatic separation, moisture darkening at contact zones.
+
+Linen sheer (60-80g/m², 30% transmission, rigid drape):
+Fold memory, humidity curl, gravity crease as body map.
+
+Body under material — physiological map:
+
+* Thermal gradient: skin under fabric is 0.5-2°C above ambient, visible as color shift at fabric edge
+* Moisture: sweat film under tensioned material increases translucency 5-15%, visible as darkening or cling
+* Compression: elastic creates 2-5mm indentation, skin bulge above/below, transition zone 1-3mm
+* Silhouette: form under sheer is not "seen" but "inferred" — mass, gravity, posture written in fabric tension
+* Pulse: superficial arteries visible as rhythmic distortion under thin material or at fabric edge
+
+Light through material:
+
+* Transmission: direct light passes through, skin visible as continuous tone shift, not image
+* Diffusion: scattered light erases detail, creates glow zone where fabric meets skin
+* Shadow: opaque elements (elastic, seams, reinforcement) cast hard shadow on body beneath
+* Caustic: sheer folds act as lenses, creating bright lines on skin — optical, not decorative
+* Specular: oil/moisture on skin creates highlight through fabric, refracted by material structure
+
+Framing rules for intimate scenes:
+
+* Nudity or exposure is a physical state, not a goal
+* Intimacy is physical distance, not emotional quality
+* Frame partially, not fully — what is outside frame matters as much as what is inside
+* Face may be absent, peripheral, or incidental — body is the subject
+* Observational distance: 0.6-1.2m — close for texture, distant for context
+* Never "nude" as objective — never "sexy" as atmosphere`;
+
 const ARC_TRANSLATION: Record<string, string> = {
   opening: `ARC — OPENING: exploratory framing, softer realism, environmental distance, observational atmosphere. Wider shot, subject partially absorbed by surroundings, soft natural light, low contrast.
 Optical specification: 35-50mm equivalent, mild barrel distortion, edge softness, natural vignetting, no aggressive compression.`,
@@ -193,7 +265,7 @@ Optical specification: wide 24-35mm, perspective distortion, unnatural proximity
 Optical specification: 50mm, flat light, minimal shadow detail, documentary optical neutrality, no lens character.`,
 
   quiet: `ARC — QUIET: intimate realism, soft natural light from single source, minimal movement, subtle environmental detail, calm physical stillness, micro-imperfection at close range.
-Optical specification: macro 90-105mm equivalent, extreme shallow DoF, optical imperfections as character, grain visible in shadows.`,
+Optical specification: 75-105mm equivalent, extreme shallow DoF, optical imperfections as character, grain visible in shadows.`,
 };
 
 const VIDEO_RULES = `CONTINUITY LOCK (MANDATORY)
@@ -244,17 +316,20 @@ Tone directive: ${ctx.visualTone}
 
 Apply this tone through:
 - lens distance: 85-135mm for subject isolation, not for flattery
-- framing: negative space as physical reality, not compositional trick
+- framing: negative space as physical reality, not compositional trick; what is outside frame matters
 - light behavior: single source, hard falloff, real shadow transitions
-- environmental density: aerial perspective, dust, humidity visible
-- fabric selection: materials with memory (wool crepe, leather with patina)
-- gesture pacing: delay between intent and execution
-- surface texture: every surface has a history of use
-- air temperature impression: condensation, diffusion, thermal shimmer
-- negative space usage: empty space has weight and pressure
+- environmental density: aerial perspective, dust, humidity visible as physical states
+- fabric selection: materials with memory (wool crepe, leather with patina, silk with moisture response)
+- gesture pacing: delay between intent and execution; arrest mid-gesture as physical weight
+- surface texture: every surface has a history of use, every contact leaves a trace
+- air temperature impression: condensation, diffusion, thermal shimmer as observable physics
+- negative space usage: empty space has weight and pressure, not decorative emptiness
 
 Never write the tone words directly into the prompt.
-Never describe: "she looks seductive" — describe instead: "her weight shift creates 2cm asymmetry in hip alignment, left shoulder 1.5cm lower, gaze directed 15° below camera lens, respiration visible in clavicular movement"`
+Never describe "she looks [tone word]". Describe instead:
+- her weight shift creates 2cm asymmetry in hip alignment, left shoulder 1.5cm lower
+- her gaze directed 15° below camera lens, respiration visible in clavicular movement at 14 cycles/min
+- her skin temperature differential creates 1.5°C contrast with ambient air, visible at fabric edge`
     : "";
 
   const [photoMsg, videoMsg] = await Promise.all([
@@ -265,22 +340,24 @@ Never describe: "she looks seductive" — describe instead: "her weight shift cr
 
 ${SENSOR_REALISM}
 
+${INTIMATE_EXPOSURE}
+
 ${arcNote}
 ${toneBlock ? `\n${toneBlock}` : ""}
 CHARACTER: ${ctx.visualBrief}
 SOUL ID: ${ctx.soulId ?? "derive physical consistency from visual brief"}
 
 PHOTO PROMPT STRUCTURE (follow this exact order, 1-2 sentences per point):
-1. Optical system specification — focal length, aperture, format, focus falloff distance (e.g. "85mm f/1.4 full frame, focus falloff at 3m, mild chromatic aberration at frame edges")
+1. Optical system specification — focal length, aperture, format, focus falloff distance, CA, vignetting (e.g. "85mm f/1.4 full frame, focus falloff at 3m, mild chromatic aberration at frame edges, 0.5 stop natural vignetting")
 2. Environment as light modifier — how the environment changes the light, not as backdrop
 3. Light source provenance — where light originates, what path it took, what it collected/reflected
 4. Biomechanical state — muscle activation, weight transfer, antigravity compensation
-5. Material memory and environment exchange — humidity, temperature, electrostatics, friction, contact duration
-6. Dermal temporal state — what is currently happening to the skin (flush, goosebumps, oil migration, compression)
-7. Physiological signature — measurable parameters (breathing rate, muscle tone, gaze focus distance)
+5. Material memory and environment exchange — humidity, temperature, electrostatics, friction, contact duration, fabric history
+6. Dermal temporal state — what is currently happening to the skin (flush, goosebumps, oil migration, compression, pulse at superficial arteries)
+7. Physiological signature — measurable parameters (breathing cycles/min, muscle tone as form change in mm, gaze angle in °, pulse bpm)
 8. Physical anchoring points — where body contacts environment, what forces act
 9. Ocular geometry — eye distance from lens, gaze angle, corneal reflection
-10. Optical imperfection signature — lens artifact as truth (chromatic aberration, vignetting, breathing, focus drift, grain structure)
+10. Lens artifact as truth — chromatic aberration, vignetting, breathing, focus drift, grain structure
 
 STORY CONTEXT:
 Location: ${ctx.location}
@@ -303,6 +380,8 @@ ${VIDEO_RULES}
 
 ${SENSOR_REALISM}
 
+${INTIMATE_EXPOSURE}
+
 ${arcNote}
 ${toneBlock ? `\n${toneBlock}` : ""}
 CHARACTER: ${ctx.visualBrief}
@@ -313,7 +392,7 @@ VIDEO PROMPT STRUCTURE (follow this exact order, 1-2 sentences per point):
 3. Light source instability — variation in intensity, temperature, direction across duration (cloud pass, lamp flicker)
 4. Biomechanical trajectory — phase transition: static → acceleration → dynamic → deceleration → static
 5. Material rheology — fabric viscosity, elastic vs. plastic deformation, recovery time after motion
-6. Physiological load indicators — sweat onset, flush propagation, respiratory phase shift during action
+6. Physiological load indicators — sweat onset, flush propagation, respiratory phase shift, pulse visibility at superficial arteries during action
 7. Force exchange — how much body changes environment vs. how much environment changes body
 8. Temporal closure — physical state at end must enable physical state at beginning (seamless loop logic)
 9. Capture system specification — sensor size, codec artifact, rolling shutter behavior, noise floor
