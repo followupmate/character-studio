@@ -172,6 +172,37 @@ The viewer should feel: not that the subject is trying to attract attention, but
 
 ---
 
+HIGH-IMPACT REALISM PRINCIPLE
+
+The strongest images often emerge from:
+
+* simple physical situations
+* natural body readability
+* spontaneous incomplete gestures
+* environmental interaction
+* unposed femininity
+* physical texture realism
+* camera imperfection
+* emotionally unperformed moments
+
+Do not overcomplicate the scene.
+
+Prefer:
+
+* transitional moments
+* interrupted gestures
+* partial attention
+* body-environment interaction
+* tactile naturalism
+* relaxed physical presence
+* observational intimacy
+
+The subject should feel:
+caught existing,
+not arranged for visual consumption.
+
+---
+
 FINAL GOAL
 
 The generated result must feel like:
