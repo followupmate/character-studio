@@ -264,9 +264,10 @@ function CharCard({
             <span className="font-mono text-[8px] tracking-[0.1em] text-muted uppercase">Prompt Doctrine</span>
             {savingDoctrine && <span className="font-mono text-[8px] text-muted">Ukladám...</span>}
           </div>
-          <div className="flex gap-1.5">
-            {(["cinematic", "instagram"] as const).map((d) => {
+          <div className="flex gap-1.5 flex-wrap">
+            {(["cinematic", "instagram", "deepseek"] as const).map((d) => {
               const active = (char.prompt_doctrine ?? "cinematic") === d;
+              const label = d === "cinematic" ? "🎬 Cinematic" : d === "instagram" ? "📱 Instagram" : "🎯 Deepseek";
               return (
                 <button
                   key={d}
@@ -287,7 +288,7 @@ function CharCard({
                       : "border-border text-muted hover:text-ink hover:border-border2"
                   }`}
                 >
-                  {d === "cinematic" ? "🎬 Cinematic" : "📱 Instagram"}
+                  {label}
                 </button>
               );
             })}

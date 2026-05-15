@@ -3,7 +3,7 @@ export type MediaType = "photo" | "video";
 export type MediaStatus = "pending" | "generating" | "ready" | "posted" | "failed";
 export type PostStatus = "scheduled" | "posted" | "failed";
 export type ArcPosition = "opening" | "rising" | "peak" | "turning" | "falling" | "quiet";
-export type PromptDoctrine = "cinematic" | "instagram";
+export type PromptDoctrine = "cinematic" | "instagram" | "deepseek";
 
 export interface Character {
   id: string;

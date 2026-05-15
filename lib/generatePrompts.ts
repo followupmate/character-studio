@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { anthropic } from "@/lib/anthropic";
 
-type PromptDoctrine = "cinematic" | "instagram";
+type PromptDoctrine = "cinematic" | "instagram" | "deepseek";
 
 interface StoryContext {
   storyDayId: string;
@@ -386,6 +386,50 @@ AVOID: cinematic doctrine language, technical camera specs, complex action seque
 
 OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt. Keep it short and direct.`;
 
+const DEEPSEEK_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string) => `You are generating a photorealistic image prompt using the Deepseek doctrine — a structured, physics-first approach focused on capturing a single mid-action moment.
+
+CHARACTER: ${ctx.visualBrief}
+LOCATION: ${ctx.location}
+MOOD: ${ctx.mood}
+SOUL ID: ${ctx.soulId ?? "derive from visual brief"}
+${toneBlock ? `\nTONE: ${toneBlock}` : ""}
+
+Generate a prompt structured around ONE captured mid-action moment. Follow this order:
+
+1. SHOT TYPE + FRAMING — (static / medium / close-up / wide) — what is visible in frame
+2. LOCATION + TIME — specific place, time of day, weather, light state
+3. SUBJECT + ACTION — who, wearing what, doing what — always mid-action (mid-yawn, mid-turn, mid-drink, mid-laugh, mid-exhale)
+4. PHYSICS DETAIL — one visible physical element: steam, hair movement, wet fabric, dust, shadow, condensation on glass, breath vapor
+5. LIGHT STATE — exact light quality: morning mist, overcast grey, warm indoor tungsten, blue hour, diffused cloud light
+6. EMOTIONAL SIGNATURE — one-word mood + physical evidence (tired: slow blink, heavy lid / curious: slight head tilt, forward lean)
+
+FORBIDDEN: beautiful / perfect / dreamy / ethereal / smooth skin / posed / studio lighting / generic beauty
+REQUIRED: skin texture, physical imperfection, mid-action not start or end, real light source
+
+OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the prompt in 60-100 words, flowing prose. No lists.`;
+
+const DEEPSEEK_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string) => `You are generating a video prompt using the Deepseek doctrine — 7 mandatory elements, story arc, physics-first.
+
+CHARACTER: ${ctx.visualBrief}
+LOCATION: ${ctx.location}
+MOOD: ${ctx.mood}
+${toneBlock ? `\nTONE: ${toneBlock}` : ""}
+
+Generate a video prompt with ALL 7 mandatory elements in this exact order:
+
+1. SHOT TYPE — choose one: slow dolly-in / tracking / static / orbit / zoom-out / push-in / following shot
+2. CAMERA MOVEMENT — choose one: handheld micro-shake / breathing motion / smooth follow / side-to-side sway
+3. SUBJECT MOVEMENT — natural mid-action only: mid-yawn / mid-drink / turns head / laughs / exhales / writes / pauses mid-step
+4. PHYSICS ELEMENT — one: steam rising / hair in breeze / wet fabric / dust particles / shadow movement / breath vapor / rain on glass
+5. LIGHTING — state + optional change: "golden dawn, light shifting from warm to cool as cloud passes" / "overcast grey, stable" / "indoor warm 3200K, candle flicker"
+6. STORY ARC — start → development → micro-resolution (e.g. "she raises cup → drinks → lowers it, stares at water")
+7. TECHNICAL — duration 4-6 seconds, 24fps, 9:16 vertical, seamless loop (yes/no)
+
+FORBIDDEN: gýč / perfect skin / studio lighting / generic beauty / dreamy / ethereal / beautiful
+REQUIRED: texture (pores, frizz, creases, sweat) / mid-action not posed / specific real light / physical imperfection
+
+OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt as flowing prose (80-120 words). No lists, no numbering. Natural narrative order.`;
+
 async function claudeWithRetry(params: { model: string; max_tokens: number; system: string; messages: Array<{ role: "user" | "assistant"; content: string }> }, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -442,6 +486,33 @@ Never describe "she looks [tone word]". Describe instead:
         model: "claude-sonnet-4-6",
         max_tokens: 400,
         system: INSTAGRAM_DOCTRINE_VIDEO(ctx, toneBlock),
+        messages: [{ role: "user", content: "Generate the video prompt." }],
+      }),
+    ]);
+
+    const photoPrompt = (photoMsg.content[0] as { type: string; text: string }).text;
+    const videoPrompt = (videoMsg.content[0] as { type: string; text: string }).text;
+
+    await Promise.all([
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending" }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending" }),
+    ]);
+    return;
+  }
+
+  // Deepseek doctrine — 7-element structured video/photo
+  if (doctrine === "deepseek") {
+    const [photoMsg, videoMsg] = await Promise.all([
+      claudeWithRetry({
+        model: "claude-sonnet-4-6",
+        max_tokens: 500,
+        system: DEEPSEEK_DOCTRINE_PHOTO(ctx, toneBlock),
+        messages: [{ role: "user", content: "Generate the photo prompt." }],
+      }),
+      claudeWithRetry({
+        model: "claude-sonnet-4-6",
+        max_tokens: 600,
+        system: DEEPSEEK_DOCTRINE_VIDEO(ctx, toneBlock),
         messages: [{ role: "user", content: "Generate the video prompt." }],
       }),
     ]);
