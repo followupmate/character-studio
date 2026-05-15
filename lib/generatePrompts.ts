@@ -83,6 +83,15 @@ Prefer:
 * clear skin microdetail
 * physically believable light response
 
+The image should retain:
+
+* clean lens rendering
+* controlled highlight rolloff
+* clear midtone separation
+* natural optical softness
+* high-quality lens clarity
+  without appearing digitally sharpened or artificially polished.
+
 ---
 
 The subject must always exist physically inside the environment.
