@@ -98,6 +98,19 @@ export default function CharacterGrid({ characters, activeCount, photoMap }: Pro
   );
 }
 
+const VISUAL_TONES = [
+  { key: "luxury",    label: "Luxury" },
+  { key: "sexy",      label: "Sexi" },
+  { key: "playful",   label: "Hravý" },
+  { key: "mysterious",label: "Tajomný" },
+] as const;
+type VisualTone = typeof VISUAL_TONES[number]["key"];
+
+function parseTones(s: string | null): VisualTone[] {
+  const known = VISUAL_TONES.map(t => t.key);
+  return (s ?? "").split(",").map(t => t.trim().toLowerCase()).filter((t): t is VisualTone => known.includes(t as VisualTone));
+}
+
 function CharCard({
   char,
   photoUrl,
@@ -118,8 +131,7 @@ function CharCard({
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [photoInput, setPhotoInput] = useState(char.photo_url ?? "");
   const [savingPhoto, setSavingPhoto] = useState(false);
-  const [editingTone, setEditingTone] = useState(false);
-  const [toneInput, setToneInput] = useState(char.visual_tone ?? "");
+  const [selectedTones, setSelectedTones] = useState<VisualTone[]>(() => parseTones(char.visual_tone));
   const [savingTone, setSavingTone] = useState(false);
   const [savingDoctrine, setSavingDoctrine] = useState(false);
 
@@ -135,16 +147,18 @@ function CharCard({
     window.location.reload();
   }
 
-  async function saveTone() {
+  async function toggleTone(tone: VisualTone) {
+    const next = selectedTones.includes(tone)
+      ? selectedTones.filter(t => t !== tone)
+      : [...selectedTones, tone];
+    setSelectedTones(next);
     setSavingTone(true);
     await fetch("/api/characters/update", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ characterId: char.id, visual_tone: toneInput.trim() || null }),
+      body: JSON.stringify({ characterId: char.id, visual_tone: next.join(", ") || null }),
     });
     setSavingTone(false);
-    setEditingTone(false);
-    window.location.reload();
   }
 
   return (
@@ -220,42 +234,29 @@ function CharCard({
 
         {/* Visual Tone */}
         <div className="border border-border bg-surface-low px-3 py-2">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1.5">
             <span className="font-mono text-[8px] tracking-[0.1em] text-muted uppercase">Visual Tone</span>
-            <button
-              onClick={() => setEditingTone((v) => !v)}
-              className="font-mono text-[8px] text-muted hover:text-accent transition-colors flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[11px]">edit</span>
-            </button>
+            {savingTone && <span className="font-mono text-[8px] text-muted">Ukladám...</span>}
           </div>
-          {editingTone ? (
-            <div className="flex flex-col gap-1.5 mt-1">
-              <textarea
-                value={toneInput}
-                onChange={(e) => setToneInput(e.target.value)}
-                placeholder="seductive, elegant, luxurious..."
-                rows={2}
-                className="form-input-base w-full text-[10px] resize-none"
-                autoFocus
-              />
-              <div className="flex gap-1.5">
+          <div className="flex gap-1.5 flex-wrap">
+            {VISUAL_TONES.map(({ key, label }) => {
+              const active = selectedTones.includes(key);
+              return (
                 <button
-                  onClick={saveTone}
+                  key={key}
                   disabled={savingTone}
-                  className="flex-1 font-mono text-[8px] uppercase tracking-[0.05em] bg-accent/10 border border-accent/30 text-accent py-1 hover:bg-accent/20 transition-colors disabled:opacity-50"
-                >{savingTone ? "Ukladám..." : "Uložiť"}</button>
-                <button
-                  onClick={() => { setEditingTone(false); setToneInput(char.visual_tone ?? ""); }}
-                  className="font-mono text-[8px] uppercase tracking-[0.05em] border border-border text-muted px-3 py-1 hover:text-ink transition-colors"
-                >Zrušiť</button>
-              </div>
-            </div>
-          ) : (
-            <p className="font-mono text-[9px] text-muted2 italic leading-relaxed">
-              {char.visual_tone || <span className="text-muted/50">— nenastavený —</span>}
-            </p>
-          )}
+                  onClick={() => toggleTone(key)}
+                  className={`flex-1 font-mono text-[8px] uppercase tracking-[0.05em] border py-1 transition-colors disabled:opacity-50 ${
+                    active
+                      ? "bg-teal/10 border-teal/40 text-teal"
+                      : "border-border text-muted hover:text-ink hover:border-border2"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Prompt Doctrine */}
