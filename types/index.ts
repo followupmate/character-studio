@@ -13,6 +13,7 @@ export interface Character {
   photo_url: string | null;
   visual_tone: string | null;
   prompt_doctrine: PromptDoctrine | null;
+  styling_note: string | null;
   visual_brief: string;
   backstory: string;
   personality: Record<string, string>;

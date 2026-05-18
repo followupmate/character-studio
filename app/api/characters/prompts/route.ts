@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       visualBrief: char.visual_brief,
       soulId: char.soul_id,
       visualTone: (char as any).visual_tone ?? null,
+      stylingNote: (char as any).styling_note ?? null,
       doctrine: (char as any).prompt_doctrine ?? "cinematic",
     });
 

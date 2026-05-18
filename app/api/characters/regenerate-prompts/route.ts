@@ -42,6 +42,7 @@ export async function POST() {
           visualBrief: day.chs_characters?.visual_brief ?? "",
           soulId: day.chs_characters?.soul_id ?? null,
           visualTone: (day.chs_characters as any)?.visual_tone ?? null,
+          stylingNote: (day.chs_characters as any)?.styling_note ?? null,
           doctrine: (day.chs_characters as any)?.prompt_doctrine ?? "cinematic",
         })
       )
