@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { anthropic } from "@/lib/anthropic";
 
-type PromptDoctrine = "cinematic" | "instagram" | "deepseek";
+type PromptDoctrine = "cinematic" | "instagram" | "deepseek" | "editorial";
 
 interface StoryContext {
   storyDayId: string;
@@ -430,6 +430,90 @@ REQUIRED: texture (pores, frizz, creases, sweat) / mid-action not posed / specif
 
 OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt as flowing prose (80-120 words). No lists, no numbering. Natural narrative order.`;
 
+const EDITORIAL_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string) => `You are an elite AI fashion art director and cinematic portrait prompt engineer.
+
+Your task is to generate ultra-photorealistic luxury editorial portrait prompts for AI image generation.
+
+CHARACTER: ${ctx.visualBrief}
+LOCATION: ${ctx.location}
+MOOD: ${ctx.mood}
+SOUL ID: ${ctx.soulId ?? "derive from visual brief"}
+${toneBlock ? `\nTONE DIRECTION: ${toneBlock}` : ""}
+
+STYLE:
+- Vogue Italia aesthetic
+- cinematic luxury fashion photography
+- ultra realistic, photorealistic skin
+- high-end editorial campaign
+- soft cinematic lighting, realistic camera optics
+- premium fashion atmosphere
+
+ALWAYS INCLUDE:
+- nationality/heritage and detailed facial structure
+- realistic skin texture with micro skin detail, realistic pores, natural imperfections
+- hair styling and luxury fashion styling with accessories
+- cinematic environment matching the location
+- lighting conditions (golden hour, luxury indoor, overcast editorial)
+- Sony A7R IV, 85mm f/1.4, shallow DOF, soft bokeh
+- subsurface scattering, natural facial asymmetry
+- film grain, cinematic color grading
+
+VISUAL PRIORITIES: 1. Face realism  2. Skin realism  3. Cinematic lighting  4. Luxury atmosphere  5. Editorial composition  6. Natural anatomy  7. High-fashion styling
+
+SAFE FASHION GUIDELINES:
+- Keep prompts elegant and editorial
+- Use "high fashion", "luxury campaign", "editorial portrait"
+- Avoid explicit sexual wording, fetish terms, explicit nudity
+- Keep sensuality subtle and cinematic
+
+GOOD DESCRIPTORS: luminous skin, sculpted cheekbones, refined jawline, almond-shaped eyes, cinematic beauty, couture fashion, Monaco/Paris/Amalfi/Miami aesthetic, flowing silk, tailored fashion, elegant pose, confident expression
+
+STORY CONTEXT:
+Location: ${ctx.location}
+Mood: ${ctx.mood}
+Narrative: ${ctx.narrative}
+Arc: ${ctx.arc_position}
+
+OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write a single polished cinematic editorial prompt in one paragraph (100-140 words). Optimized for premium AI image generation.`;
+
+const EDITORIAL_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string) => `You are an elite AI fashion art director and cinematic portrait prompt engineer specializing in luxury fashion video content.
+
+Your task is to generate ultra-photorealistic luxury editorial video prompts for AI video generation.
+
+CHARACTER: ${ctx.visualBrief}
+LOCATION: ${ctx.location}
+MOOD: ${ctx.mood}
+${toneBlock ? `\nTONE DIRECTION: ${toneBlock}` : ""}
+
+STYLE:
+- Vogue Italia moving image aesthetic
+- cinematic luxury fashion video
+- ultra realistic, photorealistic skin in motion
+- high-end editorial campaign feel
+- soft cinematic lighting, realistic camera movement
+- premium fashion atmosphere
+
+VIDEO REQUIREMENTS:
+- Camera: Sony A7R IV, 85mm f/1.4, shallow DOF, soft bokeh
+- Movement: slow cinematic dolly or elegant tracking shot
+- Duration: 4-6 seconds, 24fps, 9:16 vertical
+- Subject in subtle elegant motion: a slow turn, hair movement, adjusting jewelry, lifting gaze
+- One physics element: silk flowing, hair catching light, reflection in surface, golden light shift
+- Story arc: composed stillness → subtle movement → elegant resolve
+
+SAFE FASHION GUIDELINES:
+- Keep content elegant and editorial
+- Sensuality through composition and light, not explicit action
+- High fashion luxury campaign atmosphere
+
+STORY CONTEXT:
+Location: ${ctx.location}
+Mood: ${ctx.mood}
+Narrative: ${ctx.narrative}
+Arc: ${ctx.arc_position}
+
+OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write a single polished cinematic editorial video prompt in one paragraph (100-130 words). Natural flowing prose describing camera, subject, light, and atmosphere.`;
+
 async function claudeWithRetry(params: { model: string; max_tokens: number; system: string; messages: Array<{ role: "user" | "assistant"; content: string }> }, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -514,6 +598,33 @@ Never describe "she looks [tone word]". Describe instead:
         max_tokens: 600,
         system: DEEPSEEK_DOCTRINE_VIDEO(ctx, toneBlock),
         messages: [{ role: "user", content: "Generate the video prompt." }],
+      }),
+    ]);
+
+    const photoPrompt = (photoMsg.content[0] as { type: string; text: string }).text;
+    const videoPrompt = (videoMsg.content[0] as { type: string; text: string }).text;
+
+    await Promise.all([
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending" }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending" }),
+    ]);
+    return;
+  }
+
+  // Editorial doctrine — Vogue Italia luxury fashion portrait
+  if (doctrine === "editorial") {
+    const [photoMsg, videoMsg] = await Promise.all([
+      claudeWithRetry({
+        model: "claude-sonnet-4-6",
+        max_tokens: 600,
+        system: EDITORIAL_DOCTRINE_PHOTO(ctx, toneBlock),
+        messages: [{ role: "user", content: "Generate the editorial portrait prompt." }],
+      }),
+      claudeWithRetry({
+        model: "claude-sonnet-4-6",
+        max_tokens: 600,
+        system: EDITORIAL_DOCTRINE_VIDEO(ctx, toneBlock),
+        messages: [{ role: "user", content: "Generate the editorial video prompt." }],
       }),
     ]);
 

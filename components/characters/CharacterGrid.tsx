@@ -266,9 +266,9 @@ function CharCard({
             {savingDoctrine && <span className="font-mono text-[8px] text-muted">Ukladám...</span>}
           </div>
           <div className="flex gap-1.5 flex-wrap">
-            {(["cinematic", "instagram", "deepseek"] as const).map((d) => {
+            {(["cinematic", "instagram", "deepseek", "editorial"] as const).map((d) => {
               const active = (char.prompt_doctrine ?? "cinematic") === d;
-              const label = d === "cinematic" ? "🎬 Cinematic" : d === "instagram" ? "📱 Instagram" : "🎯 Deepseek";
+              const label = d === "cinematic" ? "🎬 Cinematic" : d === "instagram" ? "📱 Instagram" : d === "deepseek" ? "🎯 Deepseek" : "👗 Editorial";
               return (
                 <button
                   key={d}
