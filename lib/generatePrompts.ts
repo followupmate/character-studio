@@ -13,6 +13,7 @@ interface StoryContext {
   visualBrief: string;
   soulId: string | null;
   visualTone: string | null;
+  stylingNote: string | null;
   doctrine?: PromptDoctrine;
 }
 
@@ -341,13 +342,13 @@ Micro-saccadic lens drift (mandatory for intimate distances):
 
 Motion must never feel robotic or mathematically perfect.`;
 
-const INSTAGRAM_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string) => `You are generating a photorealistic image prompt in the style of authentic social media photography.
+const INSTAGRAM_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string, stylingBlock: string) => `You are generating a photorealistic image prompt in the style of authentic social media photography.
 
 CHARACTER: ${ctx.visualBrief}
 LOCATION: ${ctx.location}
 MOOD: ${ctx.mood}
 SOUL ID: ${ctx.soulId ?? "derive from visual brief"}
-${toneBlock ? `\nTONE: ${toneBlock}` : ""}
+${toneBlock ? `\nTONE: ${toneBlock}` : ""}${stylingBlock}
 
 Generate a SHORT, TAG-BASED image prompt (60-120 words max) in the following style:
 
@@ -365,12 +366,12 @@ AVOID: cinematic language, technical optical specifications, long paragraphs
 
 OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the tag-based prompt. Keep it punchy and direct.`;
 
-const INSTAGRAM_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string) => `You are generating a short-form video prompt in the style of authentic social media content.
+const INSTAGRAM_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string, stylingBlock: string) => `You are generating a short-form video prompt in the style of authentic social media content.
 
 CHARACTER: ${ctx.visualBrief}
 LOCATION: ${ctx.location}
 MOOD: ${ctx.mood}
-${toneBlock ? `\nTONE: ${toneBlock}` : ""}
+${toneBlock ? `\nTONE: ${toneBlock}` : ""}${stylingBlock}
 
 Generate a SHORT, DIRECT video prompt (60-120 words max):
 
@@ -386,13 +387,13 @@ AVOID: cinematic doctrine language, technical camera specs, complex action seque
 
 OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt. Keep it short and direct.`;
 
-const DEEPSEEK_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string) => `You are generating a photorealistic image prompt using the Deepseek doctrine — a structured, physics-first approach focused on capturing a single mid-action moment.
+const DEEPSEEK_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string, stylingBlock: string) => `You are generating a photorealistic image prompt using the Deepseek doctrine — a structured, physics-first approach focused on capturing a single mid-action moment.
 
 CHARACTER: ${ctx.visualBrief}
 LOCATION: ${ctx.location}
 MOOD: ${ctx.mood}
 SOUL ID: ${ctx.soulId ?? "derive from visual brief"}
-${toneBlock ? `\nTONE: ${toneBlock}` : ""}
+${toneBlock ? `\nTONE: ${toneBlock}` : ""}${stylingBlock}
 
 Generate a prompt structured around ONE captured mid-action moment. Follow this order:
 
@@ -408,12 +409,12 @@ REQUIRED: skin texture, physical imperfection, mid-action not start or end, real
 
 OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the prompt in 60-100 words, flowing prose. No lists.`;
 
-const DEEPSEEK_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string) => `You are generating a video prompt using the Deepseek doctrine — 7 mandatory elements, story arc, physics-first.
+const DEEPSEEK_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string, stylingBlock: string) => `You are generating a video prompt using the Deepseek doctrine — 7 mandatory elements, story arc, physics-first.
 
 CHARACTER: ${ctx.visualBrief}
 LOCATION: ${ctx.location}
 MOOD: ${ctx.mood}
-${toneBlock ? `\nTONE: ${toneBlock}` : ""}
+${toneBlock ? `\nTONE: ${toneBlock}` : ""}${stylingBlock}
 
 Generate a video prompt with ALL 7 mandatory elements in this exact order:
 
@@ -430,7 +431,7 @@ REQUIRED: texture (pores, frizz, creases, sweat) / mid-action not posed / specif
 
 OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt as flowing prose (80-120 words). No lists, no numbering. Natural narrative order.`;
 
-const EDITORIAL_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string) => `You are an elite luxury fashion art director, cinematic photographer, and AI prompt engineer specialized in ultra-photorealistic editorial beauty imagery.
+const EDITORIAL_DOCTRINE_PHOTO = (ctx: StoryContext, toneBlock: string, stylingBlock: string) => `You are an elite luxury fashion art director, cinematic photographer, and AI prompt engineer specialized in ultra-photorealistic editorial beauty imagery.
 
 Your task is NOT to create ordinary realism or cinematic movie stills.
 Your goal is to generate breathtaking beauty, luxury editorial aesthetics, Vogue Italia level fashion imagery, hyper-realistic feminine portraits, cinematic elegance, and premium fashion campaign visuals.
@@ -439,7 +440,7 @@ CORE DOCTRINE: The subject must always feel like a top international fashion mod
 
 CHARACTER: ${ctx.visualBrief}
 SOUL ID: ${ctx.soulId ?? "derive from visual brief"}
-${toneBlock ? `\nTONE DIRECTION: ${toneBlock}` : ""}
+${toneBlock ? `\nTONE DIRECTION: ${toneBlock}` : ""}${stylingBlock}
 
 PRIORITY ORDER:
 1. Facial beauty and bone structure — sculpted cheekbones, refined jawline, symmetrical facial harmony, expressive almond-shaped eyes, natural full lips, elegant brows, striking beauty, effortless elegance
@@ -471,7 +472,7 @@ Arc: ${ctx.arc_position}
 
 OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write one polished cinematic editorial prompt in a single paragraph (110-150 words), optimized for premium AI image generation.`;
 
-const EDITORIAL_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string) => `You are an elite luxury fashion art director, cinematic photographer, and AI prompt engineer specialized in ultra-photorealistic editorial beauty video content.
+const EDITORIAL_DOCTRINE_VIDEO = (ctx: StoryContext, toneBlock: string, stylingBlock: string) => `You are an elite luxury fashion art director, cinematic photographer, and AI prompt engineer specialized in ultra-photorealistic editorial beauty video content.
 
 Your task is NOT to create documentary or indie film realism.
 Your goal is to generate breathtaking luxury editorial fashion video — Vogue Italia moving image aesthetic, hyper-realistic feminine beauty in motion, premium campaign atmosphere.
@@ -479,7 +480,7 @@ Your goal is to generate breathtaking luxury editorial fashion video — Vogue I
 CORE DOCTRINE: The subject must always feel like a top international fashion model in a luxury editorial — never a film character or street photography subject.
 
 CHARACTER: ${ctx.visualBrief}
-${toneBlock ? `\nTONE DIRECTION: ${toneBlock}` : ""}
+${toneBlock ? `\nTONE DIRECTION: ${toneBlock}` : ""}${stylingBlock}
 
 PRIORITY ORDER:
 1. Facial beauty and bone structure — sculpted cheekbones, symmetrical harmony, almond-shaped eyes, elegant brows, effortless elegance
@@ -554,19 +555,23 @@ Never describe "she looks [tone word]". Describe instead:
 - her skin temperature differential creates 1.5°C contrast with ambient air, visible at fabric edge`
     : "";
 
+  const stylingBlock = ctx.stylingNote?.trim()
+    ? `\nSTYLING OVERRIDE (highest priority — always apply exactly, overrides any default appearance):\n${ctx.stylingNote.trim()}`
+    : "";
+
   // Instagram doctrine — short tag-based prompts
   if (doctrine === "instagram") {
     const [photoMsg, videoMsg] = await Promise.all([
       claudeWithRetry({
         model: "claude-sonnet-4-6",
         max_tokens: 400,
-        system: INSTAGRAM_DOCTRINE_PHOTO(ctx, toneBlock),
+        system: INSTAGRAM_DOCTRINE_PHOTO(ctx, toneBlock, stylingBlock),
         messages: [{ role: "user", content: "Generate the photo prompt." }],
       }),
       claudeWithRetry({
         model: "claude-sonnet-4-6",
         max_tokens: 400,
-        system: INSTAGRAM_DOCTRINE_VIDEO(ctx, toneBlock),
+        system: INSTAGRAM_DOCTRINE_VIDEO(ctx, toneBlock, stylingBlock),
         messages: [{ role: "user", content: "Generate the video prompt." }],
       }),
     ]);
@@ -587,13 +592,13 @@ Never describe "she looks [tone word]". Describe instead:
       claudeWithRetry({
         model: "claude-sonnet-4-6",
         max_tokens: 500,
-        system: DEEPSEEK_DOCTRINE_PHOTO(ctx, toneBlock),
+        system: DEEPSEEK_DOCTRINE_PHOTO(ctx, toneBlock, stylingBlock),
         messages: [{ role: "user", content: "Generate the photo prompt." }],
       }),
       claudeWithRetry({
         model: "claude-sonnet-4-6",
         max_tokens: 600,
-        system: DEEPSEEK_DOCTRINE_VIDEO(ctx, toneBlock),
+        system: DEEPSEEK_DOCTRINE_VIDEO(ctx, toneBlock, stylingBlock),
         messages: [{ role: "user", content: "Generate the video prompt." }],
       }),
     ]);
@@ -614,13 +619,13 @@ Never describe "she looks [tone word]". Describe instead:
       claudeWithRetry({
         model: "claude-sonnet-4-6",
         max_tokens: 600,
-        system: EDITORIAL_DOCTRINE_PHOTO(ctx, toneBlock),
+        system: EDITORIAL_DOCTRINE_PHOTO(ctx, toneBlock, stylingBlock),
         messages: [{ role: "user", content: "Generate the editorial portrait prompt." }],
       }),
       claudeWithRetry({
         model: "claude-sonnet-4-6",
         max_tokens: 600,
-        system: EDITORIAL_DOCTRINE_VIDEO(ctx, toneBlock),
+        system: EDITORIAL_DOCTRINE_VIDEO(ctx, toneBlock, stylingBlock),
         messages: [{ role: "user", content: "Generate the editorial video prompt." }],
       }),
     ]);
@@ -645,7 +650,7 @@ Never describe "she looks [tone word]". Describe instead:
 ${SENSOR_REALISM}
 
 ${arcNote}
-${cinematicToneBlock ? `\n${cinematicToneBlock}` : ""}
+${cinematicToneBlock ? `\n${cinematicToneBlock}` : ""}${stylingBlock}
 CHARACTER: ${ctx.visualBrief}
 SOUL ID: ${ctx.soulId ?? "derive physical consistency from visual brief"}
 
@@ -683,7 +688,7 @@ ${VIDEO_RULES}
 ${SENSOR_REALISM}
 
 ${arcNote}
-${toneBlock ? `\n${toneBlock}` : ""}
+${toneBlock ? `\n${toneBlock}` : ""}${stylingBlock}
 CHARACTER: ${ctx.visualBrief}
 
 VIDEO PROMPT STRUCTURE (follow this exact order, 1-2 sentences per point):

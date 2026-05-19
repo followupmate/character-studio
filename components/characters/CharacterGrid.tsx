@@ -133,6 +133,9 @@ function CharCard({
   const [savingPhoto, setSavingPhoto] = useState(false);
   const [selectedTones, setSelectedTones] = useState<VisualTone[]>(() => parseTones(char.visual_tone));
   const [savingTone, setSavingTone] = useState(false);
+  const [editingStyling, setEditingStyling] = useState(false);
+  const [stylingInput, setStylingInput] = useState(char.styling_note ?? "");
+  const [savingStyling, setSavingStyling] = useState(false);
   const [savingDoctrine, setSavingDoctrine] = useState(false);
 
   async function savePhoto() {
@@ -145,6 +148,17 @@ function CharCard({
     setSavingPhoto(false);
     setEditingPhoto(false);
     window.location.reload();
+  }
+
+  async function saveStyling() {
+    setSavingStyling(true);
+    await fetch("/api/characters/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ characterId: char.id, styling_note: stylingInput.trim() || null }),
+    });
+    setSavingStyling(false);
+    setEditingStyling(false);
   }
 
   async function toggleTone(tone: VisualTone) {
@@ -230,6 +244,46 @@ function CharCard({
           <p className="font-mono text-[9px] text-muted2 leading-relaxed line-clamp-2">
             {char.visual_brief || char.backstory}
           </p>
+        </div>
+
+        {/* Styling */}
+        <div className="border border-border bg-surface-low px-3 py-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-mono text-[8px] tracking-[0.1em] text-muted uppercase">Styling</span>
+            <button
+              onClick={() => { setEditingStyling(v => !v); setStylingInput(char.styling_note ?? ""); }}
+              className="font-mono text-[8px] text-muted hover:text-accent transition-colors"
+            >
+              <span className="material-symbols-outlined text-[11px]">edit</span>
+            </button>
+          </div>
+          {editingStyling ? (
+            <div className="flex flex-col gap-1.5 mt-1">
+              <textarea
+                value={stylingInput}
+                onChange={(e) => setStylingInput(e.target.value)}
+                placeholder="sleek updo, silk dress, pearl earrings..."
+                rows={2}
+                className="form-input-base w-full text-[10px] resize-none"
+                autoFocus
+              />
+              <div className="flex gap-1.5">
+                <button
+                  onClick={saveStyling}
+                  disabled={savingStyling}
+                  className="flex-1 font-mono text-[8px] uppercase tracking-[0.05em] bg-accent/10 border border-accent/30 text-accent py-1 hover:bg-accent/20 transition-colors disabled:opacity-50"
+                >{savingStyling ? "Ukladám..." : "Uložiť"}</button>
+                <button
+                  onClick={() => setEditingStyling(false)}
+                  className="font-mono text-[8px] uppercase tracking-[0.05em] border border-border text-muted px-3 py-1 hover:text-ink transition-colors"
+                >Zrušiť</button>
+              </div>
+            </div>
+          ) : (
+            <p className="font-mono text-[9px] text-muted2 italic leading-relaxed">
+              {char.styling_note || <span className="text-muted/50">— nenastavený —</span>}
+            </p>
+          )}
         </div>
 
         {/* Visual Tone */}
