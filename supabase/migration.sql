@@ -74,6 +74,21 @@ CREATE INDEX IF NOT EXISTS idx_media_story_day ON chs_media(story_day_id);
 CREATE INDEX IF NOT EXISTS idx_media_status ON chs_media(status);
 CREATE INDEX IF NOT EXISTS idx_posts_media ON chs_posts(media_id);
 
+-- 4c. Publish Queue additions (run these ALTER statements if upgrading)
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS character_id uuid REFERENCES chs_characters(id);
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS ig_caption text;
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS hashtags text[];
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS yt_title text;
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS yt_description text;
+ALTER TABLE chs_media ALTER COLUMN higgsfield_prompt DROP NOT NULL;
+ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS is_manual boolean DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_posts_character ON chs_posts(character_id);
+CREATE INDEX IF NOT EXISTS idx_posts_scheduled ON chs_posts(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_posts_status ON chs_posts(status);
+
+-- Storage bucket: run in Supabase SQL editor or Storage UI
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('chs-media', 'chs-media', true) ON CONFLICT DO NOTHING;
+
 -- 6. Seed: Vivienne
 INSERT INTO chs_characters (name, slug, visual_brief, backstory, platforms)
 VALUES (
