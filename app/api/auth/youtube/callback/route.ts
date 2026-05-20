@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     return new Response('<h1>Missing authorization code</h1>', { headers: { 'Content-Type': 'text/html' } })
   }
 
-  const redirectUri = `${process.env.APP_URL}/api/auth/youtube/callback`
+  const redirectUri = `${process.env.APP_URL?.replace(/\/$/, '')}/api/auth/youtube/callback`
 
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',

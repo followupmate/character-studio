@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const redirectUri = `${process.env.APP_URL}/api/auth/youtube/callback`
+  const redirectUri = `${process.env.APP_URL?.replace(/\/$/, '')}/api/auth/youtube/callback`
 
   const params = new URLSearchParams({
     client_id: process.env.YOUTUBE_CLIENT_ID!,
