@@ -86,8 +86,30 @@ CREATE INDEX IF NOT EXISTS idx_posts_character ON chs_posts(character_id);
 CREATE INDEX IF NOT EXISTS idx_posts_scheduled ON chs_posts(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_posts_status ON chs_posts(status);
 
--- Storage bucket: run in Supabase SQL editor or Storage UI
--- INSERT INTO storage.buckets (id, name, public) VALUES ('chs-media', 'chs-media', true) ON CONFLICT DO NOTHING;
+-- Storage bucket + policies
+-- NOTE: Supabase shows a "destructive operation" warning for DROP POLICY IF EXISTS — this is expected and safe to run.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'chs-media',
+  'chs-media',
+  true,
+  524288000,
+  ARRAY['image/jpeg','image/png','image/webp','video/mp4','video/quicktime']
+)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "service_role_full_access" ON storage.objects;
+CREATE POLICY "service_role_full_access"
+ON storage.objects FOR ALL
+TO service_role
+USING (bucket_id = 'chs-media')
+WITH CHECK (bucket_id = 'chs-media');
+
+DROP POLICY IF EXISTS "public_read" ON storage.objects;
+CREATE POLICY "public_read"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'chs-media');
 
 -- 6. Seed: Vivienne
 INSERT INTO chs_characters (name, slug, visual_brief, backstory, platforms)
