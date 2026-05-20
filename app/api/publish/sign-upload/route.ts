@@ -12,11 +12,25 @@ function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+async function ensureBucket(supabase: ReturnType<typeof getAdminClient>) {
+  const { data: buckets, error: listErr } = await supabase.storage.listBuckets();
+  if (listErr) throw new Error(`listBuckets failed: ${listErr.message}`);
+  if (!buckets?.find((b) => b.name === "chs-media")) {
+    const { error: createErr } = await supabase.storage.createBucket("chs-media", {
+      public: true,
+      fileSizeLimit: 524288000,
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"],
+    });
+    if (createErr) throw new Error(`createBucket failed: ${createErr.message}`);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const files: Array<{ path: string; contentType: string }> = await req.json();
 
     const supabase = getAdminClient();
+    await ensureBucket(supabase);
 
     const results = await Promise.all(
       files.map(async ({ path, contentType }) => {
