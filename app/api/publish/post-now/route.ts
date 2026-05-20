@@ -83,10 +83,11 @@ async function postToYouTube(
 ): Promise<string> {
   const accessToken = await getYouTubeAccessToken();
 
-  // Fetch video to get content-length
-  const videoRes = await fetch(videoUrl);
-  if (!videoRes.ok) throw new Error(`Failed to fetch video: ${videoRes.status}`);
-  const contentLength = videoRes.headers.get("content-length") ?? "0";
+  // Fetch video metadata (HEAD) to get content-length without downloading body yet
+  const headRes = await fetch(videoUrl, { method: "HEAD" });
+  if (!headRes.ok) throw new Error(`Failed to HEAD video: ${headRes.status}`);
+  const contentLength = headRes.headers.get("content-length");
+  if (!contentLength || contentLength === "0") throw new Error(`Missing content-length for video: ${videoUrl}`);
 
   const isScheduled = scheduledAt && new Date(scheduledAt) > new Date();
   const status = isScheduled
@@ -115,10 +116,17 @@ async function postToYouTube(
     }
   );
 
+  if (!initRes.ok) {
+    const initErr = await initRes.text();
+    throw new Error(`YouTube init failed ${initRes.status}: ${initErr}`);
+  }
   const uploadUrl = initRes.headers.get("location");
   if (!uploadUrl) throw new Error("No upload URL from YouTube");
 
-  // Stream video to YouTube
+  // Fetch video body and stream to YouTube
+  const videoRes = await fetch(videoUrl);
+  if (!videoRes.ok) throw new Error(`Failed to fetch video: ${videoRes.status}`);
+
   const uploadRes = await fetch(uploadUrl, {
     method: "PUT",
     headers: {
@@ -131,7 +139,9 @@ async function postToYouTube(
   });
 
   const ytData = await uploadRes.json();
-  return ytData.id ?? "";
+  console.log("[post-now] YT upload response:", JSON.stringify(ytData).slice(0, 300));
+  if (!uploadRes.ok || !ytData.id) throw new Error(`YouTube upload failed: ${JSON.stringify(ytData)}`);
+  return ytData.id;
 }
 
 export async function POST(req: Request) {
