@@ -7,10 +7,6 @@
     {
       "path": "/api/characters/publish",
       "schedule": "0 10 * * *"
-    },
-    {
-      "path": "/api/publish/cron",
-      "schedule": "*/15 * * * *"
     }
   ]
 }
