@@ -48,14 +48,16 @@ async function postToInstagram(
 
   // Poll for video processing (max 5 min, every 30s)
   if (isVideo) {
+    let finished = false;
     for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 30000));
       const statusRes = await fetch(
         `https://graph.instagram.com/v18.0/${containerRes.id}?fields=status_code&access_token=${accessToken}`
       ).then((r) => r.json());
-      if (statusRes.status_code === "FINISHED") break;
+      if (statusRes.status_code === "FINISHED") { finished = true; break; }
       if (statusRes.status_code === "ERROR") throw new Error("IG video processing failed");
     }
+    if (!finished) throw new Error("IG video processing timed out (5 min)");
   }
 
   const publishRes = await fetch(
@@ -69,7 +71,8 @@ async function postToInstagram(
     }
   ).then((r) => r.json());
 
-  return publishRes.id ?? "";
+  if (!publishRes.id) throw new Error(`IG publish error: ${JSON.stringify(publishRes)}`);
+  return publishRes.id;
 }
 
 async function postToYouTube(
