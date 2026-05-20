@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 async function getYouTubeAccessToken(): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
