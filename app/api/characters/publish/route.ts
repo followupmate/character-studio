@@ -103,7 +103,32 @@ export async function GET() {
         .eq("id", media.id);
     }
 
-    return NextResponse.json({ success: true, posted: results });
+    // Also process publish queue scheduled posts
+    const { data: duePosts } = await supabase
+      .from("chs_posts")
+      .select("id")
+      .eq("status", "scheduled")
+      .lte("scheduled_at", new Date().toISOString());
+
+    const queueResults = await Promise.allSettled(
+      (duePosts ?? []).map(async (post: { id: string }) => {
+        const res = await fetch(
+          `${process.env.APP_URL ?? "https://character-studio-mocha.vercel.app"}/api/publish/post-now`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ post_id: post.id }),
+          }
+        );
+        return res.json();
+      })
+    );
+
+    return NextResponse.json({
+      success: true,
+      posted: results,
+      queue_processed: queueResults.length,
+    });
   } catch (error) {
     console.error("[publish] Error:", error);
     return NextResponse.json(
