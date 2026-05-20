@@ -46,19 +46,19 @@ async function postToInstagram(
     throw new Error(`IG container error: ${JSON.stringify(containerRes)}`);
   }
 
-  // Poll for video processing (max 5 min, every 30s)
-  if (isVideo) {
-    let finished = false;
-    for (let i = 0; i < 10; i++) {
-      await new Promise((r) => setTimeout(r, 30000));
-      const statusRes = await fetch(
-        `https://graph.instagram.com/v18.0/${containerRes.id}?fields=status_code&access_token=${accessToken}`
-      ).then((r) => r.json());
-      if (statusRes.status_code === "FINISHED") { finished = true; break; }
-      if (statusRes.status_code === "ERROR") throw new Error("IG video processing failed");
-    }
-    if (!finished) throw new Error("IG video processing timed out (5 min)");
+  // Poll until container is FINISHED (photos: fast ~5s, videos: up to 5 min)
+  const pollInterval = isVideo ? 30000 : 4000;
+  const pollMax = isVideo ? 10 : 15;
+  let finished = false;
+  for (let i = 0; i < pollMax; i++) {
+    await new Promise((r) => setTimeout(r, pollInterval));
+    const statusRes = await fetch(
+      `https://graph.instagram.com/v18.0/${containerRes.id}?fields=status_code&access_token=${accessToken}`
+    ).then((r) => r.json());
+    if (statusRes.status_code === "FINISHED") { finished = true; break; }
+    if (statusRes.status_code === "ERROR") throw new Error("IG container processing failed");
   }
+  if (!finished) throw new Error(isVideo ? "IG video processing timed out (5 min)" : "IG photo processing timed out (60s)");
 
   const publishRes = await fetch(
     `https://graph.instagram.com/v18.0/${igUserId}/media_publish`,
