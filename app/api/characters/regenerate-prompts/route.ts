@@ -20,16 +20,7 @@ export async function POST() {
       return NextResponse.json({ success: false, error: "No stories found for today" }, { status: 404 });
     }
 
-    // Delete existing media for today's story days
-    const storyDayIds = storyDays.map((s) => s.id);
-    const { error: deleteError } = await supabase
-      .from("chs_media")
-      .delete()
-      .in("story_day_id", storyDayIds);
-
-    if (deleteError) throw deleteError;
-
-    // Regenerate all prompts in parallel
+    // Regenerate all prompts in parallel (old records kept as history)
     const results = await Promise.allSettled(
       storyDays.map((day) =>
         generateAndSavePrompts({

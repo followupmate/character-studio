@@ -580,8 +580,8 @@ Never describe "she looks [tone word]". Describe instead:
     const videoPrompt = (videoMsg.content[0] as { type: string; text: string }).text;
 
     await Promise.all([
-      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending" }),
-      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending" }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending", prompt_doctrine: "instagram", visual_tone_used: ctx.visualTone ?? null, styling_note_used: ctx.stylingNote ?? null }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending", prompt_doctrine: "instagram", visual_tone_used: ctx.visualTone ?? null, styling_note_used: ctx.stylingNote ?? null }),
     ]);
     return;
   }
@@ -607,8 +607,8 @@ Never describe "she looks [tone word]". Describe instead:
     const videoPrompt = (videoMsg.content[0] as { type: string; text: string }).text;
 
     await Promise.all([
-      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending" }),
-      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending" }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending", prompt_doctrine: "deepseek", visual_tone_used: ctx.visualTone ?? null, styling_note_used: ctx.stylingNote ?? null }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending", prompt_doctrine: "deepseek", visual_tone_used: ctx.visualTone ?? null, styling_note_used: ctx.stylingNote ?? null }),
     ]);
     return;
   }
@@ -634,8 +634,8 @@ Never describe "she looks [tone word]". Describe instead:
     const videoPrompt = (videoMsg.content[0] as { type: string; text: string }).text;
 
     await Promise.all([
-      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending" }),
-      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending" }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "photo", higgsfield_prompt: photoPrompt, status: "pending", prompt_doctrine: "editorial", visual_tone_used: ctx.visualTone ?? null, styling_note_used: ctx.stylingNote ?? null }),
+      supabase.from("chs_media").insert({ story_day_id: ctx.storyDayId, type: "video", higgsfield_prompt: videoPrompt, status: "pending", prompt_doctrine: "editorial", visual_tone_used: ctx.visualTone ?? null, styling_note_used: ctx.stylingNote ?? null }),
     ]);
     return;
   }
@@ -725,12 +725,18 @@ OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt
       type: "photo",
       higgsfield_prompt: photoPrompt,
       status: "pending",
+      prompt_doctrine: "cinematic",
+      visual_tone_used: ctx.visualTone ?? null,
+      styling_note_used: ctx.stylingNote ?? null,
     }),
     supabase.from("chs_media").insert({
       story_day_id: ctx.storyDayId,
       type: "video",
       higgsfield_prompt: videoPrompt,
       status: "pending",
+      prompt_doctrine: "cinematic",
+      visual_tone_used: ctx.visualTone ?? null,
+      styling_note_used: ctx.stylingNote ?? null,
     }),
   ]);
 }

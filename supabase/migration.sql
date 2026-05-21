@@ -86,6 +86,11 @@ CREATE INDEX IF NOT EXISTS idx_posts_character ON chs_posts(character_id);
 CREATE INDEX IF NOT EXISTS idx_posts_scheduled ON chs_posts(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_posts_status ON chs_posts(status);
 
+-- Prompt history metadata
+ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS prompt_doctrine text;
+ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS visual_tone_used text;
+ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS styling_note_used text;
+
 -- Storage bucket + policies
 -- NOTE: Supabase shows a "destructive operation" warning for DROP POLICY IF EXISTS — this is expected and safe to run.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
