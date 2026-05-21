@@ -29,6 +29,8 @@ type QueuePost = {
   ig_caption: string | null;
   yt_title: string | null;
   character_id: string | null;
+  post_type: string | null;
+  parent_post_id: string | null;
   chs_characters: { name: string; slug: string } | null;
   chs_media: { type: string; media_url: string | null } | null;
 };
@@ -41,6 +43,13 @@ const STATUS_STYLES: Record<string, string> = {
   scheduled: "text-amber border-amber/30 bg-amber/10",
   posted: "text-teal border-teal/30 bg-teal/10",
   failed: "text-red-400 border-red-400/30 bg-red-400/10",
+};
+
+const POST_TYPE_STYLES: Record<string, { label: string; style: string; icon: string }> = {
+  feed: { label: "Feed", style: "text-blue-400 border-blue-400/30 bg-blue-400/10", icon: "📸" },
+  story: { label: "Story", style: "text-violet-400 border-violet-400/30 bg-violet-400/10", icon: "📖" },
+  carousel: { label: "Carousel", style: "text-orange-400 border-orange-400/30 bg-orange-400/10", icon: "🎠" },
+  reel: { label: "Reel", style: "text-green-400 border-green-400/30 bg-green-400/10", icon: "🎬" },
 };
 
 function formatStoryDayLabel(sd: StoryDayOption): string {
@@ -210,6 +219,16 @@ export default function PublishClient({
   const [storyDays, setStoryDays] = useState<StoryDayOption[]>([]);
   const [storyDayId, setStoryDayId] = useState<string>("");
 
+  // Instagram Story toggle
+  const [includeStory, setIncludeStory] = useState(true);
+  const [storyFileKey, setStoryFileKey] = useState<string>("");
+  const [storyLinkUrl, setStoryLinkUrl] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(`story_link_url_${characters[0]?.id ?? ""}`) ?? "";
+    }
+    return "";
+  });
+
   // Caption state
   const [igCaption, setIgCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
@@ -249,6 +268,21 @@ export default function PublishClient({
     const char = characters.find((c) => c.id === charId);
     if (char) setScheduledAt(defaultScheduledAt(char.posting_time));
   }, [charId, characters]);
+
+  // Load story link URL from localStorage when character changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setStoryLinkUrl(localStorage.getItem(`story_link_url_${charId}`) ?? "");
+    }
+  }, [charId]);
+
+  // Persist story link URL to localStorage
+  const handleStoryLinkChange = (url: string) => {
+    setStoryLinkUrl(url);
+    if (typeof window !== "undefined" && charId) {
+      localStorage.setItem(`story_link_url_${charId}`, url);
+    }
+  };
 
   const refreshQueue = useCallback(async () => {
     try {
@@ -342,6 +376,12 @@ export default function PublishClient({
       const filePaths: Record<string, string> = {};
       files.forEach((f, i) => { filePaths[f.key] = signedUrls[i].path; });
 
+      // Determine which file to use for story
+      const photoKeys = files.filter((f) => f.key !== "video").map((f) => f.key);
+      const defaultStoryKey = storyFileKey || photoKeys[0] || files[0]?.key || "";
+      const isIg = platforms.has("instagram");
+      const canIncludeStory = isIg && postType === "single" && !!defaultStoryKey;
+
       const schedRes = await fetch("/api/publish/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -355,6 +395,9 @@ export default function PublishClient({
           yt_description: ytDescription,
           file_paths: filePaths,
           post_now: postNow,
+          include_story: canIncludeStory && includeStory,
+          story_file_key: defaultStoryKey,
+          story_link_url: storyLinkUrl || null,
         }),
       });
       const schedData = await schedRes.json();
@@ -485,6 +528,8 @@ export default function PublishClient({
     setYtTitle("");
     setYtDescription("");
     setStoryDayId("");
+    setStoryFileKey("");
+    setIncludeStory(true);
   };
 
   const cancelPost = async (postId: string) => {
@@ -658,6 +703,75 @@ export default function PublishClient({
               <p className="font-mono text-[9px] text-muted">
                 {carouselFiles.filter(Boolean).length} / {carouselFiles.length} nahratých
               </p>
+            </div>
+          )}
+
+          {/* Instagram Story toggle — only for single IG posts */}
+          {postType === "single" && platforms.has("instagram") && (videoFile || photo1 || photo2) && (
+            <div className="border border-border bg-bg3 p-4 space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeStory}
+                  onChange={(e) => setIncludeStory(e.target.checked)}
+                  className="w-4 h-4 accent-accent cursor-pointer"
+                />
+                <div>
+                  <span className="font-mono text-[11px] text-ink">
+                    Automaticky postni aj Story
+                  </span>
+                  <span className="font-mono text-[9px] text-muted ml-2">(+1.5h po feed poste)</span>
+                </div>
+              </label>
+
+              {includeStory && (
+                <div className="pl-7 space-y-3">
+                  {/* Story image selector */}
+                  <div>
+                    <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">
+                      Obrázok pre Story
+                    </p>
+                    <select
+                      value={storyFileKey}
+                      onChange={(e) => setStoryFileKey(e.target.value)}
+                      className="w-full bg-bg border border-border text-ink font-mono text-[12px] px-3 py-2 focus:outline-none focus:border-accent"
+                    >
+                      {photo1 && <option value="photo1">{photo1.name}</option>}
+                      {photo2 && <option value="photo2">{photo2.name}</option>}
+                      {videoFile && <option value="video">{videoFile.name} (video)</option>}
+                    </select>
+                    <p className="font-mono text-[9px] text-muted mt-1">
+                      Ideálny pomer 9:16 (1080×1920px)
+                      {(() => {
+                        const selectedFile =
+                          storyFileKey === "photo2" ? photo2 :
+                          storyFileKey === "video" ? videoFile :
+                          photo1;
+                        return selectedFile?.type.startsWith("video/")
+                          ? " · Video Story nie je vždy podporovaný"
+                          : "";
+                      })()}
+                    </p>
+                  </div>
+
+                  {/* Link sticker URL */}
+                  <div>
+                    <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">
+                      Link sticker URL
+                    </p>
+                    <input
+                      type="url"
+                      value={storyLinkUrl}
+                      onChange={(e) => handleStoryLinkChange(e.target.value)}
+                      placeholder="https://fanvue.com/vivienne"
+                      className="w-full bg-bg border border-border text-ink font-mono text-[12px] px-3 py-2 focus:outline-none focus:border-accent placeholder-muted/40"
+                    />
+                    <p className="font-mono text-[9px] text-muted mt-1">
+                      Vyžaduje 10 000+ followerov alebo verifikovaný účet
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -898,7 +1012,6 @@ export default function PublishClient({
                     post.chs_characters?.name ??
                     characters.find((c) => c.id === post.character_id)?.name ??
                     "—";
-                  const mediaType = post.chs_media?.type ?? "—";
                   const scheduledStr = post.scheduled_at
                     ? new Date(post.scheduled_at).toLocaleString("sk-SK", {
                         year: "numeric", month: "2-digit", day: "2-digit",
@@ -906,17 +1019,30 @@ export default function PublishClient({
                       })
                     : "—";
 
+                  const isStory = post.post_type === "story";
+                  const postTypeInfo = POST_TYPE_STYLES[post.post_type ?? "feed"] ?? POST_TYPE_STYLES.feed;
+
                   return (
-                    <tr key={post.id} className="border-b border-border last:border-0 hover:bg-bg3/50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-[11px] text-ink">{charName}</td>
+                    <tr
+                      key={post.id}
+                      className={`border-b border-border last:border-0 hover:bg-bg3/50 transition-colors ${
+                        isStory ? "opacity-70 italic" : ""
+                      }`}
+                    >
+                      <td className="px-4 py-3 font-mono text-[11px] text-ink">
+                        {isStory && <span className="inline-block w-3 mr-1 text-muted">↳</span>}
+                        {charName}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="font-mono text-[10px] uppercase tracking-wider text-muted2">
                           {post.platform === "instagram" ? "Instagram" : "YouTube"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-muted2">
-                          {mediaType}
+                        <span
+                          className={`font-mono text-[9px] uppercase tracking-wider border px-2 py-0.5 ${postTypeInfo.style}`}
+                        >
+                          {postTypeInfo.icon} {postTypeInfo.label}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-mono text-[10px] text-muted2">{scheduledStr}</td>

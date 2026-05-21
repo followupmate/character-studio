@@ -11,6 +11,7 @@ export async function GET() {
       .from("chs_posts")
       .select(
         `id, platform, status, scheduled_at, posted_at, ig_caption, yt_title, character_id,
+         post_type, parent_post_id,
          chs_characters(name, slug),
          chs_media(type, media_url)`
       )

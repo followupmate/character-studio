@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     const { data: duePosts, error } = await supabase
       .from("chs_posts")
-      .select("id, platform")
+      .select("id, platform, post_type")
       .eq("status", "scheduled")
       .lte("scheduled_at", new Date().toISOString());
 
@@ -22,14 +22,19 @@ export async function POST(req: Request) {
       : process.env.APP_URL ?? "http://localhost:3000";
 
     const results = await Promise.allSettled(
-      duePosts.map(async (post: { id: string; platform: string }) => {
-        const res = await fetch(`${origin}/api/publish/post-now`, {
+      duePosts.map(async (post: { id: string; platform: string; post_type: string | null }) => {
+        const isStory = post.post_type === "story";
+        const endpoint = isStory
+          ? `${origin}/api/publish/post-instagram-story`
+          : `${origin}/api/publish/post-now`;
+
+        const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ post_id: post.id }),
         });
         const data = await res.json();
-        return { post_id: post.id, ...data };
+        return { post_id: post.id, post_type: post.post_type, ...data };
       })
     );
 

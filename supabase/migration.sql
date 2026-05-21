@@ -91,6 +91,16 @@ ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS prompt_doctrine text;
 ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS visual_tone_used text;
 ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS styling_note_used text;
 
+-- Instagram Stories extension
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS post_type TEXT DEFAULT 'feed';
+-- values: 'feed', 'story', 'reel', 'carousel'
+
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS story_link_url TEXT;
+-- URL for link sticker in Story
+
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS parent_post_id UUID REFERENCES chs_posts(id);
+-- Story is a child record of a feed post
+
 -- Storage bucket + policies
 -- NOTE: Supabase shows a "destructive operation" warning for DROP POLICY IF EXISTS — this is expected and safe to run.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
