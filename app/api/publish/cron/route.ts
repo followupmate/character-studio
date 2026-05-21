@@ -4,7 +4,17 @@ import { supabase } from "@/lib/supabase";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+function isAuthorized(req: Request): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return true; // no secret configured — open (Vercel internal calls)
+  const auth = req.headers.get("authorization");
+  return auth === `Bearer ${secret}`;
+}
+
 export async function POST(req: Request) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { data: duePosts, error } = await supabase
       .from("chs_posts")

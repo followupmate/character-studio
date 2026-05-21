@@ -116,10 +116,9 @@ export async function POST(req: Request) {
     // First attempt
     let result = await createAndPublishStory(igAccountId, accessToken, imageUrl, storyLinkUrl);
 
-    // Retry once after 30s on failure
+    // Retry once immediately (no sleep — Hobby plan 60s limit)
     if (result.error) {
       console.error(`[post-instagram-story] First attempt failed (post_id=${postId}):`, result.error);
-      await new Promise((resolve) => setTimeout(resolve, 30000));
       result = await createAndPublishStory(igAccountId, accessToken, imageUrl, storyLinkUrl);
     }
 
