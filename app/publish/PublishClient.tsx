@@ -1068,7 +1068,10 @@ export default function PublishClient({
                         ) : post.status === "failed" ? (
                           <button
                             onClick={async () => {
-                              await fetch("/api/publish/post-now", {
+                              const endpoint = post.post_type === "story"
+                                ? "/api/publish/post-instagram-story"
+                                : "/api/publish/post-now";
+                              await fetch(endpoint, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ post_id: post.id }),
