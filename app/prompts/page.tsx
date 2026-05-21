@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 async function getPrompts() {
   const { data } = await supabase
     .from("chs_media")
-    .select("id, type, higgsfield_prompt, status, created_at, story_day_id, chs_story_days(location, mood, day_number, character_id, chs_characters(name))")
+    .select("id, type, higgsfield_prompt, status, created_at, story_day_id, prompt_doctrine, visual_tone_used, styling_note_used, chs_story_days(location, mood, day_number, character_id, chs_characters(name, id))")
+    .not("higgsfield_prompt", "eq", "manual_upload")
     .order("created_at", { ascending: false })
-    .limit(60);
+    .limit(200);
   return data ?? [];
 }
 
