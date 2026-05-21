@@ -5,7 +5,14 @@ import { MediaWithStory } from "@/types";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function GET() {
+export async function GET(req: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    const auth = req.headers.get("authorization");
+    if (auth !== `Bearer ${secret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
   try {
     const today = new Date().toISOString().split("T")[0];
 
@@ -106,20 +113,23 @@ export async function GET() {
     // Also process publish queue scheduled posts
     const { data: duePosts } = await supabase
       .from("chs_posts")
-      .select("id")
+      .select("id, post_type")
       .eq("status", "scheduled")
       .lte("scheduled_at", new Date().toISOString());
 
+    const appUrl = process.env.APP_URL ?? "https://character-studio-mocha.vercel.app";
+
     const queueResults = await Promise.allSettled(
-      (duePosts ?? []).map(async (post: { id: string }) => {
-        const res = await fetch(
-          `${process.env.APP_URL ?? "https://character-studio-mocha.vercel.app"}/api/publish/post-now`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ post_id: post.id }),
-          }
-        );
+      (duePosts ?? []).map(async (post: { id: string; post_type: string | null }) => {
+        const isStory = post.post_type === "story";
+        const endpoint = isStory
+          ? `${appUrl}/api/publish/post-instagram-story`
+          : `${appUrl}/api/publish/post-now`;
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ post_id: post.id }),
+        });
         return res.json();
       })
     );
