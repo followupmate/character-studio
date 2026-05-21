@@ -35,6 +35,7 @@ export async function POST(req: Request) {
     } = body;
 
     const post_ids: string[] = [];
+    const media_ids: string[] = [];
 
     // Build media records from uploaded files
     const mediaEntries: Array<{ type: "photo" | "video"; path: string }> = [];
@@ -73,6 +74,7 @@ export async function POST(req: Request) {
         .single();
 
       if (mediaError) throw mediaError;
+      media_ids.push(media.id);
 
       // Create post records — one per platform
       for (const platform of platforms) {
@@ -111,7 +113,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, post_ids });
+    return NextResponse.json({ success: true, post_ids, media_ids });
   } catch (error) {
     console.error("[schedule]", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });

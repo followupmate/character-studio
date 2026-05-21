@@ -10,6 +10,16 @@ type Character = {
   platforms: string[];
 };
 
+type StoryDayOption = {
+  id: string;
+  date: string;
+  location: string;
+  mood: string;
+  narrative: string;
+  ig_caption: string | null;
+  hashtags: string[] | null;
+};
+
 type QueuePost = {
   id: string;
   platform: string;
@@ -24,12 +34,23 @@ type QueuePost = {
 };
 
 type Toast = { ok: boolean; msg: string };
+type PostType = "single" | "carousel";
+type CaptionSource = "story_day" | "generated" | null;
 
 const STATUS_STYLES: Record<string, string> = {
   scheduled: "text-amber border-amber/30 bg-amber/10",
   posted: "text-teal border-teal/30 bg-teal/10",
   failed: "text-red-400 border-red-400/30 bg-red-400/10",
 };
+
+function formatStoryDayLabel(sd: StoryDayOption): string {
+  const date = new Date(sd.date);
+  const months = [
+    "januára","februára","marca","apríla","mája","júna",
+    "júla","augusta","septembra","októbra","novembra","decembra",
+  ];
+  return `${date.getDate()}. ${months[date.getMonth()]} — ${sd.location} · ${sd.mood}`;
+}
 
 function FileInput({
   label,
@@ -80,6 +101,65 @@ function FileInput({
   );
 }
 
+function CarouselFileInput({
+  index,
+  file,
+  onChange,
+  onRemove,
+  canRemove,
+}: {
+  index: number;
+  file: File | null;
+  onChange: (f: File | null) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-mono text-[9px] text-muted w-4 flex-shrink-0">{index + 1}.</span>
+      <div
+        className="flex-1 border border-border bg-bg3 px-3 py-2 flex items-center gap-2 cursor-pointer hover:border-border-strong transition-colors"
+        onClick={() => ref.current?.click()}
+      >
+        <span className="material-symbols-outlined text-[14px] text-muted flex-shrink-0">
+          {file ? "check_circle" : "upload_file"}
+        </span>
+        <span className="font-mono text-[11px] text-muted2 truncate">
+          {file ? file.name : "Fotka / video..."}
+        </span>
+        {file && (
+          <button
+            className="ml-auto text-muted hover:text-white"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(null);
+              if (ref.current) ref.current.value = "";
+            }}
+          >
+            <span className="material-symbols-outlined text-[12px]">close</span>
+          </button>
+        )}
+      </div>
+      {canRemove && (
+        <button
+          onClick={onRemove}
+          className="text-muted hover:text-red-400 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[14px]">remove_circle</span>
+        </button>
+      )}
+      <input
+        ref={ref}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
+        className="hidden"
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+      />
+    </div>
+  );
+}
+
 function ToastBar({ toast, onClose }: { toast: Toast; onClose: () => void }) {
   useEffect(() => {
     const t = setTimeout(onClose, 4000);
@@ -111,12 +191,24 @@ export default function PublishClient({
   characters: Character[];
   initialQueue: QueuePost[];
 }) {
-  // Form state
+  // Character + platform
   const [charId, setCharId] = useState(characters[0]?.id ?? "");
   const [platforms, setPlatforms] = useState<Set<string>>(new Set(["instagram"]));
+
+  // Post type
+  const [postType, setPostType] = useState<PostType>("single");
+
+  // Single post files
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [photo1, setPhoto1] = useState<File | null>(null);
   const [photo2, setPhoto2] = useState<File | null>(null);
+
+  // Carousel files
+  const [carouselFiles, setCarouselFiles] = useState<(File | null)[]>([null, null]);
+
+  // Story day
+  const [storyDays, setStoryDays] = useState<StoryDayOption[]>([]);
+  const [storyDayId, setStoryDayId] = useState<string>("");
 
   // Caption state
   const [igCaption, setIgCaption] = useState("");
@@ -124,8 +216,9 @@ export default function PublishClient({
   const [ytTitle, setYtTitle] = useState("");
   const [ytDescription, setYtDescription] = useState("");
   const [captionReady, setCaptionReady] = useState(false);
+  const [captionSource, setCaptionSource] = useState<CaptionSource>(null);
 
-  // Schedule state — default to character's posting_time today
+  // Schedule
   const [scheduledAt, setScheduledAt] = useState(() => {
     const char = characters[0];
     if (!char) return "";
@@ -140,6 +233,16 @@ export default function PublishClient({
   const [toast, setToast] = useState<Toast | null>(null);
 
   const showToast = useCallback((ok: boolean, msg: string) => setToast({ ok, msg }), []);
+
+  // Fetch story days when character changes
+  useEffect(() => {
+    if (!charId) return;
+    setStoryDayId("");
+    fetch(`/api/publish/story-days?character_id=${charId}`)
+      .then((r) => r.json())
+      .then((data) => setStoryDays(Array.isArray(data) ? data : []))
+      .catch(() => setStoryDays([]));
+  }, [charId]);
 
   // Update default scheduled time when character changes
   useEffect(() => {
@@ -162,7 +265,12 @@ export default function PublishClient({
     }
     setGenerating(true);
     try {
-      const contentType = videoFile ? "video" : "photo";
+      const hasVideo =
+        postType === "single"
+          ? !!videoFile
+          : carouselFiles.some((f) => f?.type.startsWith("video/"));
+      const contentType = hasVideo ? "video" : "photo";
+
       const res = await fetch("/api/publish/generate-caption", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,6 +278,7 @@ export default function PublishClient({
           character_id: charId,
           platforms: Array.from(platforms),
           content_type: contentType,
+          ...(storyDayId ? { story_day_id: storyDayId } : {}),
         }),
       });
       if (!res.ok) throw new Error("API error " + res.status);
@@ -179,6 +288,7 @@ export default function PublishClient({
       setYtTitle(data.yt_title ?? "");
       setYtDescription(data.yt_description ?? "");
       setCaptionReady(true);
+      setCaptionSource(data.source ?? "generated");
       showToast(true, "Caption vygenerovaný");
     } catch (e) {
       showToast(false, "Chyba: " + String(e));
@@ -187,7 +297,8 @@ export default function PublishClient({
     }
   };
 
-  const handleSubmit = async (postNow: boolean) => {
+  // ── Single post submit ──────────────────────────────────────────────
+  const handleSingleSubmit = async (postNow: boolean) => {
     const files: Array<{ key: string; file: File; path: string }> = [];
     const ts = Date.now();
 
@@ -201,18 +312,11 @@ export default function PublishClient({
       files.push({ key: "photo2", file: photo2, path: `${charId}/${ts}_photo2.${ext}` });
     }
 
-    if (files.length === 0) {
-      showToast(false, "Nahraj aspoň jeden súbor");
-      return;
-    }
-    if (platforms.size === 0) {
-      showToast(false, "Vyber aspoň jednu platformu");
-      return;
-    }
+    if (files.length === 0) { showToast(false, "Nahraj aspoň jeden súbor"); return; }
+    if (platforms.size === 0) { showToast(false, "Vyber aspoň jednu platformu"); return; }
 
     setUploading(true);
     try {
-      // 1. Get signed upload URLs
       setUploadMsg("Generujem upload URL…");
       const signRes = await fetch("/api/publish/sign-upload", {
         method: "POST",
@@ -224,7 +328,6 @@ export default function PublishClient({
       if (!signRes.ok) throw new Error("Sign-upload failed");
       const signedUrls: Array<{ path: string; signedUrl: string }> = await signRes.json();
 
-      // 2. Upload directly to Supabase Storage
       for (let i = 0; i < files.length; i++) {
         setUploadMsg(`Nahrávam ${files[i].file.name} (${i + 1}/${files.length})…`);
         const uploadRes = await fetch(signedUrls[i].signedUrl, {
@@ -235,12 +338,9 @@ export default function PublishClient({
         if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`);
       }
 
-      // 3. Create DB records
       setUploadMsg("Vytváram záznamy…");
       const filePaths: Record<string, string> = {};
-      files.forEach((f, i) => {
-        filePaths[f.key] = signedUrls[i].path;
-      });
+      files.forEach((f, i) => { filePaths[f.key] = signedUrls[i].path; });
 
       const schedRes = await fetch("/api/publish/schedule", {
         method: "POST",
@@ -261,15 +361,7 @@ export default function PublishClient({
       if (!schedData.success) throw new Error(schedData.error ?? "Schedule failed");
 
       showToast(true, postNow ? "Post odoslaný!" : "Post naplánovaný");
-      // Reset form
-      setVideoFile(null);
-      setPhoto1(null);
-      setPhoto2(null);
-      setCaptionReady(false);
-      setIgCaption("");
-      setHashtags("");
-      setYtTitle("");
-      setYtDescription("");
+      resetForm();
       await refreshQueue();
     } catch (e) {
       showToast(false, String(e));
@@ -277,6 +369,122 @@ export default function PublishClient({
       setUploading(false);
       setUploadMsg("");
     }
+  };
+
+  // ── Carousel submit ─────────────────────────────────────────────────
+  const handleCarouselSubmit = async (postNow: boolean) => {
+    const activeFiles = carouselFiles.filter((f): f is File => f !== null);
+    if (activeFiles.length < 2) { showToast(false, "Carousel vyžaduje aspoň 2 položky"); return; }
+    if (activeFiles.length > 10) { showToast(false, "Carousel podporuje max 10 položiek"); return; }
+
+    const videoCount = activeFiles.filter((f) => f.type.startsWith("video/")).length;
+    if (videoCount > 1) { showToast(false, "Carousel môže obsahovať max 1 video"); return; }
+
+    setUploading(true);
+    try {
+      const ts = Date.now();
+      const fileList = activeFiles.map((file, i) => {
+        const ext = file.name.split(".").pop() ?? "jpg";
+        const typePrefix = file.type.startsWith("video/") ? "video" : "photo";
+        return { file, path: `${charId}/${ts}_carousel_${i}_${typePrefix}.${ext}` };
+      });
+
+      setUploadMsg("Generujem upload URL…");
+      const signRes = await fetch("/api/publish/sign-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          fileList.map((f) => ({ path: f.path, contentType: f.file.type || "application/octet-stream" }))
+        ),
+      });
+      if (!signRes.ok) throw new Error("Sign-upload failed");
+      const signedUrls: Array<{ path: string; signedUrl: string }> = await signRes.json();
+
+      for (let i = 0; i < fileList.length; i++) {
+        setUploadMsg(`Nahrávam ${fileList[i].file.name} (${i + 1}/${fileList.length})…`);
+        const uploadRes = await fetch(signedUrls[i].signedUrl, {
+          method: "PUT",
+          body: fileList[i].file,
+          headers: { "Content-Type": fileList[i].file.type || "application/octet-stream" },
+        });
+        if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`);
+      }
+
+      // Create file_paths object (photo1..photoN + optional video)
+      setUploadMsg("Vytváram záznamy…");
+      const file_paths: Record<string, string> = {};
+      fileList.forEach((f, i) => {
+        const key = f.file.type.startsWith("video/") ? "video" : `photo${i + 1}`;
+        file_paths[key] = signedUrls[i].path;
+      });
+
+      const schedRes = await fetch("/api/publish/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          character_id: charId,
+          platforms: ["instagram"],
+          scheduled_at: postNow ? new Date().toISOString() : scheduledAt,
+          ig_caption: igCaption,
+          hashtags: hashtags.split(/\s+/).filter(Boolean),
+          yt_title: "",
+          yt_description: "",
+          file_paths,
+          post_now: false, // handled below for carousel
+        }),
+      });
+      const schedData = await schedRes.json();
+      if (!schedData.success) throw new Error(schedData.error ?? "Schedule failed");
+
+      if (postNow) {
+        setUploadMsg("Posielam carousel na Instagram…");
+        const carouselRes = await fetch("/api/publish/post-instagram-carousel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            media_ids: schedData.media_ids,
+            caption: igCaption,
+            hashtags: hashtags.split(/\s+/).filter(Boolean),
+            character_id: charId,
+          }),
+        });
+        const carouselData = await carouselRes.json();
+        if (!carouselData.success) throw new Error(carouselData.error ?? "Carousel post failed");
+        showToast(true, "Carousel odoslaný na Instagram!");
+      } else {
+        showToast(true, "Carousel naplánovaný");
+      }
+
+      resetForm();
+      await refreshQueue();
+    } catch (e) {
+      showToast(false, String(e));
+    } finally {
+      setUploading(false);
+      setUploadMsg("");
+    }
+  };
+
+  const handleSubmit = (postNow: boolean) => {
+    if (postType === "carousel") {
+      handleCarouselSubmit(postNow);
+    } else {
+      handleSingleSubmit(postNow);
+    }
+  };
+
+  const resetForm = () => {
+    setVideoFile(null);
+    setPhoto1(null);
+    setPhoto2(null);
+    setCarouselFiles([null, null]);
+    setCaptionReady(false);
+    setCaptionSource(null);
+    setIgCaption("");
+    setHashtags("");
+    setYtTitle("");
+    setYtDescription("");
+    setStoryDayId("");
   };
 
   const cancelPost = async (postId: string) => {
@@ -302,7 +510,10 @@ export default function PublishClient({
   };
 
   const selectedChar = characters.find((c) => c.id === charId);
-  const hasFiles = !!(videoFile || photo1 || photo2);
+  const hasFiles =
+    postType === "single"
+      ? !!(videoFile || photo1 || photo2)
+      : carouselFiles.filter(Boolean).length >= 2;
 
   return (
     <div className="p-4 lg:p-8 space-y-8 max-w-4xl">
@@ -316,7 +527,7 @@ export default function PublishClient({
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Character + Platforms row */}
+          {/* Character + Platforms */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">
@@ -328,9 +539,7 @@ export default function PublishClient({
                 className="w-full bg-bg3 border border-border text-ink font-mono text-[12px] px-3 py-2.5 focus:outline-none focus:border-accent"
               >
                 {characters.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -340,25 +549,23 @@ export default function PublishClient({
                 Platforma
               </p>
               <div className="flex gap-2 pt-0.5">
-                {["instagram", "youtube"].map((p) => (
+                {(postType === "carousel" ? ["instagram"] : ["instagram", "youtube"]).map((p) => (
                   <button
                     key={p}
-                    onClick={() => togglePlatform(p)}
+                    onClick={() => postType !== "carousel" && togglePlatform(p)}
                     className={`flex items-center gap-2 px-3 py-2 border font-mono text-[11px] uppercase tracking-wider transition-all ${
-                      platforms.has(p)
+                      platforms.has(p) || postType === "carousel"
                         ? "border-accent bg-accent/10 text-accent"
                         : "border-border bg-bg3 text-muted hover:border-border-strong"
-                    }`}
+                    } ${postType === "carousel" ? "cursor-default" : ""}`}
                   >
                     <span
                       className={`w-3 h-3 border flex-shrink-0 flex items-center justify-center ${
-                        platforms.has(p) ? "border-accent bg-accent" : "border-border"
+                        platforms.has(p) || postType === "carousel" ? "border-accent bg-accent" : "border-border"
                       }`}
                     >
-                      {platforms.has(p) && (
-                        <span className="material-symbols-outlined text-[10px] text-bg">
-                          check
-                        </span>
+                      {(platforms.has(p) || postType === "carousel") && (
+                        <span className="material-symbols-outlined text-[10px] text-bg">check</span>
                       )}
                     </span>
                     {p === "instagram" ? "IG" : "YT"}
@@ -368,27 +575,120 @@ export default function PublishClient({
             </div>
           </div>
 
-          {/* File inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <FileInput
-              label="Nahraj video (MP4, max 500 MB)"
-              accept="video/mp4,video/quicktime"
-              file={videoFile}
-              onChange={setVideoFile}
-            />
-            <FileInput
-              label="Nahraj foto 1 (JPEG/PNG)"
-              accept="image/jpeg,image/png,image/webp"
-              file={photo1}
-              onChange={setPhoto1}
-            />
-            <FileInput
-              label="Nahraj foto 2 (JPEG/PNG)"
-              accept="image/jpeg,image/png,image/webp"
-              file={photo2}
-              onChange={setPhoto2}
-            />
+          {/* Post type toggle */}
+          <div>
+            <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">
+              Typ postu
+            </p>
+            <div className="flex gap-2">
+              {(["single", "carousel"] as PostType[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setPostType(t)}
+                  className={`flex items-center gap-2 px-3 py-2 border font-mono text-[11px] uppercase tracking-wider transition-all ${
+                    postType === t
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-border bg-bg3 text-muted hover:border-border-strong"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[14px]">
+                    {t === "single" ? "crop_square" : "view_carousel"}
+                  </span>
+                  {t === "single" ? "Jednotlivý" : "Carousel"}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* File inputs — single */}
+          {postType === "single" && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <FileInput
+                label="Nahraj video (MP4, max 500 MB)"
+                accept="video/mp4,video/quicktime"
+                file={videoFile}
+                onChange={setVideoFile}
+              />
+              <FileInput
+                label="Nahraj foto 1 (JPEG/PNG)"
+                accept="image/jpeg,image/png,image/webp"
+                file={photo1}
+                onChange={setPhoto1}
+              />
+              <FileInput
+                label="Nahraj foto 2 (JPEG/PNG)"
+                accept="image/jpeg,image/png,image/webp"
+                file={photo2}
+                onChange={setPhoto2}
+              />
+            </div>
+          )}
+
+          {/* File inputs — carousel */}
+          {postType === "carousel" && (
+            <div className="space-y-2">
+              <p className="font-mono text-[9px] tracking-widest text-muted uppercase">
+                Položky carouselu (2–10, max 1 video)
+              </p>
+              <div className="space-y-1.5">
+                {carouselFiles.map((file, i) => (
+                  <CarouselFileInput
+                    key={i}
+                    index={i}
+                    file={file}
+                    onChange={(f) =>
+                      setCarouselFiles((prev) => prev.map((v, idx) => (idx === i ? f : v)))
+                    }
+                    onRemove={() =>
+                      setCarouselFiles((prev) => prev.filter((_, idx) => idx !== i))
+                    }
+                    canRemove={carouselFiles.length > 2}
+                  />
+                ))}
+              </div>
+              {carouselFiles.length < 10 && (
+                <button
+                  onClick={() => setCarouselFiles((prev) => [...prev, null])}
+                  className="flex items-center gap-1.5 font-mono text-[10px] text-muted hover:text-accent transition-colors mt-1"
+                >
+                  <span className="material-symbols-outlined text-[14px]">add_circle</span>
+                  Pridať položku
+                </button>
+              )}
+              <p className="font-mono text-[9px] text-muted">
+                {carouselFiles.filter(Boolean).length} / {carouselFiles.length} nahratých
+              </p>
+            </div>
+          )}
+
+          {/* Story day selector */}
+          {storyDays.length > 0 && (
+            <div>
+              <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">
+                Dnešný deň / Príbeh (optional)
+              </p>
+              <select
+                value={storyDayId}
+                onChange={(e) => setStoryDayId(e.target.value)}
+                className="w-full bg-bg3 border border-border text-ink font-mono text-[12px] px-3 py-2.5 focus:outline-none focus:border-accent"
+              >
+                <option value="">— Bez príbehu —</option>
+                {storyDays.map((sd) => (
+                  <option key={sd.id} value={sd.id}>
+                    {formatStoryDayLabel(sd)}
+                    {sd.ig_caption ? " ✓" : ""}
+                  </option>
+                ))}
+              </select>
+              {storyDayId && (
+                <p className="font-mono text-[9px] text-muted mt-1">
+                  {storyDays.find((s) => s.id === storyDayId)?.ig_caption
+                    ? "Caption z príbehu bude použitý priamo"
+                    : "Claude vygeneruje caption na základe príbehu"}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Generate caption */}
           <div className="flex items-center gap-3 pt-1">
@@ -410,9 +710,15 @@ export default function PublishClient({
               )}
             </button>
             {captionReady && (
-              <span className="font-mono text-[10px] text-teal flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                Caption vygenerovaný
+              <span
+                className={`font-mono text-[10px] flex items-center gap-1 ${
+                  captionSource === "story_day" ? "text-amber" : "text-teal"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[14px]">
+                  {captionSource === "story_day" ? "menu_book" : "auto_awesome"}
+                </span>
+                {captionSource === "story_day" ? "Z príbehu" : "Generované"}
               </span>
             )}
           </div>
@@ -420,7 +726,7 @@ export default function PublishClient({
           {/* Generated caption fields */}
           {captionReady && (
             <div className="space-y-4 pt-2 border-t border-border">
-              {platforms.has("instagram") && (
+              {(postType === "single" ? platforms.has("instagram") : true) && (
                 <>
                   <div>
                     <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">
@@ -432,9 +738,7 @@ export default function PublishClient({
                       rows={4}
                       className="w-full bg-bg3 border border-border text-ink font-mono text-[12px] px-3 py-2.5 focus:outline-none focus:border-accent resize-y"
                     />
-                    <p className="font-mono text-[9px] text-muted mt-1">
-                      {igCaption.length} znakov
-                    </p>
+                    <p className="font-mono text-[9px] text-muted mt-1">{igCaption.length} znakov</p>
                   </div>
                   <div>
                     <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">
@@ -453,7 +757,7 @@ export default function PublishClient({
                 </>
               )}
 
-              {platforms.has("youtube") && (
+              {postType === "single" && platforms.has("youtube") && (
                 <>
                   <div>
                     <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">
@@ -478,9 +782,7 @@ export default function PublishClient({
                       rows={4}
                       className="w-full bg-bg3 border border-border text-ink font-mono text-[12px] px-3 py-2.5 focus:outline-none focus:border-accent resize-y"
                     />
-                    <p className="font-mono text-[9px] text-muted mt-1">
-                      {ytDescription.length} znakov
-                    </p>
+                    <p className="font-mono text-[9px] text-muted mt-1">{ytDescription.length} znakov</p>
                   </div>
                 </>
               )}
@@ -524,16 +826,24 @@ export default function PublishClient({
                 <span className="material-symbols-outlined text-[16px]">send</span>
                 Postni teraz
               </button>
-              <button
-                onClick={() => handleSubmit(false)}
-                disabled={uploading || !hasFiles || !scheduledAt}
-                className="flex items-center gap-2 px-4 py-2.5 bg-accent/10 border border-accent/40 text-accent font-mono text-[11px] uppercase tracking-wider hover:bg-accent/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <span className="material-symbols-outlined text-[16px]">event</span>
-                Naplánuj
-              </button>
+              {postType === "single" && (
+                <button
+                  onClick={() => handleSubmit(false)}
+                  disabled={uploading || !hasFiles || !scheduledAt}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-accent/10 border border-accent/40 text-accent font-mono text-[11px] uppercase tracking-wider hover:bg-accent/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-[16px]">event</span>
+                  Naplánuj
+                </button>
+              )}
             </div>
           </div>
+
+          {postType === "carousel" && (
+            <p className="font-mono text-[9px] text-muted mt-3">
+              // Carousel: dostupná len okamžitá publikácia
+            </p>
+          )}
 
           {uploading && (
             <div className="mt-4 flex items-center gap-3 font-mono text-[11px] text-muted">
@@ -591,11 +901,8 @@ export default function PublishClient({
                   const mediaType = post.chs_media?.type ?? "—";
                   const scheduledStr = post.scheduled_at
                     ? new Date(post.scheduled_at).toLocaleString("sk-SK", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
+                        year: "numeric", month: "2-digit", day: "2-digit",
+                        hour: "2-digit", minute: "2-digit",
                       })
                     : "—";
 
@@ -666,8 +973,6 @@ function defaultScheduledAt(postingTime: string): string {
   const today = new Date();
   const [h, m] = postingTime.split(":").map(Number);
   today.setHours(h ?? 10, m ?? 0, 0, 0);
-  // If already past, schedule for tomorrow
   if (today <= new Date()) today.setDate(today.getDate() + 1);
-  // datetime-local format: YYYY-MM-DDTHH:MM
   return today.toISOString().slice(0, 16);
 }
