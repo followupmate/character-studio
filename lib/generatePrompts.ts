@@ -644,7 +644,7 @@ Never describe "she looks [tone word]". Describe instead:
   const [photoMsg, videoMsg] = await Promise.all([
     claudeWithRetry({
       model: "claude-sonnet-4-6",
-      max_tokens: 3000,
+      max_tokens: 700,
       system: `${MASTER_DOCTRINE}
 
 ${SENSOR_REALISM}
@@ -654,33 +654,35 @@ ${cinematicToneBlock ? `\n${cinematicToneBlock}` : ""}${stylingBlock}
 CHARACTER: ${ctx.visualBrief}
 SOUL ID: ${ctx.soulId ?? "derive physical consistency from visual brief"}
 
-PHOTO PROMPT STRUCTURE (follow this exact order, 1-2 sentences per point):
-1. Optical system specification — focal length, aperture, format, focus falloff distance, CA, vignetting (e.g. "85mm f/1.4 full frame, focus falloff at 3m, mild chromatic aberration at frame edges, 0.5 stop natural vignetting")
-2. Environment as light modifier — how the environment changes the light, not as backdrop
-3. Light source provenance — where light originates, what path it took, what it collected/reflected
-4. Biomechanical state — muscle activation, weight transfer, antigravity compensation
-5. Material memory and environment exchange — humidity, temperature, electrostatics, friction, contact duration, fabric history
-6. Dermal temporal state — what is currently happening to the skin (flush, goosebumps, oil migration, compression, pulse at superficial arteries)
-7. Physiological signature — measurable parameters (breathing cycles/min, muscle tone as form change in mm, gaze angle in °, pulse bpm)
-8. Physical anchoring points — where body contacts environment, what forces act
-9. Ocular geometry — eye distance from lens, gaze angle, corneal reflection
-10. Lens artifact as truth — chromatic aberration, vignetting, breathing, focus drift, grain structure
-
 STORY CONTEXT:
 Location: ${ctx.location}
 Mood: ${ctx.mood}
 Narrative: ${ctx.narrative}
 Arc: ${ctx.arc_position}
 
-LANGUAGE: Write like a forensic cinematographer. Technical, physical, measurable. NOT like a novelist or fashion editor.
+OUTPUT RULES:
+You have fully absorbed the cinematic doctrine above. Now translate it into a concise, visually precise image prompt that an AI image generator can render faithfully.
 
-OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then write the prompt. No markdown, no preamble, no explanation.`,
+Write a SINGLE PARAGRAPH of 120–180 words. No numbered lists. No abstract measurements. No forbidden/negative instructions in the output.
+
+The paragraph must contain — in natural flowing prose:
+- Shot type and camera lens (e.g. "85mm f/1.4, shallow depth of field")
+- Where the subject is and what surrounds her physically
+- What she is wearing — fabric, fit, how it sits on her body
+- Her exact physical state: posture, gesture caught mid-motion, gaze direction
+- The light: single source, where it hits, what it reveals
+- One physical imperfection visible on skin or clothing
+- One subtle lens artifact (soft edge falloff, slight vignette, or focus breathing — pick one)
+
+Write what a camera sees. Not what a poet feels.
+
+OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then the paragraph. Nothing else.`,
       messages: [{ role: "user", content: "Generate the photo prompt." }],
     }),
 
     claudeWithRetry({
       model: "claude-sonnet-4-6",
-      max_tokens: 3000,
+      max_tokens: 800,
       system: `${MASTER_DOCTRINE}
 
 ${VIDEO_RULES}
@@ -691,27 +693,30 @@ ${arcNote}
 ${toneBlock ? `\n${toneBlock}` : ""}${stylingBlock}
 CHARACTER: ${ctx.visualBrief}
 
-VIDEO PROMPT STRUCTURE (follow this exact order, 1-2 sentences per point):
-1. Camera as physical mass — operator weight, movement type, axis, speed, inertia, starting distance (e.g. "slow handheld dolly-in from 1.4m to 0.7m, operator breathing visible as 3mm vertical drift, 24fps")
-2. Temporal environmental change — how environment shifts during the shot (light, dust, humidity)
-3. Light source instability — variation in intensity, temperature, direction across duration (cloud pass, lamp flicker)
-4. Biomechanical trajectory — phase transition: static → acceleration → dynamic → deceleration → static
-5. Material rheology — fabric viscosity, elastic vs. plastic deformation, recovery time after motion
-6. Physiological load indicators — sweat onset, flush propagation, respiratory phase shift, pulse visibility at superficial arteries during action
-7. Force exchange — how much body changes environment vs. how much environment changes body
-8. Temporal closure — physical state at end must enable physical state at beginning (seamless loop logic)
-9. Capture system specification — sensor size, codec artifact, rolling shutter behavior, noise floor
-10. Operator presence signature — human error as authenticity: accidental micro-pan, focus breathing, exposure hunting, framing drift
-
 STORY CONTEXT:
 Location: ${ctx.location}
 Mood: ${ctx.mood}
 Narrative: ${ctx.narrative}
 Arc: ${ctx.arc_position}
 
-LANGUAGE: Write like a documentary cinematographer briefing a camera operator. Technical, physical, measurable.
+OUTPUT RULES:
+You have fully absorbed the cinematic doctrine above. Now translate it into a concise, visually precise video prompt that an AI video generator can render faithfully.
 
-OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write the prompt. No markdown, no preamble, no explanation.`,
+Write a SINGLE PARAGRAPH of 130–180 words. No numbered lists. No abstract measurements. No forbidden/negative instructions in the output.
+
+The paragraph must contain — in natural flowing prose:
+- Camera movement type and starting distance (e.g. "slow handheld dolly-in from 1.2m")
+- Where the subject is and what the environment looks like in motion
+- What she is wearing — how the fabric moves under the camera's motion
+- Her one primary action: always mid-motion (mid-turn, mid-exhale, hand mid-raise — never start or end of gesture)
+- The light: source, quality, whether it shifts during the shot
+- One physical element in motion: hair, fabric, steam, shadow edge
+- Loop logic: what brings the motion back to start naturally
+- Duration, frame rate, aspect ratio (e.g. "5 seconds, 24fps, 9:16")
+
+Write what a camera operator executes. Not what a director imagines.
+
+OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then the paragraph. Nothing else.`,
       messages: [{ role: "user", content: "Generate the video prompt." }],
     }),
   ]);
