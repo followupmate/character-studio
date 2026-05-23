@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 type Character = {
   id: string;
@@ -200,8 +201,10 @@ export default function PublishClient({
   characters: Character[];
   initialQueue: QueuePost[];
 }) {
+  const searchParams = useSearchParams();
+
   // Character + platform
-  const [charId, setCharId] = useState(characters[0]?.id ?? "");
+  const [charId, setCharId] = useState(() => searchParams.get("character_id") ?? characters[0]?.id ?? "");
   const [platforms, setPlatforms] = useState<Set<string>>(new Set(["instagram"]));
 
   // Post type
@@ -252,6 +255,22 @@ export default function PublishClient({
   const [toast, setToast] = useState<Toast | null>(null);
 
   const showToast = useCallback((ok: boolean, msg: string) => setToast({ ok, msg }), []);
+
+  // Pre-fill from Growth System query params
+  useEffect(() => {
+    const caption = searchParams.get("ig_caption");
+    const hashtags = searchParams.get("hashtags");
+    const time = searchParams.get("scheduled_time");
+    if (caption) { setIgCaption(caption); setCaptionReady(true); }
+    if (hashtags) setHashtags(hashtags);
+    if (time && time !== "now") {
+      const today = new Date();
+      const [h, m] = time.split(":").map(Number);
+      today.setHours(h, m, 0, 0);
+      if (today <= new Date()) today.setDate(today.getDate() + 1);
+      setScheduledAt(today.toISOString().slice(0, 16));
+    }
+  }, []);
 
   // Fetch story days when character changes
   useEffect(() => {

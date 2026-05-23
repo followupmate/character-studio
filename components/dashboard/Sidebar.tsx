@@ -8,6 +8,7 @@ const nav = [
   { label: "Dashboard",       href: "/",           icon: "dashboard" },
   { label: "Charaktery",      href: "/characters",  icon: "person" },
   { label: "Dnešný deň",     href: "/today",        icon: "today" },
+  { label: "Growth",          href: "/growth",       icon: "trending_up" },
   { label: "Publish Queue",   href: "/publish",      icon: "send" },
   { label: "Prompt Knižnica", href: "/prompts",     icon: "library_books" },
   { label: "História",        href: "/history",     icon: "history" },
