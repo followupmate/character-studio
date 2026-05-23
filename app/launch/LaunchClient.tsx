@@ -138,6 +138,113 @@ const PHASES: Phase[] = [
   },
 ];
 
+const IG_AUDIT_PROMPT = `Si expert na Instagram growth stratégiu. Analyzuj môj profil a daj mi konkrétny akčný plán.
+
+## PROFILE AUDIT (skóre 1–5)
+
+Ohodnoť:
+- Username (zapamätateľnosť, hláskateľnosť)
+- Name field (kľúčové slová, vyhľadávateľnosť)
+- Bio (jasnosť, benefit, CTA, link)
+- Profilovka (tvár, eye contact, rozpoznateľnosť na 40px)
+- Highlights (počet, názvy, obálky, konzistentnosť)
+
+## FEED AUDIT
+
+Ohodnoť (1–5):
+- Vizuálna konzistentnosť (farby, tón, štýl)
+- Content mix: aesthetic vs. human moment (ideál 70/30)
+- Content pillare (vidíš 4 jasné témy?)
+- Hook sila (zaujme prvý záber do 3 sekúnd?)
+- Caption kvalita (emócia, storytelling, CTA)
+
+## PERFORMANCE AUDIT
+
+Na základe viditeľných dát odhadni:
+- Engagement rate (likes + comments / followers × 100)
+- Reach per reel (cieľ: 3× počet followers)
+- Top 3 najlepšie posty (prečo fungovali)
+- Top 2 najhoršie posty (prečo nefungovali)
+
+## TOP 3 PRIORITY AKCIE
+
+Pre každú akciu uveď:
+- Akcia: [konkrétny krok]
+- Prečo: [dopad na rast]
+- Ako: [step-by-step inštrukcie]
+- Timeline: [kedy implementovať]
+
+## QUICK WINS
+
+2–3 zmeny, ktoré môžem urobiť dnes do 10 minút:
+- ...
+- ...
+
+---
+Buď konkrétny, nie všeobecný. Vyhni sa frázam ako "buď autentický" alebo "postuj pravidelne". Chcem čísla, konkrétne nápady a akčné kroky.`;
+
+function AuditPromptSection({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(IG_AUDIT_PROMPT);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback: select text
+    }
+  };
+
+  return (
+    <section className="bg-bg2 border border-violet-400/20">
+      <button
+        onClick={onToggle}
+        className="w-full px-6 py-4 border-b border-border bg-bg3 flex items-center justify-between hover:bg-surface transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[8px] border px-2 py-0.5 uppercase text-violet-400 border-violet-400/30 bg-violet-400/5">AUDIT</span>
+          <p className="font-mono text-[11px] text-ink font-medium">Prompt na analýzu IG profilu</p>
+        </div>
+        <span className="material-symbols-outlined text-[16px] text-muted">
+          {isOpen ? "expand_less" : "expand_more"}
+        </span>
+      </button>
+      {isOpen && (
+        <div className="p-6 space-y-4">
+          <div className="flex items-start gap-2 p-3 bg-violet-400/5 border border-violet-400/20 rounded">
+            <span className="material-symbols-outlined text-[14px] text-violet-400 flex-shrink-0 mt-0.5">info</span>
+            <p className="font-mono text-[10px] text-muted2 leading-relaxed">
+              Postup: urob <strong className="text-ink">3 screenshoty</strong> (profil + feed + insights) → otvor Claude → vlož tento prompt → nahraj screenshoty. Opakuj každých 30 dní.
+            </p>
+          </div>
+          <div className="relative">
+            <pre className="font-mono text-[10px] text-muted2 leading-relaxed bg-bg3 border border-border p-4 overflow-x-auto whitespace-pre-wrap">
+              {IG_AUDIT_PROMPT}
+            </pre>
+            <button
+              onClick={handleCopy}
+              className={`absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 font-mono text-[9px] uppercase tracking-widest border transition-colors ${
+                copied
+                  ? "border-teal/40 bg-teal/10 text-teal"
+                  : "border-border bg-surface text-muted2 hover:border-violet-400/40 hover:text-violet-400"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px]">
+                {copied ? "check" : "content_copy"}
+              </span>
+              {copied ? "Skopírované!" : "Kopírovať"}
+            </button>
+          </div>
+          <p className="font-mono text-[9px] text-muted">
+            Cyklus: Day 1 → audit → 3 zmeny → Day 30 → audit znova
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function storageKey(charId: string) {
   return `launch_checklist_${charId}`;
 }
@@ -390,6 +497,12 @@ export default function LaunchClient({ characters }: { characters: Character[] }
           </div>
         )}
       </section>
+
+      {/* IG Audit Prompt */}
+      <AuditPromptSection
+        isOpen={openPhases.has("audit_prompt")}
+        onToggle={() => togglePhase("audit_prompt")}
+      />
 
       {/* Conversion funnel reference */}
       <section className="bg-bg2 border border-border">
