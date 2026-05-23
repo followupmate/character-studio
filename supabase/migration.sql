@@ -149,3 +149,88 @@ VALUES (
   '{instagram,youtube}'
 )
 ON CONFLICT (slug) DO NOTHING;
+
+-- =============================================
+-- Daily Content Batch Architecture (v2)
+-- Scene-first 7-slot batch with archetype rotation
+-- =============================================
+
+-- Story layer: structured scene context (hybrid: prose + structured)
+ALTER TABLE chs_story_days
+  ADD COLUMN IF NOT EXISTS scene jsonb,
+  ADD COLUMN IF NOT EXISTS emotional_beat text;
+
+-- Character invariants — sacred details that must never change between assets
+ALTER TABLE chs_characters
+  ADD COLUMN IF NOT EXISTS sacred_details jsonb;
+
+-- Batch layer: extend chs_daily_plans into the per-day production unit
+ALTER TABLE chs_daily_plans
+  ADD COLUMN IF NOT EXISTS story_day_id        uuid REFERENCES chs_story_days(id),
+  ADD COLUMN IF NOT EXISTS scene_brief         jsonb,
+  ADD COLUMN IF NOT EXISTS scene_brief_doctrine text,
+  ADD COLUMN IF NOT EXISTS batch_status        text DEFAULT 'planned'
+    CHECK (batch_status IN ('planned','generating','ready','partial_failed','published','failed'));
+
+CREATE INDEX IF NOT EXISTS idx_daily_plans_status ON chs_daily_plans(batch_status);
+CREATE INDEX IF NOT EXISTS idx_daily_plans_story_day ON chs_daily_plans(story_day_id);
+
+-- Asset layer: extend chs_media with batch + slot + retry metadata
+ALTER TABLE chs_media
+  ADD COLUMN IF NOT EXISTS batch_id           uuid REFERENCES chs_daily_plans(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS channel            text CHECK (channel IN ('feed','reel','story')),
+  ADD COLUMN IF NOT EXISTS slot               text,
+  ADD COLUMN IF NOT EXISTS shot_archetype     text,
+  ADD COLUMN IF NOT EXISTS sequence_index     int,
+  ADD COLUMN IF NOT EXISTS visual_signature   jsonb,
+  ADD COLUMN IF NOT EXISTS generation_status  text DEFAULT 'pending'
+    CHECK (generation_status IN ('pending','generating','completed','failed','retrying')),
+  ADD COLUMN IF NOT EXISTS retry_count        int DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS last_error         text;
+
+CREATE INDEX IF NOT EXISTS idx_media_batch ON chs_media(batch_id);
+CREATE INDEX IF NOT EXISTS idx_media_gen_status_failed
+  ON chs_media(generation_status, retry_count)
+  WHERE generation_status = 'failed';
+
+-- Archetype deck with per-channel cooldowns
+CREATE TABLE IF NOT EXISTS chs_shot_archetypes (
+  id              text PRIMARY KEY,
+  family          text NOT NULL CHECK (family IN ('environment','subject','detail','motion','bts')),
+  guidance        text NOT NULL,
+  feed_cooldown   int DEFAULT 7,
+  reel_cooldown   int DEFAULT 5,
+  story_cooldown  int DEFAULT 2,
+  weight          int DEFAULT 1,
+  created_at      timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS chs_archetype_usage (
+  id            bigserial PRIMARY KEY,
+  character_id  uuid REFERENCES chs_characters(id) ON DELETE CASCADE,
+  archetype_id  text REFERENCES chs_shot_archetypes(id) ON DELETE CASCADE,
+  channel       text NOT NULL,
+  batch_id      uuid REFERENCES chs_daily_plans(id) ON DELETE SET NULL,
+  used_at       timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_archetype_usage_lookup
+  ON chs_archetype_usage(character_id, archetype_id, channel, used_at DESC);
+
+-- Seed the 15-archetype deck
+INSERT INTO chs_shot_archetypes (id, family, guidance) VALUES
+  ('wide_street',        'environment', 'Wide establishing shot of street or urban setting. Subject small in frame, environment dominant. Architectural lines, street life context, atmospheric depth.'),
+  ('wide_interior',      'environment', 'Wide establishing shot of interior — apartment, café, hotel room. Subject part of the space, depth visible, single window as light source.'),
+  ('wide_nature',        'environment', 'Wide establishing shot of natural or outdoor setting — terrace, water, landscape. Subject embedded in environment, aerial perspective visible.'),
+  ('walking_solitude',   'subject',     'Mid shot, subject walking. Mid-step, candid framing, slight motion blur. Environmental context still visible at edges.'),
+  ('sitting_window',     'subject',     'Mid shot, subject seated near window or against light source. Partial profile, soft directional side light revealing form.'),
+  ('interaction_object', 'subject',     'Mid shot, subject engaging with a tactile object — book, cup, phone, garment. Hands and face both visible, mid-gesture.'),
+  ('over_shoulder',      'subject',     'Reverse angle, over-shoulder framing. Subject back or partial back to camera; what she sees implied in frame.'),
+  ('hands_object',       'detail',      'Close detail on hands holding or touching an object. Texture of skin, fabric, surface visible. Face out of frame.'),
+  ('fabric_texture',     'detail',      'Close detail on clothing — fabric weave, drape, seam, how it sits on the body. Skin partially visible at fabric edge.'),
+  ('emotional_close',    'detail',      'Close on face — eyes, mouth, micro-expression. Soft natural light, no posed eye contact, mid-blink or mid-thought.'),
+  ('walking_motion',     'motion',      'Sustained walking shot in motion. Camera follows or pans alongside. Fabric and hair respond to movement.'),
+  ('gesture_motion',     'motion',      'Slow motion of a single gesture — turning head, raising cup, adjusting sleeve. Mid-action loop, never start or end.'),
+  ('light_motion',       'motion',      'Light shifting across subject — cloud passing, curtain moving, sun angle changing. Subject relatively still, environment moves.'),
+  ('creator_process',    'bts',         'Behind-the-scenes — laptop, editing desk, notebooks, work in progress. Real creator-mode, unposed, low-key.'),
+  ('setup_shot',         'bts',         'Behind-the-camera — gear, scouting a location, framing a shot. Documentary feel, vertical phone orientation acceptable.')
+ON CONFLICT (id) DO NOTHING;

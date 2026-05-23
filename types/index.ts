@@ -4,6 +4,12 @@ export type MediaStatus = "pending" | "generating" | "ready" | "posted" | "faile
 export type PostStatus = "scheduled" | "posted" | "failed";
 export type ArcPosition = "opening" | "rising" | "peak" | "turning" | "falling" | "quiet";
 export type PromptDoctrine = "cinematic" | "instagram" | "deepseek" | "editorial";
+export type EmotionalBeat =
+  | "lonely" | "inspired" | "anxious" | "confident" | "nostalgic"
+  | "restless" | "tender" | "productive" | "melancholic" | "quietly_alive";
+export type SlotChannel = "feed" | "reel" | "story";
+export type GenerationStatus = "pending" | "generating" | "completed" | "failed" | "retrying";
+export type BatchStatus = "planned" | "generating" | "ready" | "partial_failed" | "published" | "failed";
 
 export interface Character {
   id: string;

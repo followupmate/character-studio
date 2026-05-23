@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { generateAndSavePrompts } from "@/lib/generatePrompts";
+import { generateDailyBatch } from "@/lib/dailyBatch";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -9,10 +9,9 @@ export async function POST() {
   try {
     const today = new Date().toISOString().split("T")[0];
 
-    // Load today's story days with character info
     const { data: storyDays, error } = await supabase
       .from("chs_story_days")
-      .select("*, chs_characters(*)")
+      .select("id, character_id, chs_characters(name)")
       .eq("date", today);
 
     if (error) throw error;
@@ -20,32 +19,32 @@ export async function POST() {
       return NextResponse.json({ success: false, error: "No stories found for today" }, { status: 404 });
     }
 
-    // Regenerate all prompts in parallel (old records kept as history)
     const results = await Promise.allSettled(
       storyDays.map((day) =>
-        generateAndSavePrompts({
-          storyDayId: day.id,
+        generateDailyBatch({
           characterId: day.character_id,
-          location: day.location,
-          mood: day.mood,
-          narrative: day.narrative,
-          arc_position: day.arc_position,
-          visualBrief: day.chs_characters?.visual_brief ?? "",
-          soulId: day.chs_characters?.soul_id ?? null,
-          visualTone: (day.chs_characters as any)?.visual_tone ?? null,
-          stylingNote: (day.chs_characters as any)?.styling_note ?? null,
-          doctrine: (day.chs_characters as any)?.prompt_doctrine ?? "cinematic",
+          storyDayId: day.id,
+          forceRegenerate: true,
         })
       )
     );
 
-    const summary = results.map((r, i) => ({
-      character: storyDays[i].chs_characters?.name ?? storyDays[i].character_id,
-      status: r.status,
-      error: r.status === "rejected" ? String((r as PromiseRejectedResult).reason) : null,
-    }));
+    const summary = results.map((r, i) => {
+      const charName = (storyDays[i].chs_characters as unknown as { name?: string })?.name ?? storyDays[i].character_id;
+      if (r.status === "rejected") {
+        return { character: charName, status: "rejected", error: String(r.reason) };
+      }
+      return {
+        character: charName,
+        status: r.value.status,
+        slotsGenerated: r.value.generated.filter((g) => g.ok).length,
+        slotsFailed: r.value.generated.filter((g) => !g.ok).length,
+      };
+    });
 
-    const allOk = results.every((r) => r.status === "fulfilled");
+    const allOk = results.every(
+      (r) => r.status === "fulfilled" && r.value.status === "ready"
+    );
     return NextResponse.json({ success: allOk, regenerated: summary });
   } catch (err) {
     console.error("[regenerate-prompts]", err);
