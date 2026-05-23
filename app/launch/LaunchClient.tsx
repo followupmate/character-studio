@@ -17,9 +17,10 @@ type Phase = {
 };
 
 const TECH_SPECS = [
-  { type: "Feed foto (portrait)", size: "1080 × 1350px", ratio: "4:5", max: "30 MB" },
+  { type: "Feed foto (portrait 4:5)", size: "1080 × 1350px", ratio: "4:5", max: "30 MB" },
+  { type: "Feed foto (portrait 3:4)", size: "1080 × 1440px", ratio: "3:4", max: "30 MB" },
   { type: "Feed foto (square)", size: "1080 × 1080px", ratio: "1:1", max: "30 MB" },
-  { type: "Feed foto (landscape)", size: "1080 × 608px", ratio: "16:9", max: "30 MB" },
+  { type: "Feed foto (landscape)", size: "1080 × 566px", ratio: "1.91:1", max: "30 MB" },
   { type: "Reel (video)", size: "1080 × 1920px", ratio: "9:16", max: "1 GB" },
   { type: "Story (foto)", size: "1080 × 1920px", ratio: "9:16", max: "30 MB" },
   { type: "Story (video)", size: "1080 × 1920px", ratio: "9:16", max: "4 GB" },
