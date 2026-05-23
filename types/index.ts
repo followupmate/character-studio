@@ -38,6 +38,8 @@ export interface StoryDay {
   mood: string;
   narrative: string;
   arc_position: ArcPosition;
+  emotional_beat: EmotionalBeat | null;
+  scene: Record<string, unknown> | null;
   next_hint: string | null;
   ig_caption: string | null;
   hashtags: string[] | null;
@@ -47,13 +49,22 @@ export interface StoryDay {
 export interface Media {
   id: string;
   story_day_id: string;
+  batch_id: string | null;
   type: MediaType;
+  channel: SlotChannel | null;
+  slot: string | null;
+  shot_archetype: string | null;
+  sequence_index: number | null;
   higgsfield_prompt: string;
   higgsfield_job_id: string | null;
   media_url: string | null;
   source_url: string | null;
   thumbnail_url: string | null;
   status: MediaStatus;
+  generation_status: GenerationStatus | null;
+  retry_count: number | null;
+  last_error: string | null;
+  visual_signature: { palette: string; lens: string; movement: string } | null;
   created_at: string;
 }
 

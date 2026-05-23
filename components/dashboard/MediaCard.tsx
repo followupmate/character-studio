@@ -19,13 +19,32 @@ function Badge({ status }: { status: string }) {
   );
 }
 
-export default function MediaCard({ media }: { media: Media }) {
-  const isPhoto = media.type === "photo";
-  const label = isPhoto ? "FOTO" : "VIDEO";
-  const model = isPhoto ? "Soul 2" : "Seedance 2.0";
-  const formatHint = isPhoto
+const SLOT_LABELS: Record<string, string> = {
+  carousel_1: "CAROUSEL 1 · WIDE",
+  carousel_2: "CAROUSEL 2 · MID",
+  carousel_3: "CAROUSEL 3 · DETAIL",
+  carousel_4: "CAROUSEL 4 · REVERSE",
+  carousel_5: "CAROUSEL 5 · EMOTIONAL",
+  reel_video: "REEL VIDEO",
+  story_bts: "STORY · BTS",
+};
+
+function formatHintFor(media: Media): string {
+  if (media.channel === "reel") return "// 9:16 → Reels / TikTok / Shorts";
+  if (media.channel === "story") return "// 9:16 → Instagram Story";
+  if (media.channel === "feed") return "// 4:5 → IG Feed carousel";
+  return media.type === "photo"
     ? "// aspect_ratio 4:5 → IG Feed"
     : "// aspect_ratio 9:16 → Reels / TikTok / Shorts";
+}
+
+export default function MediaCard({ media }: { media: Media }) {
+  const isPhoto = media.type === "photo";
+  const baseLabel = isPhoto ? "FOTO" : "VIDEO";
+  const slotLabel = media.slot ? SLOT_LABELS[media.slot] ?? media.slot.toUpperCase() : null;
+  const label = slotLabel ?? baseLabel;
+  const model = isPhoto ? "Soul 2" : "Seedance 2.0";
+  const formatHint = formatHintFor(media);
   const higgsfieldUrl = isPhoto
     ? "https://higgsfield.ai/character"
     : "https://higgsfield.ai/cinema-studio";
@@ -179,6 +198,22 @@ export default function MediaCard({ media }: { media: Media }) {
         </a>
         <p className="font-mono text-[9px] text-muted mt-1.5">{formatHint}</p>
       </div>
+
+      {/* Slot metadata */}
+      {(media.shot_archetype || media.visual_signature) && (
+        <div className="flex flex-wrap items-center gap-1.5 -mt-1">
+          {media.shot_archetype && (
+            <span className="font-mono text-[8px] tracking-[0.1em] bg-bg3 border border-border text-muted2 px-1.5 py-0.5 uppercase">
+              {media.shot_archetype.replace(/_/g, " ")}
+            </span>
+          )}
+          {media.visual_signature && (
+            <span className="font-mono text-[8px] tracking-[0.05em] text-muted truncate">
+              {media.visual_signature.palette} / {media.visual_signature.lens} / {media.visual_signature.movement}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Prompt */}
       <div className="relative">

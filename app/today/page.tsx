@@ -18,6 +18,22 @@ const arcColors: Record<string, string> = {
   quiet: "text-muted2 border-border2 bg-bg3",
 };
 
+function ProductionGroup({ title, hint, items }: { title: string; hint: string; items: Media[] }) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="font-mono text-[9px] text-muted tracking-widest uppercase">// {title}</p>
+        <p className="font-mono text-[9px] text-muted2">{hint}</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {items.map((m) => (
+          <MediaCard key={m.id} media={m} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: string[] | null }) {
   return (
     <div className="pt-4 border-t border-border">
@@ -106,8 +122,6 @@ export default async function TodayPage({
             <div className="space-y-8">
               {stories.map((story) => {
                 const char = story.chs_characters;
-                const photoMedia = story.chs_media.find((m) => m.type === "photo");
-                const videoMedia = story.chs_media.find((m) => m.type === "video");
 
                 return (
                   <div key={story.id} className="bg-bg2 border border-border rounded-md overflow-hidden">
@@ -127,11 +141,19 @@ export default async function TodayPage({
                     </div>
 
                     <div className="p-6 space-y-6">
-                      {/* Location + mood */}
+                      {/* Location + mood + emotional beat */}
                       <div className="flex items-center gap-4 flex-wrap">
                         <div className="font-mono text-[11px] text-teal tracking-wider">📍 {story.location}</div>
                         <span className="text-border2">·</span>
                         <div className="font-mono text-[11px] text-muted2 italic">{story.mood}</div>
+                        {story.emotional_beat && (
+                          <>
+                            <span className="text-border2">·</span>
+                            <span className="font-mono text-[10px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-wider uppercase">
+                              {story.emotional_beat}
+                            </span>
+                          </>
+                        )}
                       </div>
 
                       {/* Narrative */}
@@ -150,16 +172,54 @@ export default async function TodayPage({
                         </div>
                       )}
 
-                      {/* Production */}
-                      {(photoMedia || videoMedia) && (
-                        <div>
-                          <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-3">// Production</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {photoMedia && <MediaCard media={photoMedia} />}
-                            {videoMedia && <MediaCard media={videoMedia} />}
+                      {/* Production — 7-slot batch grouped by channel */}
+                      {(() => {
+                        const sorted = [...story.chs_media].sort((a, b) => {
+                          const ai = a.sequence_index ?? 99;
+                          const bi = b.sequence_index ?? 99;
+                          if (ai !== bi) return ai - bi;
+                          return (a.slot ?? "").localeCompare(b.slot ?? "");
+                        });
+                        const feed = sorted.filter((m) => m.channel === "feed");
+                        const reel = sorted.filter((m) => m.channel === "reel");
+                        const stories = sorted.filter((m) => m.channel === "story");
+                        const legacy = sorted.filter((m) => !m.channel);
+
+                        if (sorted.length === 0) return null;
+
+                        return (
+                          <div className="space-y-6">
+                            {feed.length > 0 && (
+                              <ProductionGroup
+                                title="Feed Carousel"
+                                hint={`${feed.length} / 5 framov · IG carousel (4:5)`}
+                                items={feed}
+                              />
+                            )}
+                            {reel.length > 0 && (
+                              <ProductionGroup
+                                title="Reel"
+                                hint="Reach video · 9:16 · 5–9s"
+                                items={reel}
+                              />
+                            )}
+                            {stories.length > 0 && (
+                              <ProductionGroup
+                                title="Story"
+                                hint="BTS · 9:16"
+                                items={stories}
+                              />
+                            )}
+                            {legacy.length > 0 && (
+                              <ProductionGroup
+                                title="Production (legacy)"
+                                hint="Older assets without slot metadata"
+                                items={legacy}
+                              />
+                            )}
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {story.ig_caption && (
                         <CaptionBlock caption={story.ig_caption} hashtags={story.hashtags} />
