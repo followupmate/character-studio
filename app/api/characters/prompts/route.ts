@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { generateAndSavePrompts } from "@/lib/generatePrompts";
+import { generateDailyBatch } from "@/lib/dailyBatch";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {
@@ -11,29 +11,22 @@ export async function POST(req: Request) {
 
     const { data: day, error } = await supabase
       .from("chs_story_days")
-      .select("*, chs_characters(*)")
+      .select("id, character_id, chs_characters(name)")
       .eq("id", storyDayId)
       .single();
 
     if (error || !day) throw error ?? new Error("Story day not found");
 
-    const char = day.chs_characters;
-
-    await generateAndSavePrompts({
+    const result = await generateDailyBatch({
+      characterId: day.character_id,
       storyDayId,
-      characterId: char.id,
-      location: day.location,
-      mood: day.mood,
-      narrative: day.narrative,
-      arc_position: day.arc_position,
-      visualBrief: char.visual_brief,
-      soulId: char.soul_id,
-      visualTone: (char as any).visual_tone ?? null,
-      stylingNote: (char as any).styling_note ?? null,
-      doctrine: (char as any).prompt_doctrine ?? "cinematic",
     });
 
-    return NextResponse.json({ success: true, character: char.name });
+    return NextResponse.json({
+      success: result.status !== "failed",
+      character: (day.chs_characters as unknown as { name: string })?.name,
+      batch: result,
+    });
   } catch (error) {
     console.error("[prompts]", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });

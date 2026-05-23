@@ -5,6 +5,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/characters/reconcile",
+      "schedule": "30 6 * * *"
+    },
+    {
       "path": "/api/characters/publish",
       "schedule": "0 10 * * *"
     }

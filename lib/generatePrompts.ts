@@ -17,7 +17,7 @@ interface StoryContext {
   doctrine?: PromptDoctrine;
 }
 
-const MASTER_DOCTRINE = `You are generating cinematic photorealistic prompts for AI image and video generation systems.
+export const MASTER_DOCTRINE = `You are generating cinematic photorealistic prompts for AI image and video generation systems.
 
 Your task is NOT to create beautiful concept art.
 Your task is to create physically grounded visual scenes that feel captured by a real camera inside a real environment.
@@ -279,7 +279,7 @@ The generated result must feel like:
 a real captured moment that happened physically in front of a camera,
 not an AI-generated image trying to look cinematic.`;
 
-const SENSOR_REALISM = `SENSOR_REALISM (mandatory for every prompt)
+export const SENSOR_REALISM = `SENSOR_REALISM (mandatory for every prompt)
 
 Image sensor behavior:
 * Noise: subtle organic texture only — not heavy grain, not high-ISO degradation; sensor presence felt, not dominant
@@ -293,7 +293,7 @@ Video sensor behavior:
 * Compression artifact: macroblocking in flat areas, mosquito noise on edges (subtle, not dominant)
 * Bit depth banding: visible in gradients, accepted as reality, not smoothed`;
 
-const ARC_TRANSLATION: Record<string, string> = {
+export const ARC_TRANSLATION: Record<string, string> = {
   opening: `ARC — OPENING: exploratory framing, softer realism, environmental distance, observational atmosphere. Wider shot, subject partially absorbed by surroundings, soft natural light, low contrast.
 Optical specification: 35-50mm equivalent, mild barrel distortion, edge softness, natural vignetting, no aggressive compression.`,
 
@@ -313,7 +313,7 @@ Optical specification: 50mm, flat light, minimal shadow detail, documentary opti
 Optical specification: 75-105mm equivalent, extreme shallow DoF, optical imperfections as character, grain visible in shadows.`,
 };
 
-const VIDEO_RULES = `CONTINUITY LOCK (MANDATORY)
+export const VIDEO_RULES = `CONTINUITY LOCK (MANDATORY)
 
 The subject's wardrobe, silhouette, layering, fabric identity, and color relationships are persistent and invariant across all generated frames and motion interpolation.
 
@@ -512,7 +512,7 @@ SAFE FASHION RULES: High-fashion elegance only. Sensuality through composition a
 
 OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then write one polished cinematic editorial video prompt in a single paragraph (110-140 words). Natural flowing prose describing camera, subject beauty, light, and atmosphere.`;
 
-async function claudeWithRetry(params: { model: string; max_tokens: number; system: string; messages: Array<{ role: "user" | "assistant"; content: string }> }, retries = 3) {
+export async function claudeWithRetry(params: { model: string; max_tokens: number; system: string; messages: Array<{ role: "user" | "assistant"; content: string }> }, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       return await anthropic.messages.create(params as any);
