@@ -91,6 +91,19 @@ ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS prompt_doctrine text;
 ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS visual_tone_used text;
 ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS styling_note_used text;
 
+-- Daily Growth System
+CREATE TABLE IF NOT EXISTS chs_daily_plans (
+  id           uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  character_id uuid REFERENCES chs_characters(id),
+  date         date NOT NULL,
+  reel1_post_id uuid REFERENCES chs_posts(id),
+  reel2_post_id uuid REFERENCES chs_posts(id),
+  stories_done boolean DEFAULT false,
+  content_mix  jsonb DEFAULT '{}',
+  created_at   timestamptz DEFAULT now(),
+  UNIQUE(character_id, date)
+);
+
 -- Instagram Stories extension
 ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS post_type TEXT DEFAULT 'feed';
 -- values: 'feed', 'story', 'reel', 'carousel'
