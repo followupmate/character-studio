@@ -5,14 +5,19 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const nav = [
-  { label: "Dashboard",       href: "/",           icon: "dashboard" },
+  { label: "Dashboard",       href: "/",            icon: "dashboard" },
   { label: "Charaktery",      href: "/characters",  icon: "person" },
-  { label: "Dnešný deň",     href: "/today",        icon: "today" },
-  { label: "Growth",          href: "/growth",       icon: "trending_up" },
-  { label: "Launch Knižnica", href: "/launch",       icon: "rocket_launch" },
-  { label: "Publish Queue",   href: "/publish",      icon: "send" },
-  { label: "Prompt Knižnica", href: "/prompts",     icon: "library_books" },
+  { label: "Dnešný deň",      href: "/today",       icon: "today" },
+  { label: "Growth",          href: "/growth",      icon: "trending_up" },
+  { label: "Publish Queue",   href: "/publish",     icon: "send" },
   { label: "História",        href: "/history",     icon: "history" },
+];
+
+const referenceNav = [
+  { label: "Launch Knižnica", href: "/launch",        icon: "rocket_launch" },
+  { label: "Playbook",        href: "/playbook",      icon: "menu_book" },
+  { label: "Prompt Knižnica", href: "/prompts",       icon: "library_books" },
+  { label: "Monetizácia",     href: "/monetization",  icon: "payments" },
 ];
 
 const createSteps = [
@@ -104,6 +109,27 @@ export default function Sidebar() {
             Overview
           </div>
           {nav.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.05em] transition-all border-l-2 ${
+                  active
+                    ? "text-accent bg-surface-low border-accent"
+                    : "text-muted2 border-transparent hover:bg-surface-mid hover:text-ink"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px] flex-shrink-0">{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+
+          <div className="px-4 py-2 mt-2 font-mono text-[9px] tracking-[0.15em] text-muted uppercase">
+            Reference
+          </div>
+          {referenceNav.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
