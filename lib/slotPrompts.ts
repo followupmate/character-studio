@@ -1,10 +1,4 @@
-import {
-  MASTER_DOCTRINE,
-  SENSOR_REALISM,
-  ARC_TRANSLATION,
-  VIDEO_RULES,
-  claudeWithRetry,
-} from "@/lib/generatePrompts";
+import { claudeWithRetry } from "@/lib/generatePrompts";
 import { SlotSpec } from "@/lib/archetypeDeck";
 import { SceneBriefJson } from "@/lib/sceneBrief";
 
@@ -34,47 +28,74 @@ interface DoctrineSpec {
   videoMaxTokens: number;
 }
 
+const CINEMATIC_PHOTO_HEADER = `You are writing a photo prompt for an AI image generator (Higgsfield Soul 2). Image generators are trained on real photo captions — they understand plain visual language, NOT optical physics jargon or biological terminology.
+
+Your output is ingested by the image model as plain text. Words it does not recognize (e.g. "subsurface scattering", "chromatic aberration", "saccadic drift") produce hallucinated, broken images.
+
+WRITE LIKE: a photographer captioning their own photograph in 1–2 sentences.
+
+ABSOLUTE BANS (image generator chokes on these):
+- ethereal, dreamy, moody, atmospheric, evocative, soulful, magical, otherworldly
+- cinematic grade, film look, vibe, aesthetic, energy, mood
+- gorgeous, stunning, breathtaking, beautiful, perfect, flawless
+- optical physics: chromatic aberration, subsurface scattering, lens breathing, focus breathing, axial CA, anamorphic
+- biological/medical: saccadic drift, ischemic blanching, mydriasis, capillary flush, vascular pattern
+- abstract measurements: 0.2Hz, ±2mm, 1–3%, EMG, μ, n≈
+- philosophical: "caught existing", "observational truth", "what a camera sees not what a poet feels"
+- emotional abstraction: "she feels", "her soul", "the world holds its breath"`;
+
 const CINEMATIC_PHOTO_OUTPUT = `OUTPUT RULES:
-Translate the scene continuity lock + slot framing + archetype into a single image prompt. The viewer must feel this image was captured in the same minute as the other 4 carousel frames — same light, same wardrobe, same location, different angle and proximity.
 
-Write a SINGLE PARAGRAPH of 120–180 words. No numbered lists. No abstract measurements. No forbidden/negative instructions in the output.
+Write 60–100 words. Single paragraph OR comma-separated tags — whichever reads more naturally for a photo caption. Plain visual language only.
 
-The paragraph must contain — in natural flowing prose:
-- Shot type and camera lens consistent with the archetype
-- Where the subject is in the locked location and what surrounds her physically
-- The locked wardrobe — how the fabric sits in this specific framing
-- Her exact physical state for this archetype: posture, gesture caught mid-motion, gaze direction
-- The locked light: where it hits, what it reveals in this composition
-- One physical imperfection visible at this proximity
-- One subtle lens artifact (soft edge falloff, slight vignette, or focus breathing — pick one)
+Cover in this order:
+1. Subject — short physical description (age, hair, build) from the visual brief
+2. Wardrobe — exact garments from scene brief wardrobe_lock (repeat them concretely)
+3. Action — what she is doing right now (one verb in present participle: walking, holding, looking down)
+4. Setting — location in 4–8 words, from scene brief location_constraints
+5. Light — one source + direction + indoor/outdoor + rough time (e.g. "fluorescent overhead, late afternoon, indoor")
+6. Camera — lens in mm, aperture, shot type (e.g. "50mm f/2.8, medium shot, eye level")
+7. Quality tags — pick 3: photorealistic, natural skin texture, candid photo, real photograph, 35mm film, documentary photography
 
-End with: "Signature: [palette] / [lens character] / [movement]."
+End on its own line: "Signature: [one palette word] / [one lens word] / [one motion word]."
+(e.g. "Signature: charcoal / 50mm / still.")
 
-Write what a camera sees. Not what a poet feels.
+OUTPUT: First line "Model: Soul 2 🖼️ Image Prompt", then the prompt, then the signature line.`;
 
-OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then the paragraph including the signature tag. Nothing else.`;
+const CINEMATIC_VIDEO_HEADER = `You are writing a video prompt for an AI video generator (Seedance 2.0). Video generators understand director's notes describing concrete motion — NOT optical physics jargon, biological terminology, or screenwriting Act/Scene language.
+
+Words the model does not recognize produce broken motion, wrong framing, or static frames.
+
+WRITE LIKE: a director writing a 4-line shot description to their DOP.
+
+ABSOLUTE BANS:
+- ethereal, dreamy, moody, atmospheric, evocative, soulful, magical
+- cinematic grade, film look, vibe, aesthetic
+- gorgeous, stunning, breathtaking, beautiful, perfect
+- optical physics terms (chromatic aberration, focus breathing, lens breathing, rolling shutter skew specifics)
+- biological/medical terms (mydriasis, saccadic drift, capillary flush)
+- abstract measurements (0.2Hz, ±2mm, 1–3%, Hz, μ)
+- screenwriting jargon: Act I, Scene 2, EXT., INT., FADE IN
+- emotional abstraction: "she feels", "her soul"`;
 
 const CINEMATIC_VIDEO_OUTPUT = `OUTPUT RULES:
-Translate the scene continuity lock + slot framing + archetype into a single video prompt.
 
-Write a SINGLE PARAGRAPH of 130–200 words. No numbered lists. No abstract measurements. No forbidden/negative instructions in the output.
+Write 70–110 words. Single paragraph in plain motion vocabulary.
 
-The paragraph must contain — in natural flowing prose, in shot order:
-- The hook (first 0–3s): the strongest visual moment, what stops the scroll
-- Camera movement type and starting distance
-- The locked location and what the environment looks like in motion
-- The locked wardrobe — how the fabric moves under the camera's motion
-- Her primary action: always mid-motion (mid-turn, mid-exhale, hand mid-raise — never start or end of gesture)
-- The locked light: how it shifts during the shot, if at all
-- One physical element in motion: hair, fabric, steam, shadow edge
-- Loop logic: what brings the motion back to start naturally
-- Duration, frame rate, aspect ratio (e.g. "7 seconds, 24fps, 9:16")
+Cover in this order:
+1. Hook (first 0–3s) — the strongest visual moment that stops the scroll (concrete, e.g. "she turns her head toward the camera as fluorescent light flickers")
+2. Camera movement — one of: static / slow pan / slow dolly in / slow dolly out / handheld follow / orbit
+3. Starting distance — e.g. "from 1.5m"
+4. Subject action — mid-motion verb (mid-turn, mid-step, mid-exhale, hand mid-raise — never start or end)
+5. Setting — short location from scene brief
+6. Light — source, direction, whether it shifts during the shot
+7. One physical element in motion — hair, fabric, steam, shadow edge, reflection
+8. Loop logic — one sentence: how the motion returns to start
+9. Tech — "Duration: 7s, 24fps, 9:16"
 
-End with: "Signature: [palette] / [lens character] / [movement]."
+End on its own line: "Signature: [palette word] / [lens word] / [motion word]."
 
-Write what a camera operator executes. Not what a director imagines.
-
-OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then the paragraph including the signature tag. Nothing else.`;
+OUTPUT: First line "Model: Seedance 2.0 🎬 Video Prompt", then the prompt, then the signature line.`;
 
 const INSTAGRAM_PHOTO_HEADER = `You are generating a photorealistic image prompt in the style of authentic social media photography.
 
@@ -233,12 +254,12 @@ OUTPUT: Start with "Model: Seedance 2.0 🎬 Video Prompt" then the prose includ
 
 const DOCTRINES: Record<DoctrineKey, DoctrineSpec> = {
   cinematic: {
-    photoStyleHeader: `${MASTER_DOCTRINE}\n\n${SENSOR_REALISM}`,
+    photoStyleHeader: CINEMATIC_PHOTO_HEADER,
     photoOutputRules: CINEMATIC_PHOTO_OUTPUT,
-    videoStyleHeader: `${MASTER_DOCTRINE}\n\n${VIDEO_RULES}\n\n${SENSOR_REALISM}`,
+    videoStyleHeader: CINEMATIC_VIDEO_HEADER,
     videoOutputRules: CINEMATIC_VIDEO_OUTPUT,
-    photoMaxTokens: 800,
-    videoMaxTokens: 900,
+    photoMaxTokens: 500,
+    videoMaxTokens: 500,
   },
   instagram: {
     photoStyleHeader: INSTAGRAM_PHOTO_HEADER,
@@ -268,36 +289,56 @@ const DOCTRINES: Record<DoctrineKey, DoctrineSpec> = {
 
 function sacredBlock(sacred: Record<string, unknown> | null): string {
   if (!sacred || Object.keys(sacred).length === 0) return "";
-  return `\nSACRED DETAILS (MANDATORY — present in every frame, never altered):
-${JSON.stringify(sacred, null, 2)}\n`;
+
+  const lines: string[] = [];
+  const wardrobe = (sacred as { wardrobe_anchors?: unknown }).wardrobe_anchors;
+  if (Array.isArray(wardrobe) && wardrobe.length > 0) {
+    lines.push(`- Wardrobe (always): ${wardrobe.map(String).join("; ")}`);
+  }
+  const props = (sacred as { props?: unknown }).props;
+  if (Array.isArray(props) && props.length > 0) {
+    lines.push(`- Possible props: ${props.map(String).join("; ")}`);
+  }
+  const env = (sacred as { recurring_environment?: unknown }).recurring_environment;
+  if (Array.isArray(env) && env.length > 0) {
+    lines.push(`- Recurring environments: ${env.map(String).join("; ")}`);
+  }
+  const stranger = (sacred as { marseille_stranger?: { prompt_injection?: string } }).marseille_stranger;
+  if (stranger?.prompt_injection) {
+    lines.push(`- Background figure (only if drift seed active in this batch): ${stranger.prompt_injection}`);
+  }
+  const never = (sacred as { never_show?: unknown }).never_show;
+  if (Array.isArray(never) && never.length > 0) {
+    lines.push(`- Never show: ${never.map(String).join("; ")}`);
+  }
+
+  if (lines.length === 0) return "";
+  return `\nCHARACTER INVARIANTS (apply only what fits this slot — do not list, weave into the prompt naturally):
+${lines.join("\n")}\n`;
 }
 
 function commonBody(args: BuildArgs): string {
-  const arcNote = ARC_TRANSLATION[args.arcPosition] ?? ARC_TRANSLATION.quiet;
   const visualRules = args.sceneBriefJson.visual_rules.map((r) => `- ${r}`).join("\n");
   const constraints = args.sceneBriefJson.location_constraints.map((c) => `- ${c}`).join("\n");
 
-  return `${arcNote}
-
-SCENE CONTINUITY LOCK (inherited from today's scene brief — every other asset in this batch obeys the same lock):
+  return `SCENE CONTINUITY LOCK (same for all 7 assets in today's batch — use as concrete reference, NOT as language to copy):
 ${args.sceneBriefDoctrine}
 
-STRUCTURED LOCK PARAMETERS:
-- Camera language: ${args.sceneBriefJson.camera_language}
+STRUCTURED LOCK PARAMETERS (translate these into plain visual language):
+- Wardrobe lock: ${args.sceneBriefJson.wardrobe_lock}
 - Lighting state: ${args.sceneBriefJson.lighting_state}
 - Time of day: ${args.sceneBriefJson.time_of_day}
 - Weather implied: ${args.sceneBriefJson.weather_implied}
-- Wardrobe lock: ${args.sceneBriefJson.wardrobe_lock}
 - Color palette: ${args.sceneBriefJson.color_palette.join(", ")}
 
-VISUAL RULES (mandatory):
+VISUAL RULES (must be obeyed, but never write them verbatim into the prompt):
 ${visualRules}
 
 LOCATION CONSTRAINTS:
 ${constraints}
 
 CHARACTER VISUAL BRIEF: ${args.character.visual_brief}
-SOUL ID: ${args.character.soul_id ?? "derive physical consistency from visual brief"}
+${args.character.soul_id ? `SOUL ID: ${args.character.soul_id}` : ""}
 ${sacredBlock(args.character.sacred_details)}
 
 SLOT: ${args.slot.slot}${args.slot.sequence_index ? ` (carousel position ${args.slot.sequence_index} of 5)` : ""}
@@ -318,13 +359,9 @@ ${spec.photoOutputRules}`;
 
 function buildVideoSystem(args: BuildArgs): string {
   const spec = DOCTRINES[args.doctrine];
-  const hookNote = `HOOK REQUIREMENT (critical for short-form):
-The first 0–3 seconds must be a scroll-stopper. Front-load the strongest motion, contrast, or composition. The viewer decides to keep watching or scroll within 1 second.`;
   return `${spec.videoStyleHeader}
 
 ${commonBody(args)}
-
-${hookNote}
 
 ${spec.videoOutputRules}`;
 }

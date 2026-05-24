@@ -114,27 +114,28 @@ You will output TWO things, separated by the literal line "---DOCTRINE---":
 PART 1 — STRUCTURED JSON (machine-readable continuity lock).
 Valid JSON only, no markdown:
 {
-  "camera_language": "one sentence describing the operator's signature for the day (e.g. 'slow handheld, breath drift, 50mm soft')",
-  "color_palette": ["3 to 5 specific color tokens drawn from the scene"],
-  "visual_rules": ["3 to 5 hard rules every asset must obey, e.g. 'no direct eye contact', 'natural movement only', 'wardrobe never adjusted'"],
-  "location_constraints": ["2 to 4 spatial constraints: same building, same window, same time slice"],
-  "wardrobe_lock": "exact garments, fabric, fit — one sentence, no fashion language",
-  "lighting_state": "single light source description + direction + temperature",
-  "time_of_day": "one of: dawn | morning | midday | golden_hour | dusk | blue_hour | night | indoor_lamp",
-  "weather_implied": "atmospheric state derivable from scene (clear, overcast, humid, dry wind, post-rain)"
+  "camera_language": "one short phrase in plain words (e.g. 'static handheld 50mm' or 'slow dolly 35mm')",
+  "color_palette": ["3 to 5 simple color tokens (e.g. 'charcoal', 'fluorescent green', 'concrete grey')"],
+  "visual_rules": ["3 to 5 plain rules each in 3-7 words (e.g. 'no direct eye contact', 'no smiling', 'wardrobe never changed', 'no mirrors')"],
+  "location_constraints": ["2 to 4 short constraints (e.g. 'same Shinagawa platform', 'same overhead lighting')"],
+  "wardrobe_lock": "exact garments in plain words, e.g. 'dark wool coat, black trousers, worn leather bag — no jewelry, no scarf'",
+  "lighting_state": "one light source, direction, color (e.g. 'overhead fluorescent, harsh, neutral white')",
+  "time_of_day": "one of: dawn | morning | midday | golden_hour | dusk | blue_hour | night | indoor_lamp | fluorescent",
+  "weather_implied": "simple word (clear, overcast, humid, dry wind, post-rain, indoor)"
 }
 
-PART 2 — PROSE DOCTRINE (180–220 words).
-This is the continuity master that will be injected into every one of the 7 prompt calls. Write it as if briefing a film crew before they shoot 7 frames of the same moment from different positions.
+PART 2 — PROSE DOCTRINE (120–160 words).
+This text is injected verbatim into every one of the 7 slot prompt calls. The slot prompts are then ingested by AI image and video generators. Therefore: use PLAIN VISUAL LANGUAGE that an image model recognizes. No academic vocabulary, no philosophical phrasing.
 
-Cover, in flowing prose:
-- The physical reality of the location (one paragraph): air, temperature, surfaces, what the camera body would feel
-- The wardrobe and how the fabric is behaving on her body right now (not how it looks — how it sits)
-- The light: source, direction, where it falls, where it does not
-- The emotional state expressed as physiology (breathing, posture, gaze drift), never as label
-- The hard NO list for this day: 3 specific things the prompts must avoid (e.g. "no mirrors", "no posed eye contact", "no full smile")
+Cover, in 4 short paragraphs of plain prose:
+1. The location, physically: where exactly, what surfaces and objects surround her, indoor or outdoor, urban or quiet
+2. The wardrobe: exact garments, fabric, fit — concrete
+3. The light: one source (e.g. "overhead fluorescent in convenience store"), direction, time of day, color temperature
+4. A short NO list for this day: 3 specific things prompts must avoid (e.g. "no mirrors", "no direct eye contact", "no smiling")
 
-Forbidden in doctrine: poetic abstraction, "ethereal", "dreamy", "moody", any of the AI clichés. Write what a camera operator would write to another camera operator.
+BANNED words in doctrine (image models reject them): ethereal, dreamy, moody, atmospheric, evocative, soulful, magical, poetic, gorgeous, stunning, beautiful, breathtaking, perfect, ineffable, otherworldly. Also banned: physiology terms (breathing rate, gaze drift, EMG, capillary), optical jargon (chromatic aberration, subsurface scattering, lens breathing), abstract measurements.
+
+Write the way a real photographer writes a one-paragraph location note before a shoot.
 
 Output format:
 {JSON}
