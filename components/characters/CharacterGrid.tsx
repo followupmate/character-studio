@@ -98,6 +98,43 @@ export default function CharacterGrid({ characters, activeCount, photoMap }: Pro
   );
 }
 
+const DOCTRINE_NOTES: Record<string, string> = {
+  cinematic: "Observational realism. Anti-glamour by design — refuses posing, idealized skin, beauty-campaign energy. Long flowing prose prompts.",
+  instagram: "Casual social-media grammar. Short tag-based prompts. Allows direct eye contact, suggestive / playful / confident expression, phone-camera aesthetic.",
+  editorial: "Vogue Italia luxury fashion. 85mm f/1.4, sculpted beauty, couture styling, Mediterranean / Paris locations. Sensuality stays editorial.",
+  deepseek: "Physics-first structured prose. Mid-action moments only. Pores, sweat, real light. Refuses 'beautiful' / 'dreamy' / 'perfect'.",
+};
+
+function DoctrineNote({
+  doctrine,
+  hasSacredDetails,
+  hasStylingNote,
+}: {
+  doctrine: string;
+  hasSacredDetails: boolean;
+  hasStylingNote: boolean;
+}) {
+  const stylingOverridden = hasSacredDetails && hasStylingNote;
+  return (
+    <div className="mt-2 pt-2 border-t border-border space-y-1">
+      <p className="font-mono text-[9px] text-muted2 leading-snug italic">
+        {DOCTRINE_NOTES[doctrine] ?? DOCTRINE_NOTES.cinematic}
+      </p>
+      <div className="flex flex-col gap-0.5 font-mono text-[8px] text-muted/70 leading-snug">
+        <span>· visual_tone + styling sa do prompts dostáva cez scene brief (slabý signál)</span>
+        {hasSacredDetails && (
+          <span className={stylingOverridden ? "text-amber" : ""}>
+            · sacred_details prebijú styling_note{stylingOverridden ? " — styling sa stratí" : ""}
+          </span>
+        )}
+        {doctrine !== "cinematic" && doctrine !== "instagram" && (
+          <span className="text-muted/60">· editorial/deepseek ignoruje "drift" voice — pre Vivienne použi cinematic</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const VISUAL_TONES = [
   { key: "luxury",    label: "Luxury" },
   { key: "sexy",      label: "Sexi" },
@@ -348,6 +385,7 @@ function CharCard({
               );
             })}
           </div>
+          <DoctrineNote doctrine={(char.prompt_doctrine ?? "cinematic")} hasSacredDetails={!!(char as Character & { sacred_details?: unknown }).sacred_details} hasStylingNote={!!char.styling_note} />
         </div>
 
         <div className="flex gap-4 mt-auto pt-3 border-t border-border">

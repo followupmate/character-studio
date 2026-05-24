@@ -7,7 +7,14 @@ import {
   getArchetypeGuidance,
 } from "@/lib/archetypeDeck";
 import { generateSceneBrief } from "@/lib/sceneBrief";
-import { generateSlotPrompt } from "@/lib/slotPrompts";
+import { generateSlotPrompt, DoctrineKey } from "@/lib/slotPrompts";
+
+const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek"];
+
+function resolveDoctrine(raw: unknown): DoctrineKey {
+  const v = typeof raw === "string" ? raw.toLowerCase() : "";
+  return (ALLOWED_DOCTRINES as string[]).includes(v) ? (v as DoctrineKey) : "cinematic";
+}
 
 export interface DailyBatchResult {
   batchId: string;
@@ -144,6 +151,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
 
   const generated: DailyBatchResult["generated"] = [];
 
+  const doctrine = resolveDoctrine(character.prompt_doctrine);
+
   for (const wave of [wave1, wave2, wave3]) {
     if (wave.length === 0) continue;
     const settled = await Promise.allSettled(
@@ -159,6 +168,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           batchId,
           storyDayId,
           characterId,
+          doctrine,
         })
       )
     );
@@ -196,6 +206,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           batchId,
           storyDayId,
           characterId,
+          doctrine,
           isRetry: true,
         });
       })
@@ -291,6 +302,7 @@ interface RunSlotArgs {
   batchId: string;
   storyDayId: string;
   characterId: string;
+  doctrine: DoctrineKey;
   isRetry?: boolean;
 }
 
@@ -306,6 +318,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
 
   try {
     const result = await generateSlotPrompt({
+      doctrine: args.doctrine,
       slot: args.slot,
       archetypeId: args.archetypeId,
       archetypeGuidance: args.archetypeGuidance,
@@ -322,7 +335,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
         visual_signature: result.visualSignature,
         generation_status: "completed",
         last_error: null,
-        prompt_doctrine: "cinematic",
+        prompt_doctrine: args.doctrine,
       })
       .eq("batch_id", args.batchId)
       .eq("slot", args.slot.slot);
@@ -397,6 +410,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
     if (!char || !storyDay) continue;
 
     const guidance = await getArchetypeGuidance(row.shot_archetype);
+    const doctrine = resolveDoctrine((char as { prompt_doctrine?: unknown }).prompt_doctrine);
 
     try {
       await supabase
@@ -408,6 +422,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
         .eq("id", row.id);
 
       const result = await generateSlotPrompt({
+        doctrine,
         slot,
         archetypeId: row.shot_archetype,
         archetypeGuidance: guidance,
@@ -424,7 +439,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
           visual_signature: result.visualSignature,
           generation_status: "completed",
           last_error: null,
-          prompt_doctrine: "cinematic",
+          prompt_doctrine: doctrine,
         })
         .eq("id", row.id);
 
