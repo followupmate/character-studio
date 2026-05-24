@@ -1,18 +1,72 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { generateDailyBatch } from "@/lib/dailyBatch";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    const fullReset = req.nextUrl.searchParams.get("fullReset") === "true";
+    const characterSlug = req.nextUrl.searchParams.get("character");
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: storyDays, error } = await supabase
+    // Full reset: drop today's story_days + daily_plans, then re-trigger story cron
+    if (fullReset) {
+      let charFilter = supabase
+        .from("chs_characters")
+        .select("id, name, slug")
+        .eq("is_active", true);
+      if (characterSlug) charFilter = charFilter.eq("slug", characterSlug);
+      const { data: chars, error: charErr } = await charFilter;
+      if (charErr) throw charErr;
+      if (!chars || chars.length === 0) {
+        return NextResponse.json({ success: false, error: "No matching characters" }, { status: 404 });
+      }
+
+      const charIds = chars.map((c) => c.id);
+
+      const { error: planDelErr } = await supabase
+        .from("chs_daily_plans")
+        .delete()
+        .in("character_id", charIds)
+        .eq("date", today);
+      if (planDelErr) throw planDelErr;
+
+      const { error: storyDelErr } = await supabase
+        .from("chs_story_days")
+        .delete()
+        .in("character_id", charIds)
+        .eq("date", today);
+      if (storyDelErr) throw storyDelErr;
+
+      const base = new URL(req.url);
+      const storyUrl = `${base.protocol}//${base.host}/api/characters/story`;
+      const cronRes = await fetch(storyUrl, { method: "GET" });
+      const cronJson = await cronRes.json().catch(() => ({}));
+
+      return NextResponse.json({
+        success: cronRes.ok,
+        mode: "fullReset",
+        reset: chars.map((c) => c.name),
+        storyCron: cronJson,
+      });
+    }
+
+    // Default: regenerate only the visual batch (scene brief + 7 slot prompts)
+    let storyQ = supabase
       .from("chs_story_days")
-      .select("id, character_id, chs_characters(name)")
+      .select("id, character_id, chs_characters(name, slug)")
       .eq("date", today);
+    if (characterSlug) {
+      const { data: char } = await supabase
+        .from("chs_characters")
+        .select("id")
+        .eq("slug", characterSlug)
+        .single();
+      if (char) storyQ = storyQ.eq("character_id", char.id);
+    }
+    const { data: storyDays, error } = await storyQ;
 
     if (error) throw error;
     if (!storyDays || storyDays.length === 0) {

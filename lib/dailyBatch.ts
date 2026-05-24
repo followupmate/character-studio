@@ -68,6 +68,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
         arc_position: storyDay.arc_position,
         emotional_beat: storyDay.emotional_beat ?? null,
         scene: storyDay.scene ?? null,
+        tier: storyDay.tier ?? null,
+        drift_seeds: (storyDay.drift_seeds as Array<{ kind: string; detail?: string }>) ?? null,
       },
       character: {
         name: character.name,
