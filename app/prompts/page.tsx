@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import Sidebar from "@/components/dashboard/Sidebar";
 import PromptLibraryClient from "@/components/prompts/PromptLibraryClient";
+import ReferenceTemplates from "@/components/prompts/ReferenceTemplates";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,10 @@ export default async function PromptsPage() {
           <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-8">
             Prompt Library
           </h2>
-          <PromptLibraryClient prompts={prompts as any} />
+
+          <ReferenceTemplates />
+
+          <PromptLibraryClient prompts={prompts as never} />
         </div>
       </main>
     </div>
