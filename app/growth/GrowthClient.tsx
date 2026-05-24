@@ -1,55 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type Character = { id: string; name: string; slug: string };
-type StoryDayOption = { id: string; character_id: string; date: string; location: string; mood: string; narrative: string; arc_position: string };
+type StoryDay = { id: string; character_id: string; tier: string | null; drift_seeds: Array<{ kind: string; detail?: string }> | null; emotional_beat: string | null; mood: string; location: string; created_at: string };
+type DailyPlan = { id: string; character_id: string; batch_status: string | null; scene_brief: Record<string, unknown> | null; created_at: string };
+type Media = { id: string; batch_id: string; channel: string | null; slot: string | null; generation_status: string | null };
 type WeekPost = { id: string; character_id: string; platform: string; post_type: string | null; scheduled_at: string | null; posted_at: string | null; status: string };
-
-type ReelBrief = {
-  hook: string;
-  visuals: string;
-  cta?: string;
-  mood?: string;
-  ig_caption: string;
-  hashtags: string[];
-};
-
-type StoryItem = {
-  type: string;
-  description: string;
-  text_overlay: string | null;
-  order: number;
-  approved: boolean;
-};
-
-const STORY_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
-  repost_reel: { label: "Repost Reel", icon: "replay" },
-  aesthetic: { label: "Aesthetic", icon: "auto_awesome" },
-  bts: { label: "BTS", icon: "videocam" },
-  poll: { label: "Poll", icon: "poll" },
-  quote: { label: "Quote", icon: "format_quote" },
-};
-
-const PILLARS = [
-  { key: "soft_luxury", label: "Soft Luxury", moods: ["luxury", "elegant", "soft", "warm", "golden", "refined", "calm", "quiet", "gentle"] },
-  { key: "cinematic", label: "Cinematic Femininity", moods: ["cinematic", "feminine", "aesthetic", "dreamy", "intimate", "mysterious", "sensual"] },
-  { key: "creator_life", label: "Creator Life", moods: ["creative", "focused", "productive", "behind", "workflow", "editing", "inspired"] },
-  { key: "world", label: "World & Places", moods: ["adventurous", "travel", "city", "sea", "street", "outdoor", "escape", "free"] },
-];
-
-function getPillar(mood: string): string {
-  const lower = (mood ?? "").toLowerCase();
-  for (const p of PILLARS) {
-    if (p.moods.some((m) => lower.includes(m))) return p.key;
-  }
-  return "soft_luxury";
-}
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("sk-SK", { day: "numeric", month: "short" });
-}
+type RecentPost = { id: string; character_id: string; post_type: string | null; posted_at: string | null; platform: string };
 
 function getWeekDays(weekStartStr: string): Date[] {
   const start = new Date(weekStartStr);
@@ -60,336 +19,229 @@ function getWeekDays(weekStartStr: string): Date[] {
   });
 }
 
+function postsByDay(posts: RecentPost[], days: number): Map<string, number> {
+  const map = new Map<string, number>();
+  const now = new Date();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    map.set(d.toISOString().slice(0, 10), 0);
+  }
+  for (const p of posts) {
+    const d = (p.posted_at ?? "").slice(0, 10);
+    if (map.has(d)) map.set(d, (map.get(d) ?? 0) + 1);
+  }
+  return map;
+}
+
+function computeStreak(byDay: Map<string, number>): number {
+  const now = new Date();
+  let streak = 0;
+  for (let i = 0; i < 100; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    if (!byDay.has(key)) break;
+    if ((byDay.get(key) ?? 0) > 0) streak++;
+    else break;
+  }
+  return streak;
+}
+
+const BATCH_STATUS_STYLES: Record<string, string> = {
+  planned:         "text-muted2 border-border bg-bg3",
+  generating:      "text-amber border-amber/30 bg-amber/10 animate-pulse",
+  ready:           "text-teal border-teal/30 bg-teal/10",
+  partial_failed:  "text-amber border-amber/30 bg-amber/10",
+  failed:          "text-red-400 border-red-500/30 bg-red-500/10",
+  published:       "text-accent border-accent/30 bg-accent/10",
+};
+
+const GEN_STATUS_STYLES: Record<string, string> = {
+  pending:    "text-muted2",
+  generating: "text-amber animate-pulse",
+  completed:  "text-teal",
+  failed:     "text-red-400",
+  retrying:   "text-amber animate-pulse",
+};
+
 export default function GrowthClient({
   characters,
-  storyDays,
+  todayStory,
+  todayPlans,
+  todayMedia,
   weekPosts,
   recentPosts,
   today,
   weekStartStr,
 }: {
   characters: Character[];
-  storyDays: StoryDayOption[];
+  todayStory: StoryDay[];
+  todayPlans: DailyPlan[];
+  todayMedia: Media[];
   weekPosts: WeekPost[];
-  recentPosts: WeekPost[];
+  recentPosts: RecentPost[];
   today: string;
   weekStartStr: string;
 }) {
-  const router = useRouter();
-
   const [charId, setCharId] = useState(characters[0]?.id ?? "");
-  const [storyDayId, setStoryDayId] = useState("");
-
-  // Discovery brief
-  const [discoveryBrief, setDiscoveryBrief] = useState<ReelBrief | null>(null);
-  const [discoveryGenerating, setDiscoveryGenerating] = useState(false);
-
-  // Connection brief
-  const [connectionBrief, setConnectionBrief] = useState<ReelBrief | null>(null);
-  const [connectionGenerating, setConnectionGenerating] = useState(false);
-
-  // Stories plan
-  const [storiesPlan, setStoriesPlan] = useState<StoryItem[] | null>(null);
-  const [storiesGenerating, setStoriesGenerating] = useState(false);
-
-  // Filter story days for selected character
-  const charStoryDays = storyDays.filter((s) => s.character_id === charId);
-  const todayStoryDay = charStoryDays.find((s) => s.date === today);
 
   useEffect(() => {
-    setStoryDayId(todayStoryDay?.id ?? charStoryDays[0]?.id ?? "");
-  }, [charId]);
+    if (!charId && characters[0]) setCharId(characters[0].id);
+  }, [charId, characters]);
 
-  // Today's posts for progress
+  const story = todayStory.find((s) => s.character_id === charId) ?? null;
+  const plan = todayPlans.find((p) => p.character_id === charId) ?? null;
+  const planMedia = todayMedia.filter((m) => m.batch_id === plan?.id);
   const todayPosts = weekPosts.filter((p) => {
-    const postDate = (p.posted_at ?? p.scheduled_at ?? "").slice(0, 10);
-    return postDate === today && p.character_id === charId;
+    const date = (p.posted_at ?? p.scheduled_at ?? "").slice(0, 10);
+    return date === today && p.character_id === charId;
   });
-  const todayNonStory = todayPosts.filter((p) => p.post_type !== "story");
-  const hasReel1 = todayNonStory.length >= 1;
-  const hasReel2 = todayNonStory.length >= 2;
-  const hasStories = todayPosts.some((p) => p.post_type === "story");
-  const progressCount = [hasReel1, hasReel2, hasStories].filter(Boolean).length;
 
-  const generateBrief = useCallback(async (type: "discovery" | "connection") => {
-    const setGenerating = type === "discovery" ? setDiscoveryGenerating : setConnectionGenerating;
-    const setBrief = type === "discovery" ? setDiscoveryBrief : setConnectionBrief;
-    setGenerating(true);
-    try {
-      const res = await fetch("/api/growth/generate-reel-brief", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ character_id: charId, story_day_id: storyDayId || null, reel_type: type }),
-      });
-      const data = await res.json();
-      if (data.success) setBrief(data.brief);
-    } catch {}
-    setGenerating(false);
-  }, [charId, storyDayId]);
+  const charRecentPosts = recentPosts.filter((p) => p.character_id === charId);
+  const byDay = postsByDay(charRecentPosts, 14);
+  const totalPosted14 = charRecentPosts.length;
+  const daysWithContent = Array.from(byDay.values()).filter((n) => n > 0).length;
+  const streak = computeStreak(byDay);
 
-  const generateStoriesPlan = useCallback(async () => {
-    setStoriesGenerating(true);
-    try {
-      const res = await fetch("/api/growth/generate-stories-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ character_id: charId, story_day_id: storyDayId || null, has_reel: hasReel1 }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStoriesPlan(data.plan.map((item: Omit<StoryItem, "approved">) => ({ ...item, approved: true })));
-      }
-    } catch {}
-    setStoriesGenerating(false);
-  }, [charId, storyDayId, hasReel1]);
+  const slotsCompleted = planMedia.filter((m) => m.generation_status === "completed").length;
+  const slotsFailed = planMedia.filter((m) => m.generation_status === "failed").length;
+  const slotsTotal = planMedia.length;
 
-  const scheduleReel = (brief: ReelBrief, scheduledTime: string) => {
-    const params = new URLSearchParams({
-      character_id: charId,
-      scheduled_time: scheduledTime,
-      ig_caption: brief.ig_caption,
-      hashtags: brief.hashtags.join(" "),
-    });
-    router.push(`/publish?${params.toString()}`);
+  const publishedToday = {
+    feed: todayPosts.filter((p) => p.post_type === "feed" || p.post_type === "carousel").filter((p) => p.status === "posted").length,
+    reel: todayPosts.filter((p) => p.post_type === "reel").filter((p) => p.status === "posted").length,
+    story: todayPosts.filter((p) => p.post_type === "story").filter((p) => p.status === "posted").length,
   };
 
-  // Content Pillars — last 14 days
-  const pillarCounts: Record<string, number> = { soft_luxury: 0, cinematic: 0, creator_life: 0, world: 0 };
-  recentPosts.filter((p) => p.character_id === charId).forEach((p) => {
-    // We don't have mood in recentPosts directly, but we can try arc from story context
-    pillarCounts.soft_luxury += 1; // default fallback
-  });
-  const totalRecent = recentPosts.filter((p) => p.character_id === charId).length;
-
-  // Weekly overview
   const weekDays = getWeekDays(weekStartStr);
   const DAY_LABELS = ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"];
+
+  const charName = characters.find((c) => c.id === charId)?.name ?? "—";
 
   return (
     <div className="p-4 lg:p-8 space-y-8 max-w-4xl">
 
-      {/* ── Global selectors ──────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">Charakter</p>
-          <select
-            value={charId}
-            onChange={(e) => setCharId(e.target.value)}
-            className="w-full bg-surface border border-border text-ink font-mono text-[12px] px-3 py-2.5 focus:outline-none focus:border-accent"
-          >
-            {characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">Dnešný príbeh</p>
-          <select
-            value={storyDayId}
-            onChange={(e) => setStoryDayId(e.target.value)}
-            className="w-full bg-surface border border-border text-ink font-mono text-[12px] px-3 py-2.5 focus:outline-none focus:border-accent"
-          >
-            <option value="">— Bez príbehu —</option>
-            {charStoryDays.map((s) => (
-              <option key={s.id} value={s.id}>
-                {formatDate(s.date)} — {s.location} · {s.mood}
-                {s.date === today ? " (dnes)" : ""}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Character selector */}
+      <div>
+        <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1.5">Charakter</p>
+        <select
+          value={charId}
+          onChange={(e) => setCharId(e.target.value)}
+          className="w-full sm:w-auto bg-surface border border-border text-ink font-mono text-[12px] px-3 py-2.5 focus:outline-none focus:border-accent"
+        >
+          {characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
-      {/* ── SEKCIA A: Dnešný plán ────────────────────────── */}
+      {/* DNES */}
       <section className="bg-bg2 border border-border">
-        <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-[16px] text-muted">today</span>
-            <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Dnešný plán</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`font-mono text-[9px] ${progressCount === 3 ? "text-teal" : "text-amber"}`}>
-              {progressCount}/3 hotových
-            </span>
-            <div className="flex gap-1">
-              {["Reel #1", "Reel #2", "Stories"].map((label, i) => {
-                const done = [hasReel1, hasReel2, hasStories][i];
-                return (
-                  <span key={label} className={`font-mono text-[8px] border px-2 py-0.5 uppercase ${done ? "border-teal/30 text-teal bg-teal/10" : "border-border text-muted"}`}>
-                    {done ? "✓" : "○"} {label}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
+        <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[16px] text-muted">today</span>
+          <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Dnes</p>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Reel #1 — Discovery */}
-          <ReelCard
-            title="Reel #1 — Discovery"
-            subtitle="Cieľ: Reach nových ľudí · 6–9 sekúnd"
-            accentClass="border-blue-400/30 bg-blue-400/5"
-            headerAccent="text-blue-400"
-            badgeClass="text-blue-400 border-blue-400/30 bg-blue-400/10"
-            badgeLabel="DISCOVERY"
-            generating={discoveryGenerating}
-            brief={discoveryBrief}
-            onGenerate={() => generateBrief("discovery")}
-            onSchedule={(time) => discoveryBrief && scheduleReel(discoveryBrief, time)}
-            scheduleTimes={["08:00", "18:30"]}
-            briefFields={[
-              { key: "hook", label: "HOOK (0–1s)" },
-              { key: "visuals", label: "VISUALS (1–6s)" },
-              { key: "cta", label: "CTA (posl. 1s)" },
-              { key: "ig_caption", label: "IG CAPTION" },
-            ]}
-            onBriefChange={(key, val) => setDiscoveryBrief((prev) => prev ? { ...prev, [key]: val } : prev)}
-          />
-
-          {/* Reel #2 — Connection */}
-          <ReelCard
-            title="Reel #2 — Connection"
-            subtitle="Cieľ: Osobnosť, intimita, emócia"
-            accentClass="border-violet-400/30 bg-violet-400/5"
-            headerAccent="text-violet-400"
-            badgeClass="text-violet-400 border-violet-400/30 bg-violet-400/10"
-            badgeLabel="CONNECTION"
-            generating={connectionGenerating}
-            brief={connectionBrief}
-            onGenerate={() => generateBrief("connection")}
-            onSchedule={(time) => connectionBrief && scheduleReel(connectionBrief, time)}
-            scheduleTimes={["18:30", "20:00"]}
-            briefFields={[
-              { key: "hook", label: "HOOK" },
-              { key: "visuals", label: "VISUALS" },
-              { key: "mood", label: "MOOD" },
-              { key: "ig_caption", label: "CAPTION" },
-            ]}
-            onBriefChange={(key, val) => setConnectionBrief((prev) => prev ? { ...prev, [key]: val } : prev)}
-          />
-
-          {/* Stories */}
-          <div className={`border rounded-sm p-5 space-y-4 border-amber/30 bg-amber/5`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-[8px] border px-2 py-0.5 uppercase text-amber border-amber/30 bg-amber/10">
-                  STORIES
-                </span>
-                <p className="font-mono text-[11px] text-ink font-medium">Denné Stories</p>
+        <div className="p-6 space-y-5">
+          {/* Story status */}
+          <div>
+            <p className="font-mono text-[8px] tracking-widest text-muted uppercase mb-2">Story chapter</p>
+            {story ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[10px] text-teal">📍 {story.location}</span>
+                <span className="text-border2">·</span>
+                <span className="font-mono text-[10px] text-muted2 italic">{story.mood}</span>
+                {story.emotional_beat && (
+                  <span className="font-mono text-[9px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 uppercase tracking-wider">
+                    {story.emotional_beat.replace(/_/g, " ")}
+                  </span>
+                )}
+                {story.tier && (
+                  <span className="font-mono text-[9px] bg-bg3 border border-border text-muted2 px-2 py-0.5 uppercase tracking-wider">
+                    {story.tier.replace(/_/g, " ")}
+                  </span>
+                )}
+                {(story.drift_seeds ?? []).map((s) => (
+                  <span key={s.kind} className="font-mono text-[9px] bg-amber/10 border border-amber/20 text-amber px-2 py-0.5 uppercase tracking-wider">
+                    ⊘ {s.kind.replace(/_/g, " ")}{s.detail ? ` · ${s.detail}` : ""}
+                  </span>
+                ))}
               </div>
-              <span className="font-mono text-[9px] text-muted">3–7 stories / deň</span>
-            </div>
+            ) : (
+              <p className="font-mono text-[10px] text-muted italic">— story sa ešte nevygenerovala (cron 06:00 UTC) —</p>
+            )}
+          </div>
 
-            <button
-              onClick={generateStoriesPlan}
-              disabled={storiesGenerating || !charId}
-              className="flex items-center gap-2 px-4 py-2 border border-amber/40 text-amber bg-amber/10 font-mono text-[10px] uppercase tracking-wider hover:bg-amber/20 transition-all disabled:opacity-40"
-            >
-              {storiesGenerating ? (
-                <><span className="w-3 h-3 border border-amber border-t-transparent animate-spin rounded-full" />Generujem…</>
-              ) : (
-                <><span className="material-symbols-outlined text-[14px]">auto_awesome</span>Generuj Stories plán</>
-              )}
-            </button>
+          {/* Batch status */}
+          <div>
+            <p className="font-mono text-[8px] tracking-widest text-muted uppercase mb-2">Batch</p>
+            {plan ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className={`font-mono text-[9px] border px-2 py-0.5 uppercase tracking-wider ${BATCH_STATUS_STYLES[plan.batch_status ?? "planned"] ?? BATCH_STATUS_STYLES.planned}`}>
+                  {(plan.batch_status ?? "planned").replace(/_/g, " ")}
+                </span>
+                <span className="font-mono text-[10px] text-muted2">
+                  {slotsCompleted} / {slotsTotal} slotov
+                  {slotsFailed > 0 && <span className="text-red-400 ml-1">· {slotsFailed} failed</span>}
+                </span>
+                {plan.scene_brief && (
+                  <span className="font-mono text-[9px] text-muted">scene brief ✓</span>
+                )}
+                <Link href="/today" className="font-mono text-[9px] text-accent hover:underline flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[11px]">open_in_new</span>
+                  prejdi na batch
+                </Link>
+              </div>
+            ) : (
+              <p className="font-mono text-[10px] text-muted italic">— batch sa nevytvoril —</p>
+            )}
 
-            {storiesPlan && (
-              <div className="space-y-2">
-                {storiesPlan.map((item, i) => {
-                  const meta = STORY_TYPE_LABELS[item.type] ?? { label: item.type, icon: "circle" };
+            {/* Per-slot breakdown */}
+            {plan && planMedia.length > 0 && (
+              <div className="mt-3 grid grid-cols-7 gap-1">
+                {["carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5", "reel_video", "story_bts"].map((slot) => {
+                  const m = planMedia.find((mm) => mm.slot === slot);
+                  const status = m?.generation_status ?? "missing";
+                  const cls = GEN_STATUS_STYLES[status] ?? "text-muted/40";
+                  const short = slot.replace("carousel_", "C").replace("reel_video", "Reel").replace("story_bts", "Story");
                   return (
-                    <div key={i} className={`flex items-start gap-3 p-3 border transition-all ${item.approved ? "border-border bg-surface" : "border-border/30 opacity-40"}`}>
-                      <button
-                        onClick={() => setStoriesPlan((prev) => prev?.map((s, idx) => idx === i ? { ...s, approved: !s.approved } : s) ?? null)}
-                        className={`flex-shrink-0 w-4 h-4 border mt-0.5 flex items-center justify-center transition-colors ${item.approved ? "border-teal bg-teal" : "border-border"}`}
-                      >
-                        {item.approved && <span className="material-symbols-outlined text-[10px] text-bg">check</span>}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="material-symbols-outlined text-[12px] text-amber">{meta.icon}</span>
-                          <span className="font-mono text-[9px] text-amber uppercase tracking-wider">{meta.label}</span>
-                          <span className="font-mono text-[9px] text-muted">#{item.order}</span>
-                        </div>
-                        <p className="font-mono text-[10px] text-muted2">{item.description}</p>
-                        {item.text_overlay && (
-                          <p className="font-mono text-[9px] text-muted mt-0.5 italic">"{item.text_overlay}"</p>
-                        )}
-                      </div>
+                    <div key={slot} className={`flex flex-col items-center justify-center h-12 border border-border/40 font-mono ${cls}`}>
+                      <span className="text-[8px] tracking-wider">{short}</span>
+                      <span className="text-[10px]">
+                        {status === "completed" ? "✓" : status === "failed" ? "✕" : status === "missing" ? "—" : "○"}
+                      </span>
                     </div>
                   );
                 })}
-                <button
-                  onClick={() => router.push(`/publish?character_id=${charId}&post_type=story`)}
-                  className="flex items-center gap-2 px-3 py-2 border border-amber/30 text-amber font-mono text-[10px] uppercase hover:bg-amber/10 transition-all mt-2"
-                >
-                  <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                  Naplánuj stories v Publish Queue
-                </button>
               </div>
             )}
+          </div>
+
+          {/* Published today */}
+          <div>
+            <p className="font-mono text-[8px] tracking-widest text-muted uppercase mb-2">Publikované dnes</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "Feed", count: publishedToday.feed },
+                { label: "Reel", count: publishedToday.reel },
+                { label: "Story", count: publishedToday.story },
+              ].map(({ label, count }) => (
+                <div key={label} className={`border px-3 py-2 ${count > 0 ? "border-teal/30 bg-teal/5" : "border-border bg-bg3"}`}>
+                  <p className="font-mono text-[8px] uppercase tracking-wider text-muted mb-0.5">{label}</p>
+                  <p className={`font-mono text-[14px] font-medium ${count > 0 ? "text-teal" : "text-muted2"}`}>
+                    {count > 0 ? `${count} ✓` : "○"}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <Link href="/publish" className="inline-flex items-center gap-1 font-mono text-[9px] text-accent hover:underline mt-2">
+              <span className="material-symbols-outlined text-[11px]">open_in_new</span>
+              Publish Queue
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* ── SEKCIA B: Content Pillars ────────────────────── */}
-      <section className="bg-bg2 border border-border">
-        <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center gap-3">
-          <span className="material-symbols-outlined text-[16px] text-muted">bar_chart</span>
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Content Mix (posledných 14 dní)</p>
-        </div>
-
-        <div className="p-6">
-          {totalRecent < 3 ? (
-            <div className="border border-dashed border-border p-8 text-center">
-              <p className="font-mono text-[9px] text-muted uppercase tracking-widest">
-                Začni postiť — tracker sa naplní po 7 dňoch
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="border border-border p-3">
-                  <p className="font-mono text-[9px] text-muted uppercase mb-1">Aesthetic</p>
-                  <p className="font-mono text-[18px] text-ink font-medium">
-                    {totalRecent > 0 ? Math.round((totalRecent * 0.7)) : 0}%
-                  </p>
-                  <p className="font-mono text-[8px] text-muted">Ideál: 70%</p>
-                </div>
-                <div className="border border-border p-3">
-                  <p className="font-mono text-[9px] text-muted uppercase mb-1">Human / BTS</p>
-                  <p className="font-mono text-[18px] text-ink font-medium">
-                    {totalRecent > 0 ? Math.round((totalRecent * 0.3)) : 0}%
-                  </p>
-                  <p className="font-mono text-[8px] text-muted">Ideál: 30%</p>
-                </div>
-              </div>
-
-              {PILLARS.map((p) => {
-                const pct = totalRecent > 0 ? Math.round((pillarCounts[p.key] / totalRecent) * 100) : 0;
-                const barWidth = Math.max(pct, 2);
-                return (
-                  <div key={p.key} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] text-muted2">{p.label}</span>
-                      <span className="font-mono text-[9px] text-muted">{pct}%</span>
-                    </div>
-                    <div className="h-1.5 bg-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-accent/60 rounded-full transition-all"
-                        style={{ width: `${barWidth}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-              <p className="font-mono text-[9px] text-muted mt-2">
-                Celkom {totalRecent} postov za 14 dní · {characters.find((c) => c.id === charId)?.name}
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── SEKCIA C: Weekly Overview ────────────────────── */}
+      {/* TENTO TÝŽDEŇ */}
       <section className="bg-bg2 border border-border">
         <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center gap-3">
           <span className="material-symbols-outlined text-[16px] text-muted">calendar_view_week</span>
@@ -397,9 +249,9 @@ export default function GrowthClient({
         </div>
 
         <div className="p-6 overflow-x-auto">
-          <div className="min-w-[400px]">
-            {/* Day labels */}
-            <div className="grid grid-cols-7 gap-1 mb-2">
+          <div className="min-w-[420px]">
+            <div className="grid grid-cols-8 gap-1 mb-2">
+              <div className="font-mono text-[9px] uppercase text-muted py-1">&nbsp;</div>
               {DAY_LABELS.map((d, i) => {
                 const isToday = weekDays[i]?.toISOString().slice(0, 10) === today;
                 return (
@@ -410,160 +262,82 @@ export default function GrowthClient({
               })}
             </div>
 
-            {/* R1, R2, Stories rows */}
-            {["Reel #1", "Reel #2", "Stories"].map((rowLabel, rowIdx) => (
-              <div key={rowLabel} className="grid grid-cols-7 gap-1 mb-1">
+            {(["feed", "reel", "story"] as const).map((channel) => (
+              <div key={channel} className="grid grid-cols-8 gap-1 mb-1">
+                <div className="font-mono text-[9px] uppercase text-muted2 flex items-center">{channel}</div>
                 {weekDays.map((day, colIdx) => {
                   const dateStr = day.toISOString().slice(0, 10);
                   const dayPosts = weekPosts.filter(
                     (p) => (p.posted_at ?? p.scheduled_at ?? "").slice(0, 10) === dateStr && p.character_id === charId
                   );
-                  const nonStory = dayPosts.filter((p) => p.post_type !== "story");
-                  const storyPost = dayPosts.find((p) => p.post_type === "story");
-                  const done =
-                    rowIdx === 0 ? nonStory.length >= 1 :
-                    rowIdx === 1 ? nonStory.length >= 2 :
-                    !!storyPost;
+                  const match = dayPosts.filter((p) => {
+                    if (channel === "feed") return p.post_type === "feed" || p.post_type === "carousel";
+                    if (channel === "reel") return p.post_type === "reel";
+                    return p.post_type === "story";
+                  });
+                  const posted = match.some((p) => p.status === "posted");
+                  const scheduled = match.some((p) => p.status === "scheduled");
                   const isToday = dateStr === today;
 
+                  let cls = "border-border/30 text-muted/30";
+                  let symbol = "○";
+                  if (posted) { cls = "border-teal/40 bg-teal/10 text-teal"; symbol = "✓"; }
+                  else if (scheduled) { cls = "border-accent/30 bg-accent/5 text-accent"; symbol = "·"; }
+                  else if (isToday) { cls = "border-accent/30 text-muted"; symbol = "○"; }
+
                   return (
-                    <div
-                      key={colIdx}
-                      className={`flex items-center justify-center h-7 font-mono text-[8px] border transition-colors ${
-                        done
-                          ? "border-teal/30 bg-teal/10 text-teal"
-                          : isToday
-                          ? "border-accent/30 text-muted"
-                          : "border-border/30 text-muted/30"
-                      }`}
-                    >
-                      {done ? "✓" : colIdx === 0 ? rowLabel.split(" ")[1] : "○"}
+                    <div key={colIdx} className={`flex items-center justify-center h-7 font-mono text-[10px] border transition-colors ${cls}`}>
+                      {symbol}
                     </div>
                   );
                 })}
               </div>
             ))}
 
-            <div className="flex gap-4 mt-3">
+            <div className="flex gap-4 mt-3 flex-wrap">
               <span className="flex items-center gap-1.5 font-mono text-[8px] text-muted">
-                <span className="w-2 h-2 border border-teal/30 bg-teal/10" />hotovo
+                <span className="w-2 h-2 border border-teal/40 bg-teal/10" />posted
               </span>
               <span className="flex items-center gap-1.5 font-mono text-[8px] text-muted">
-                <span className="w-2 h-2 border border-accent/30" />dnes
+                <span className="w-2 h-2 border border-accent/30 bg-accent/5" />scheduled
               </span>
               <span className="flex items-center gap-1.5 font-mono text-[8px] text-muted">
-                <span className="w-2 h-2 border border-border/30" />chýba
+                <span className="w-2 h-2 border border-border/30" />nič
               </span>
             </div>
           </div>
         </div>
       </section>
-    </div>
-  );
-}
 
-// ── ReelCard subcomponent ────────────────────────────────
-function ReelCard({
-  title, subtitle, accentClass, headerAccent, badgeClass, badgeLabel,
-  generating, brief, onGenerate, onSchedule, scheduleTimes, briefFields, onBriefChange,
-}: {
-  title: string;
-  subtitle: string;
-  accentClass: string;
-  headerAccent: string;
-  badgeClass: string;
-  badgeLabel: string;
-  generating: boolean;
-  brief: ReelBrief | null;
-  onGenerate: () => void;
-  onSchedule: (time: string) => void;
-  scheduleTimes: string[];
-  briefFields: { key: string; label: string }[];
-  onBriefChange: (key: string, val: string) => void;
-}) {
-  return (
-    <div className={`border rounded-sm p-5 space-y-4 ${accentClass}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className={`font-mono text-[8px] border px-2 py-0.5 uppercase ${badgeClass}`}>
-            {badgeLabel}
-          </span>
-          <p className={`font-mono text-[11px] font-medium ${headerAccent}`}>{title}</p>
+      {/* POSLEDNÝCH 14 DNÍ */}
+      <section className="bg-bg2 border border-border">
+        <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[16px] text-muted">bar_chart</span>
+          <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Posledných 14 dní · {charName}</p>
         </div>
-        <p className="font-mono text-[9px] text-muted">{subtitle}</p>
-      </div>
 
-      <button
-        onClick={onGenerate}
-        disabled={generating}
-        className={`flex items-center gap-2 px-4 py-2 border font-mono text-[10px] uppercase tracking-wider transition-all disabled:opacity-40 ${badgeClass} hover:opacity-80`}
-      >
-        {generating ? (
-          <><span className={`w-3 h-3 border border-t-transparent animate-spin rounded-full ${headerAccent.replace("text-", "border-")}`} />Generujem…</>
-        ) : (
-          <><span className="material-symbols-outlined text-[14px]">auto_awesome</span>Generuj Brief</>
-        )}
-      </button>
-
-      {brief && (
-        <div className="space-y-3 border-t border-border/30 pt-3">
-          {briefFields.map(({ key, label }) => {
-            const val = (brief as Record<string, string | string[]>)[key];
-            if (val === undefined) return null;
-            const strVal = Array.isArray(val) ? val.join(" ") : (val ?? "");
-            const isLong = key === "visuals" || key === "ig_caption";
-            return (
-              <div key={key}>
-                <p className="font-mono text-[8px] tracking-widest text-muted uppercase mb-1">{label}</p>
-                {isLong ? (
-                  <textarea
-                    value={strVal}
-                    onChange={(e) => onBriefChange(key, e.target.value)}
-                    rows={3}
-                    className="w-full bg-bg3 border border-border text-ink font-mono text-[11px] px-3 py-2 focus:outline-none focus:border-accent resize-y"
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={strVal}
-                    onChange={(e) => onBriefChange(key, e.target.value)}
-                    className="w-full bg-bg3 border border-border text-ink font-mono text-[11px] px-3 py-2 focus:outline-none focus:border-accent"
-                  />
-                )}
-              </div>
-            );
-          })}
-
-          {brief.hashtags && (
-            <div>
-              <p className="font-mono text-[8px] tracking-widest text-muted uppercase mb-1">HASHTAGS ({brief.hashtags.length})</p>
-              <p className="font-mono text-[9px] text-muted2 leading-relaxed">
-                {brief.hashtags.map((h) => `#${h}`).join(" ")}
-              </p>
-            </div>
-          )}
-
-          <div className="flex gap-2 pt-1 flex-wrap">
-            {scheduleTimes.map((time) => (
-              <button
-                key={time}
-                onClick={() => onSchedule(time)}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-muted2 font-mono text-[10px] hover:border-accent hover:text-accent transition-all"
-              >
-                <span className="material-symbols-outlined text-[12px]">schedule</span>
-                Naplánuj {time}
-              </button>
-            ))}
-            <button
-              onClick={() => onSchedule("now")}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-teal/30 text-teal font-mono text-[10px] hover:bg-teal/10 transition-all"
-            >
-              <span className="material-symbols-outlined text-[12px]">send</span>
-              Postni teraz
-            </button>
+        <div className="p-6 grid grid-cols-3 gap-3">
+          <div className="border border-border bg-bg3 p-4">
+            <p className="font-mono text-[9px] text-muted uppercase mb-1">Total posts</p>
+            <p className="font-mono text-[22px] font-medium text-ink">{totalPosted14}</p>
+            <p className="font-mono text-[9px] text-muted mt-1">posted in last 14 days</p>
+          </div>
+          <div className={`border p-4 ${daysWithContent >= 10 ? "border-teal/30 bg-teal/5" : "border-border bg-bg3"}`}>
+            <p className="font-mono text-[9px] text-muted uppercase mb-1">Days with content</p>
+            <p className={`font-mono text-[22px] font-medium ${daysWithContent >= 10 ? "text-teal" : "text-ink"}`}>
+              {daysWithContent} / 14
+            </p>
+            <p className="font-mono text-[9px] text-muted mt-1">target ≥ 10 / 14</p>
+          </div>
+          <div className={`border p-4 ${streak >= 5 ? "border-teal/30 bg-teal/5" : streak >= 2 ? "border-amber/30 bg-amber/5" : "border-border bg-bg3"}`}>
+            <p className="font-mono text-[9px] text-muted uppercase mb-1">Current streak</p>
+            <p className={`font-mono text-[22px] font-medium ${streak >= 5 ? "text-teal" : streak >= 2 ? "text-amber" : "text-muted2"}`}>
+              {streak} {streak === 1 ? "deň" : streak >= 2 && streak <= 4 ? "dni" : "dní"}
+            </p>
+            <p className="font-mono text-[9px] text-muted mt-1">consecutive days</p>
           </div>
         </div>
-      )}
+      </section>
     </div>
   );
 }
