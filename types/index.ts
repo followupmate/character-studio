@@ -5,11 +5,14 @@ export type PostStatus = "scheduled" | "posted" | "failed";
 export type ArcPosition = "opening" | "rising" | "peak" | "turning" | "falling" | "quiet";
 export type PromptDoctrine = "cinematic" | "instagram" | "deepseek" | "editorial";
 export type EmotionalBeat =
-  | "lonely" | "inspired" | "anxious" | "confident" | "nostalgic"
-  | "restless" | "tender" | "productive" | "melancholic" | "quietly_alive";
+  | "detached" | "observed" | "mundane" | "drifting" | "mildly_displaced"
+  | "watchful" | "absent" | "uneventful" | "half_present" | "almost_there";
 export type SlotChannel = "feed" | "reel" | "story";
 export type GenerationStatus = "pending" | "generating" | "completed" | "failed" | "retrying";
 export type BatchStatus = "planned" | "generating" | "ready" | "partial_failed" | "published" | "failed";
+export type StoryTier = "grounded_routine" | "cinematic_melancholy" | "incidental_wrongness" | "entropy";
+export type DriftSeedKind = "recurring_stranger" | "timestamp_mismatch" | "impossible_weather_memory";
+export interface DriftSeed { kind: DriftSeedKind; detail?: string }
 
 export interface Character {
   id: string;
@@ -40,6 +43,8 @@ export interface StoryDay {
   arc_position: ArcPosition;
   emotional_beat: EmotionalBeat | null;
   scene: Record<string, unknown> | null;
+  tier: StoryTier | null;
+  drift_seeds: DriftSeed[] | null;
   next_hint: string | null;
   ig_caption: string | null;
   hashtags: string[] | null;

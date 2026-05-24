@@ -141,8 +141,8 @@ export default async function TodayPage({
                     </div>
 
                     <div className="p-6 space-y-6">
-                      {/* Location + mood + emotional beat */}
-                      <div className="flex items-center gap-4 flex-wrap">
+                      {/* Location + mood + emotional beat + tier + drift seeds */}
+                      <div className="flex items-center gap-3 flex-wrap">
                         <div className="font-mono text-[11px] text-teal tracking-wider">📍 {story.location}</div>
                         <span className="text-border2">·</span>
                         <div className="font-mono text-[11px] text-muted2 italic">{story.mood}</div>
@@ -150,10 +150,20 @@ export default async function TodayPage({
                           <>
                             <span className="text-border2">·</span>
                             <span className="font-mono text-[10px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-wider uppercase">
-                              {story.emotional_beat}
+                              {story.emotional_beat.replace(/_/g, " ")}
                             </span>
                           </>
                         )}
+                        {story.tier && (
+                          <span className="font-mono text-[9px] bg-bg3 border border-border text-muted2 px-2 py-0.5 tracking-wider uppercase">
+                            {story.tier.replace(/_/g, " ")}
+                          </span>
+                        )}
+                        {story.drift_seeds?.map((s) => (
+                          <span key={s.kind} className="font-mono text-[9px] bg-amber/10 border border-amber/20 text-amber px-2 py-0.5 tracking-wider uppercase">
+                            ⊘ {s.kind.replace(/_/g, " ")}{s.detail ? ` · ${s.detail}` : ""}
+                          </span>
+                        ))}
                       </div>
 
                       {/* Narrative */}

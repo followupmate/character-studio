@@ -24,6 +24,8 @@ interface GenerateArgs {
     arc_position: string;
     emotional_beat: string | null;
     scene: Record<string, unknown> | null;
+    tier: string | null;
+    drift_seeds: Array<{ kind: string; detail?: string }> | null;
   };
   character: {
     name: string;
@@ -32,6 +34,32 @@ interface GenerateArgs {
     visual_tone: string | null;
     styling_note: string | null;
   };
+}
+
+function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | null, sacred: Record<string, unknown> | null): string[] {
+  if (!seeds || seeds.length === 0) return [];
+  const rules: string[] = [];
+  for (const s of seeds) {
+    if (s.kind === "recurring_stranger") {
+      const stranger = (sacred && typeof sacred === "object" && "marseille_stranger" in sacred
+        ? (sacred as { marseille_stranger?: { prompt_injection?: string } }).marseille_stranger
+        : null);
+      const inj = stranger?.prompt_injection ??
+        "An indeterminate male figure in a long charcoal wool coat stands completely still deep in the background. He is out of focus, heavily blurred by shallow depth of field (f/1.4), blending into the urban geometry, ignoring the subject.";
+      rules.push(
+        `Background presence (mandatory, inject into 2 of the 7 frames only — never all): ${inj} Never described as a character. Never named. Never foregrounded.`
+      );
+    } else if (s.kind === "timestamp_mismatch") {
+      rules.push(
+        `Timestamp contradiction is in effect — the caption will say ${s.detail ?? "04:17"} while the scene is clear daylight. Do NOT reconcile this in any prompt. Light it as the time of day suggests, not as the caption suggests.`
+      );
+    } else if (s.kind === "impossible_weather_memory") {
+      rules.push(
+        "Impossible weather memory is in effect — narrative references rain that didn't happen. Do not show wet ground or wet hair in any frame. The contradiction lives in the text, not in the image."
+      );
+    }
+  }
+  return rules;
 }
 
 function safeJsonExtract(raw: string): SceneBriefJson {
@@ -50,6 +78,11 @@ export async function generateSceneBrief({ storyScene, character }: GenerateArgs
   const toneText = character.visual_tone ? `VISUAL TONE: ${character.visual_tone}` : "";
   const stylingText = character.styling_note ? `STYLING OVERRIDE: ${character.styling_note}` : "";
   const sceneJsonText = storyScene.scene ? `STRUCTURED SCENE:\n${JSON.stringify(storyScene.scene, null, 2)}` : "";
+  const tierText = storyScene.tier ? `TIER: ${storyScene.tier}` : "";
+  const driftRules = driftRulesForBrief(storyScene.drift_seeds, character.sacred_details);
+  const driftText = driftRules.length > 0
+    ? `\nDRIFT SEEDS ACTIVE TODAY (mandatory — bake these into the brief's visual_rules array verbatim):\n${driftRules.map((r) => `- ${r}`).join("\n")}`
+    : "";
 
   const systemPrompt = `You are the cinematic director for ${character.name}.
 
@@ -65,6 +98,8 @@ ${sacredText}
 ${toneText}
 ${stylingText}
 
+${tierText}
+
 STORY CONTEXT:
 Location: ${storyScene.location}
 Mood: ${storyScene.mood}
@@ -72,6 +107,7 @@ Arc position: ${storyScene.arc_position}
 Emotional beat: ${storyScene.emotional_beat ?? storyScene.mood}
 Narrative: ${storyScene.narrative}
 ${sceneJsonText}
+${driftText}
 
 You will output TWO things, separated by the literal line "---DOCTRINE---":
 
