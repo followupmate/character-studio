@@ -10,16 +10,19 @@ async function getData() {
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
   const weekStartStr = weekStart.toISOString().split("T")[0];
-  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const fourteenDaysAgoStr = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  const [{ data: characters }, { data: storyDays }, { data: weekPosts }, { data: recentPosts }] =
+  const [{ data: characters }, { data: todayStory }, { data: todayPlans }, { data: weekPosts }, { data: recentPosts }] =
     await Promise.all([
       supabase.from("chs_characters").select("id, name, slug").eq("is_active", true),
       supabase
         .from("chs_story_days")
-        .select("id, character_id, date, location, mood, narrative, arc_position")
-        .gte("date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
-        .order("date", { ascending: false }),
+        .select("id, character_id, tier, drift_seeds, emotional_beat, mood, location, created_at")
+        .eq("date", today),
+      supabase
+        .from("chs_daily_plans")
+        .select("id, character_id, batch_status, scene_brief, created_at")
+        .eq("date", today),
       supabase
         .from("chs_posts")
         .select("id, character_id, platform, post_type, scheduled_at, posted_at, status")
@@ -27,14 +30,24 @@ async function getData() {
         .in("status", ["scheduled", "posted"]),
       supabase
         .from("chs_posts")
-        .select("id, character_id, platform, post_type, scheduled_at, posted_at, status, chs_story_days:chs_media(story_day_id)")
-        .gte("created_at", fourteenDaysAgo)
+        .select("id, character_id, post_type, posted_at, platform")
+        .gte("posted_at", fourteenDaysAgoStr)
         .eq("status", "posted"),
     ]);
 
+  const batchIds = (todayPlans ?? []).map((p) => p.id);
+  const { data: todayMedia } = batchIds.length > 0
+    ? await supabase
+        .from("chs_media")
+        .select("id, batch_id, channel, slot, generation_status")
+        .in("batch_id", batchIds)
+    : { data: [] };
+
   return {
     characters: characters ?? [],
-    storyDays: storyDays ?? [],
+    todayStory: todayStory ?? [],
+    todayPlans: todayPlans ?? [],
+    todayMedia: todayMedia ?? [],
     weekPosts: weekPosts ?? [],
     recentPosts: recentPosts ?? [],
     today,
@@ -51,7 +64,7 @@ export default async function GrowthPage() {
       <main className="flex-1 lg:ml-56">
         <div className="sticky top-0 z-40 bg-surface border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
           <h1 className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted2">
-            Daily Growth System
+            Daily Status
           </h1>
           <span className="font-mono text-[10px] text-muted">
             {new Date().toLocaleDateString("sk-SK", { day: "numeric", month: "long", year: "numeric" })}
