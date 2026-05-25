@@ -32,12 +32,20 @@ const CINEMATIC_PHOTO_HEADER = `You are writing a photo prompt for an AI image g
 
 WRITE LIKE: a photographer captioning their own photograph in 1–2 sentences.
 
+DEFAULT IS NO CARRIED PROP (CRITICAL):
+The DEFAULT state is empty hands, empty pockets visible, nothing carried, nothing held.
+A prop appears in the frame ONLY when the slot's archetype explicitly demands it:
+- archetype family 'detail' with archetype id 'hands_object' → one prop in hands
+- archetype family 'subject' with archetype id 'interaction_object' → one prop being engaged with
+- archetype family 'bts' with archetype id 'creator_process' or 'setup_shot' → relevant work prop
+For ALL OTHER archetypes (wide_street, wide_interior, wide_nature, walking_solitude, sitting_window, over_shoulder, fabric_texture, emotional_close, walking_motion, gesture_motion, light_motion): NO PROP. Hands empty or in pockets.
+
 NO INVENTION RULE (CRITICAL — violation produces wrong images):
 The frame may contain ONLY:
 - garments listed in CHARACTER INVARIANTS wardrobe and scene brief wardrobe_lock (exhaustive — if not listed, not worn)
-- objects listed in CHARACTER INVARIANTS props and scene brief allowed_props (exhaustive — if not listed, not in frame)
 - environment details listed in scene brief location_constraints
 - the Marseille Stranger ONLY when explicitly flagged via drift seed
+- props from ALLOWED PROPS list — and ONLY if the archetype demands one (see above)
 
 If the scene logically would benefit from an object that is not listed, you MUST leave it out. A sparser frame is correct; an invented object is wrong.
 
@@ -67,12 +75,12 @@ Write 60–100 words. Single paragraph OR comma-separated tags — whichever rea
 Cover in this order:
 1. Subject — short physical description (age, hair, build) from the visual brief
 2. Wardrobe — REPEAT the scene brief wardrobe_lock verbatim, garment by garment. Do not paraphrase. Do not add unlisted items.
-3. Action — what she is doing right now (one verb in present participle: walking, holding, looking down). If she touches/holds an object, it MUST be from allowed_props.
-4. Setting — location in 4–8 words, from scene brief location_constraints
+3. Action — what she is doing right now (one verb in present participle). DEFAULT VERBS WITHOUT PROPS: walking, standing, looking, leaning, descending, riding (escalator), pausing, turning. Use a prop-action verb (holding, examining, peeling, reading) ONLY if this slot's archetype is hands_object, interaction_object, creator_process, or setup_shot. Otherwise: empty hands, hands in pockets, or hands at sides.
+4. Setting — location respecting the scene brief SPATIAL SETUP exactly. Do NOT invent geometry (no walls where there are stairs, no escalators going into walls, no impossible perspectives). Camera position must be one that physically exists in the described setup.
 5. Light — one source + direction + indoor/outdoor + rough time (e.g. "fluorescent overhead, late afternoon, indoor")
 6. Camera — lens in mm, aperture, shot type (e.g. "50mm f/2.8, medium shot, eye level")
 7. Quality tags — pick 3: photorealistic, natural skin texture, candid photo, real photograph, 35mm film, documentary photography
-8. Frame contains — explicit closure: "Frame contains: [list everything visible from steps 1-4]. Nothing else in frame."
+8. Frame contains — explicit closure: "Frame contains: [list everything visible from steps 1-4, including 'empty hands' or specific prop if applicable]. Nothing else in frame."
 
 End on its own line: "Signature: [one palette word] / [one lens word] / [one motion word]."
 (e.g. "Signature: charcoal / 50mm / still.")
@@ -338,6 +346,14 @@ function commonBody(args: BuildArgs): string {
   const visualRules = args.sceneBriefJson.visual_rules.map((r) => `- ${r}`).join("\n");
   const constraints = args.sceneBriefJson.location_constraints.map((c) => `- ${c}`).join("\n");
   const allowedProps = (args.sceneBriefJson.allowed_props ?? []).map((p) => `- ${p}`).join("\n");
+  const spatial = args.sceneBriefJson.spatial_setup;
+
+  // Detect whether this slot's archetype is one that justifies a visible prop
+  const archetypeAllowsProp =
+    args.archetypeId === "hands_object" ||
+    args.archetypeId === "interaction_object" ||
+    args.archetypeId === "creator_process" ||
+    args.archetypeId === "setup_shot";
 
   return `SCENE CONTINUITY LOCK (same for all assets in today's batch — use as concrete reference, NOT as language to copy):
 ${args.sceneBriefDoctrine}
@@ -349,13 +365,19 @@ STRUCTURED LOCK PARAMETERS (translate these into plain visual language):
 - Weather implied: ${args.sceneBriefJson.weather_implied}
 - Color palette: ${args.sceneBriefJson.color_palette.join(", ")}
 
-ALLOWED PROPS (the ONLY objects that may appear today — enumeration is closed):
-${allowedProps || "- (none — no props in frame at all)"}
+${spatial ? `SPATIAL SETUP (single shared 3D layout — every slot's camera position must respect this; do NOT invent new geometry):
+${spatial}
+` : ""}
+ALLOWED PROPS (OPTIONAL — use ONLY if this slot's archetype demands one; otherwise DEFAULT IS NO PROP, empty hands):
+${allowedProps || "- (none defined)"}
+${archetypeAllowsProp
+    ? `THIS SLOT'S ARCHETYPE (${args.archetypeId}) DEMANDS a prop — choose exactly one from the list above.`
+    : `THIS SLOT'S ARCHETYPE (${args.archetypeId}) does NOT demand a prop — leave hands empty, do not include any object from the props list.`}
 
 VISUAL RULES (must be obeyed, but never write them verbatim into the prompt):
 ${visualRules}
 
-LOCATION CONSTRAINTS:
+LOCATION CONSTRAINTS (geometric — respect spatial setup):
 ${constraints}
 
 CHARACTER VISUAL BRIEF: ${args.character.visual_brief}
