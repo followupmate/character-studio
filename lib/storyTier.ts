@@ -49,7 +49,15 @@ export async function pickTier(characterId: string, lookbackDays = 10): Promise<
 
 const MISMATCH_HOURS = ["04:17", "03:09", "01:42", "23:56", "00:13", "02:48"];
 
-export async function pickDriftSeeds(characterId: string, lookbackDays = 14): Promise<DriftSeed[]> {
+// Atmospheric erosion phases — see docs/SCENARIO.md
+// Phase 1 (days 1-30): ZERO drift, pure grounded routine. Establish predictability.
+// Phase 2+ (day 31+): drift seeds active per probability table below.
+const PHASE_1_LAST_DAY = 30;
+
+export async function pickDriftSeeds(characterId: string, dayNumber: number, lookbackDays = 14): Promise<DriftSeed[]> {
+  // Phase 1: no drift at all
+  if (dayNumber <= PHASE_1_LAST_DAY) return [];
+
   const { data } = await supabase
     .from("chs_story_days")
     .select("drift_seeds")

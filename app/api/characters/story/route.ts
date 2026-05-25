@@ -165,7 +165,7 @@ export async function GET() {
           : "First day. No history yet.";
 
       const tier = await pickTier(char.id);
-      const driftSeeds = await pickDriftSeeds(char.id);
+      const driftSeeds = await pickDriftSeeds(char.id, dayNumber);
 
       const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText });
 
