@@ -52,6 +52,28 @@ If the CHARACTER VISUAL BRIEF describes the subject as a woman, EVERY close-up o
 
 Skipping these markers in a face-cropped shot causes the image gen to invent generic/male anatomy. Mandatory for all woman-subject characters.
 
+FOREGROUND PRIORITY (CRITICAL for shots with high-frequency textured environments):
+The subject is ALWAYS the primary visual element — sharp, opaque, fully rendered, in the foreground.
+
+When the environment includes repeating high-frequency textures (escalator treads, moving walkway grooves, brick walls, tile floors, fence patterns, perforated metal, parallel pipes), these textures are SECONDARY visual elements:
+- Subject occupies the center 40–70% of the frame
+- Subject is fully opaque IN FRONT of the texture — texture does NOT pass through or blur into the subject's body area
+- Background texture is softened by depth of field, never matches subject sharpness
+- No motion-blur smearing of the subject — only the background may have slight motion softness
+
+Common failure: woman on escalator → image gen renders the escalator treads in sharp detail and dissolves the subject's torso/legs into vertical streaks. To prevent: explicitly state "subject in sharp foreground, escalator treads in soft background, no texture overlap with subject."
+
+If a drift seed (Marseille Stranger) is active, the background figure stands at deep background (10m+ behind subject), NEVER on the same surface (escalator step, walkway) as the subject.
+
+SKIN AND FACE REALISM (CRITICAL for close-up / portrait archetypes):
+When the slot is emotional_close or any frame where the face fills more than ~30% of the frame, the prompt MUST specify natural realism, otherwise the gen defaults to "AI beauty" (over-smoothed skin, perfect symmetry, plastic appearance):
+- "natural skin texture with visible pores"
+- "subtle asymmetry — eyes / eyebrows / lip corners not perfectly aligned (real faces aren't symmetric)"
+- "no airbrush, no plastic smoothing, no over-retouching, no soft-focus filter"
+- "minor skin redness or subtle blemish acceptable (not flawless)"
+
+These markers push the gen away from generic averaged beauty toward photo-realistic specificity.
+
 NO INVENTION RULE (CRITICAL — violation produces wrong images):
 The frame may contain ONLY:
 - garments listed in CHARACTER INVARIANTS wardrobe and scene brief wardrobe_lock (exhaustive — if not listed, not worn)

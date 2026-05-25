@@ -227,8 +227,8 @@ INSERT INTO chs_shot_archetypes (id, family, guidance) VALUES
   ('over_shoulder',      'subject',     'Reverse angle, over-shoulder framing. Subject back or partial back to camera; what she sees implied in frame.'),
   ('hands_object',       'detail',      'Close detail on hands holding or touching an object. Texture of skin, fabric, surface visible. Face out of frame.'),
   ('fabric_texture',     'detail',      'Close detail on clothing — fabric weave, drape, seam, how it sits on the body. Skin partially visible at fabric edge.'),
-  ('emotional_close',    'detail',      'Close on face — eyes, mouth, micro-expression. Soft natural light, no posed eye contact, mid-blink or mid-thought.'),
-  ('walking_motion',     'motion',      'Sustained walking shot in motion. Camera follows or pans alongside. Fabric and hair respond to movement.'),
+  ('emotional_close',    'detail',      'TIGHT face crop — face fills 60–80% of vertical frame. Eyes, mouth, micro-expression. Soft natural light, no posed eye contact, mid-blink or mid-thought. Natural skin texture with visible pores; subtle asymmetry is real, not a flaw. No airbrush, no AI plastic smoothing.'),
+  ('walking_motion',     'motion',      'Sustained walking shot in motion. Subject is primary focus, center of frame, sharp and fully opaque. Camera follows or pans alongside. Background (corridor, escalator, floor texture) is slightly softer than subject — never matches subject sharpness. Fabric and hair respond to movement, but the subject body is never blurred or dissolved into the environment.'),
   ('gesture_motion',     'motion',      'Slow motion of a single gesture — turning head, raising cup, adjusting sleeve. Mid-action loop, never start or end.'),
   ('light_motion',       'motion',      'Light shifting across subject — cloud passing, curtain moving, sun angle changing. Subject relatively still, environment moves.'),
   ('creator_process',    'bts',         'Behind-the-scenes — laptop, editing desk, notebooks, work in progress. Real creator-mode, unposed, low-key.'),
@@ -238,6 +238,15 @@ ON CONFLICT (id) DO NOTHING;
 -- =============================================
 -- Publish layer v2 — unified queue + batch link
 -- =============================================
+
+-- Archetype guidance updates (re-runnable — UPDATE bypasses INSERT ON CONFLICT)
+UPDATE chs_shot_archetypes SET guidance =
+  'TIGHT face crop — face fills 60–80% of vertical frame. Eyes, mouth, micro-expression. Soft natural light, no posed eye contact, mid-blink or mid-thought. Natural skin texture with visible pores; subtle asymmetry is real, not a flaw. No airbrush, no AI plastic smoothing.'
+  WHERE id = 'emotional_close';
+
+UPDATE chs_shot_archetypes SET guidance =
+  'Sustained walking shot in motion. Subject is primary focus, center of frame, sharp and fully opaque. Camera follows or pans alongside. Background (corridor, escalator, floor texture) is slightly softer than subject — never matches subject sharpness. Fabric and hair respond to movement, but the subject body is never blurred or dissolved into the environment.'
+  WHERE id = 'walking_motion';
 
 -- chs_posts: support carousel as a single row (media_ids array) + link to story_day for batch origin tracking
 ALTER TABLE chs_posts
