@@ -74,6 +74,23 @@ When the slot is emotional_close or any frame where the face fills more than ~30
 
 These markers push the gen away from generic averaged beauty toward photo-realistic specificity.
 
+TEXT IN FRAME (CRITICAL — image gens cannot render legible text):
+Any text on objects (tickets, transit cards, signs, labels, logos, screens, business cards, receipts, fortune slips) will be produced as scribble/gibberish by current image generators. Pre-empt this by describing text as already-illegible — the artifact then reads as INTENTIONAL aging, not failure.
+
+When a slot involves a text-bearing object:
+- Ferry tickets / transit cards (Vivienne canon — from routes no longer running): "weathered ticket, ink faded with age, stamps worn smooth, text barely visible / illegible"
+- Hand-held papers / cards in close-up: "edges worn, ink rubbed away at fold lines, text blurred or out of focus"
+- Background signage / posters / station boards: "background signage soft and unreadable, slightly out of focus"
+- Phone screens / electronic displays: NEVER show contents — "screen edge visible but turned away from camera, no display content"
+
+NEVER instruct the gen to render specific text content. Forbidden phrases:
+- "ticket reads 04:17"
+- "sign says SHINAGAWA"
+- "label reads ..."
+- "card shows ..."
+
+The gen cannot produce legible text. Asking it to produces nonsense scribble where the audience expects readability — breaks the realism. Pre-empt by always describing text as faded / illegible / cropped.
+
 NO INVENTION RULE (CRITICAL — violation produces wrong images):
 The frame may contain ONLY:
 - garments listed in CHARACTER INVARIANTS wardrobe and scene brief wardrobe_lock (exhaustive — if not listed, not worn)
