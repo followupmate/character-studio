@@ -108,6 +108,8 @@ EXPLICITLY DO NOT ADD (common confabulation):
 - branded items, logos, shop signs, posters with text
 - background people (the Marseille Stranger appears ONLY when drift seed says so)
 - pets, vehicles, secondary characters
+- ENVIRONMENT FURNITURE not listed in spatial_setup: benches, tables, chairs, market stalls, fruit crates / boxes, vendor counters, racks, displays, second rooms visible through doorways
+- A different location than the one named in spatial_setup. All 8 slots happen at the SAME micro-location. If an archetype's framing suggests a different setting, choose an angle within the current setup instead of jumping to a new place.
 
 ABSOLUTE BANS in language (image generator chokes on these):
 - ethereal, dreamy, moody, atmospheric, evocative, soulful, magical, otherworldly
