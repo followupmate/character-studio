@@ -236,6 +236,22 @@ INSERT INTO chs_shot_archetypes (id, family, guidance) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- =============================================
+-- Publish layer v2 — unified queue + batch link
+-- =============================================
+
+-- chs_posts: support carousel as a single row (media_ids array) + link to story_day for batch origin tracking
+ALTER TABLE chs_posts
+  ADD COLUMN IF NOT EXISTS media_ids     uuid[],
+  ADD COLUMN IF NOT EXISTS story_day_id  uuid REFERENCES chs_story_days(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS source        text DEFAULT 'manual'
+    CHECK (source IN ('manual','batch'));
+
+CREATE INDEX IF NOT EXISTS idx_posts_story_day ON chs_posts(story_day_id);
+CREATE INDEX IF NOT EXISTS idx_posts_due
+  ON chs_posts(scheduled_at)
+  WHERE status = 'scheduled';
+
+-- =============================================
 -- Vivienne v1.5 — Drift Edition
 -- Atmospheric residue replaces backstory canon
 -- =============================================

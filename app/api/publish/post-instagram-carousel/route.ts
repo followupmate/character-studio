@@ -20,9 +20,11 @@ async function pollContainerReady(containerId: string, accessToken: string, isVi
 
 export async function POST(req: Request) {
   let media_ids: string[] | undefined;
+  let post_id: string | undefined;
   try {
     const body = await req.json();
     media_ids = body.media_ids as string[];
+    post_id = body.post_id as string | undefined;
     const { caption, hashtags, character_id } = body;
 
     const igUserId = process.env.IG_USER_ID;
@@ -101,21 +103,36 @@ export async function POST(req: Request) {
     ).then((r) => r.json());
     if (!publishRes.id) throw new Error(`IG carousel publish error: ${JSON.stringify(publishRes)}`);
 
-    // Step 4: mark all posts as posted
-    await supabase
-      .from("chs_posts")
-      .update({
-        status: "posted",
-        posted_at: new Date().toISOString(),
-        platform_post_id: publishRes.id,
-      })
-      .in("media_id", media_ids)
-      .eq("platform", "instagram");
+    // Step 4: mark posts as posted
+    // New flow: single chs_posts row with media_ids array, identified by post_id
+    // Legacy flow: N chs_posts rows (one per media_id), updated by media_id IN media_ids
+    if (post_id) {
+      await supabase
+        .from("chs_posts")
+        .update({
+          status: "posted",
+          posted_at: new Date().toISOString(),
+          platform_post_id: publishRes.id,
+        })
+        .eq("id", post_id);
+    } else {
+      await supabase
+        .from("chs_posts")
+        .update({
+          status: "posted",
+          posted_at: new Date().toISOString(),
+          platform_post_id: publishRes.id,
+        })
+        .in("media_id", media_ids)
+        .eq("platform", "instagram");
+    }
 
     return NextResponse.json({ success: true, platform_post_id: publishRes.id });
   } catch (error) {
     console.error("[post-instagram-carousel]", error);
-    if (media_ids?.length) {
+    if (post_id) {
+      await supabase.from("chs_posts").update({ status: "failed" }).eq("id", post_id);
+    } else if (media_ids?.length) {
       await supabase
         .from("chs_posts")
         .update({ status: "failed" })
