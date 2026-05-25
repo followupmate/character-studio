@@ -197,12 +197,15 @@ export default function GrowthClient({
 
             {/* Per-slot breakdown */}
             {plan && planMedia.length > 0 && (
-              <div className="mt-3 grid grid-cols-7 gap-1">
-                {["carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5", "reel_video", "story_bts"].map((slot) => {
+              <div className="mt-3 grid grid-cols-4 sm:grid-cols-8 gap-1">
+                {["carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5", "reel_start_frame", "reel_video", "story_bts"].map((slot) => {
                   const m = planMedia.find((mm) => mm.slot === slot);
                   const status = m?.generation_status ?? "missing";
                   const cls = GEN_STATUS_STYLES[status] ?? "text-muted/40";
-                  const short = slot.replace("carousel_", "C").replace("reel_video", "Reel").replace("story_bts", "Story");
+                  const short = slot === "reel_start_frame" ? "Start" :
+                    slot === "reel_video" ? "Reel" :
+                    slot === "story_bts" ? "Story" :
+                    slot.replace("carousel_", "C");
                   return (
                     <div key={slot} className={`flex flex-col items-center justify-center h-12 border border-border/40 font-mono ${cls}`}>
                       <span className="text-[8px] tracking-wider">{short}</span>

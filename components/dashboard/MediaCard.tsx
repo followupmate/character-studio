@@ -25,7 +25,8 @@ const SLOT_LABELS: Record<string, string> = {
   carousel_3: "CAROUSEL 3 · DETAIL",
   carousel_4: "CAROUSEL 4 · REVERSE",
   carousel_5: "CAROUSEL 5 · EMOTIONAL",
-  reel_video: "REEL VIDEO",
+  reel_start_frame: "REEL · START FRAME (KLING)",
+  reel_video: "REEL · MOTION (KLING)",
   story_bts: "STORY · BTS",
 };
 

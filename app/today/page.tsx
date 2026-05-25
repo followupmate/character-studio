@@ -208,8 +208,8 @@ export default async function TodayPage({
                             )}
                             {reel.length > 0 && (
                               <ProductionGroup
-                                title="Reel"
-                                hint="Reach video · 9:16 · 5–9s"
+                                title="Reel (Kling 3.0)"
+                                hint="Start frame → image gen, motion → Kling i2v · 9:16 · 5–9s"
                                 items={reel}
                               />
                             )}

@@ -28,21 +28,37 @@ interface DoctrineSpec {
   videoMaxTokens: number;
 }
 
-const CINEMATIC_PHOTO_HEADER = `You are writing a photo prompt for an AI image generator (Higgsfield Soul 2). Image generators are trained on real photo captions — they understand plain visual language, NOT optical physics jargon or biological terminology.
-
-Your output is ingested by the image model as plain text. Words it does not recognize (e.g. "subsurface scattering", "chromatic aberration", "saccadic drift") produce hallucinated, broken images.
+const CINEMATIC_PHOTO_HEADER = `You are writing a photo prompt for an AI image generator. Image generators are trained on real photo captions — plain visual language, NOT optical physics jargon or biological terminology.
 
 WRITE LIKE: a photographer captioning their own photograph in 1–2 sentences.
 
-ABSOLUTE BANS (image generator chokes on these):
+NO INVENTION RULE (CRITICAL — violation produces wrong images):
+The frame may contain ONLY:
+- garments listed in CHARACTER INVARIANTS wardrobe and scene brief wardrobe_lock (exhaustive — if not listed, not worn)
+- objects listed in CHARACTER INVARIANTS props and scene brief allowed_props (exhaustive — if not listed, not in frame)
+- environment details listed in scene brief location_constraints
+- the Marseille Stranger ONLY when explicitly flagged via drift seed
+
+If the scene logically would benefit from an object that is not listed, you MUST leave it out. A sparser frame is correct; an invented object is wrong.
+
+EXPLICITLY DO NOT ADD (common confabulation):
+- plastic bags, paper bags, shopping bags, takeaway bags
+- coffee cups, water bottles, food containers
+- phones, earbuds, watches, sunglasses (unless in wardrobe)
+- jewelry beyond what's listed
+- branded items, logos, shop signs, posters with text
+- background people (the Marseille Stranger appears ONLY when drift seed says so)
+- pets, vehicles, secondary characters
+
+ABSOLUTE BANS in language (image generator chokes on these):
 - ethereal, dreamy, moody, atmospheric, evocative, soulful, magical, otherworldly
-- cinematic grade, film look, vibe, aesthetic, energy, mood
+- cinematic grade, film look, vibe, aesthetic, energy
 - gorgeous, stunning, breathtaking, beautiful, perfect, flawless
-- optical physics: chromatic aberration, subsurface scattering, lens breathing, focus breathing, axial CA, anamorphic
-- biological/medical: saccadic drift, ischemic blanching, mydriasis, capillary flush, vascular pattern
-- abstract measurements: 0.2Hz, ±2mm, 1–3%, EMG, μ, n≈
-- philosophical: "caught existing", "observational truth", "what a camera sees not what a poet feels"
-- emotional abstraction: "she feels", "her soul", "the world holds its breath"`;
+- optical physics: chromatic aberration, subsurface scattering, lens breathing, focus breathing
+- biological/medical: saccadic drift, ischemic blanching, mydriasis, capillary flush
+- abstract measurements: 0.2Hz, ±2mm, 1–3%, Hz, μ
+- philosophical: "caught existing", "observational truth"
+- emotional abstraction: "she feels", "her soul"`;
 
 const CINEMATIC_PHOTO_OUTPUT = `OUTPUT RULES:
 
@@ -50,12 +66,13 @@ Write 60–100 words. Single paragraph OR comma-separated tags — whichever rea
 
 Cover in this order:
 1. Subject — short physical description (age, hair, build) from the visual brief
-2. Wardrobe — exact garments from scene brief wardrobe_lock (repeat them concretely)
-3. Action — what she is doing right now (one verb in present participle: walking, holding, looking down)
+2. Wardrobe — REPEAT the scene brief wardrobe_lock verbatim, garment by garment. Do not paraphrase. Do not add unlisted items.
+3. Action — what she is doing right now (one verb in present participle: walking, holding, looking down). If she touches/holds an object, it MUST be from allowed_props.
 4. Setting — location in 4–8 words, from scene brief location_constraints
 5. Light — one source + direction + indoor/outdoor + rough time (e.g. "fluorescent overhead, late afternoon, indoor")
 6. Camera — lens in mm, aperture, shot type (e.g. "50mm f/2.8, medium shot, eye level")
 7. Quality tags — pick 3: photorealistic, natural skin texture, candid photo, real photograph, 35mm film, documentary photography
+8. Frame contains — explicit closure: "Frame contains: [list everything visible from steps 1-4]. Nothing else in frame."
 
 End on its own line: "Signature: [one palette word] / [one lens word] / [one motion word]."
 (e.g. "Signature: charcoal / 50mm / still.")
@@ -293,11 +310,11 @@ function sacredBlock(sacred: Record<string, unknown> | null): string {
   const lines: string[] = [];
   const wardrobe = (sacred as { wardrobe_anchors?: unknown }).wardrobe_anchors;
   if (Array.isArray(wardrobe) && wardrobe.length > 0) {
-    lines.push(`- Wardrobe (always): ${wardrobe.map(String).join("; ")}`);
+    lines.push(`- Wardrobe ANCHORS (always present, never substituted): ${wardrobe.map(String).join("; ")}`);
   }
   const props = (sacred as { props?: unknown }).props;
   if (Array.isArray(props) && props.length > 0) {
-    lines.push(`- Possible props: ${props.map(String).join("; ")}`);
+    lines.push(`- Allowed props (use ONLY these; no other carry-objects may appear): ${props.map(String).join("; ")}`);
   }
   const env = (sacred as { recurring_environment?: unknown }).recurring_environment;
   if (Array.isArray(env) && env.length > 0) {
@@ -305,31 +322,35 @@ function sacredBlock(sacred: Record<string, unknown> | null): string {
   }
   const stranger = (sacred as { marseille_stranger?: { prompt_injection?: string } }).marseille_stranger;
   if (stranger?.prompt_injection) {
-    lines.push(`- Background figure (only if drift seed active in this batch): ${stranger.prompt_injection}`);
+    lines.push(`- Background figure (ONLY if drift seed recurring_stranger is active in this batch — otherwise NO background figure): ${stranger.prompt_injection}`);
   }
   const never = (sacred as { never_show?: unknown }).never_show;
   if (Array.isArray(never) && never.length > 0) {
-    lines.push(`- Never show: ${never.map(String).join("; ")}`);
+    lines.push(`- ABSOLUTELY NEVER SHOW: ${never.map(String).join("; ")}`);
   }
 
   if (lines.length === 0) return "";
-  return `\nCHARACTER INVARIANTS (apply only what fits this slot — do not list, weave into the prompt naturally):
+  return `\nCHARACTER INVARIANTS (mandatory — enumerative, not suggestive):
 ${lines.join("\n")}\n`;
 }
 
 function commonBody(args: BuildArgs): string {
   const visualRules = args.sceneBriefJson.visual_rules.map((r) => `- ${r}`).join("\n");
   const constraints = args.sceneBriefJson.location_constraints.map((c) => `- ${c}`).join("\n");
+  const allowedProps = (args.sceneBriefJson.allowed_props ?? []).map((p) => `- ${p}`).join("\n");
 
-  return `SCENE CONTINUITY LOCK (same for all 7 assets in today's batch — use as concrete reference, NOT as language to copy):
+  return `SCENE CONTINUITY LOCK (same for all assets in today's batch — use as concrete reference, NOT as language to copy):
 ${args.sceneBriefDoctrine}
 
 STRUCTURED LOCK PARAMETERS (translate these into plain visual language):
-- Wardrobe lock: ${args.sceneBriefJson.wardrobe_lock}
+- Wardrobe lock (EXHAUSTIVE — these and only these garments): ${args.sceneBriefJson.wardrobe_lock}
 - Lighting state: ${args.sceneBriefJson.lighting_state}
 - Time of day: ${args.sceneBriefJson.time_of_day}
 - Weather implied: ${args.sceneBriefJson.weather_implied}
 - Color palette: ${args.sceneBriefJson.color_palette.join(", ")}
+
+ALLOWED PROPS (the ONLY objects that may appear today — enumeration is closed):
+${allowedProps || "- (none — no props in frame at all)"}
 
 VISUAL RULES (must be obeyed, but never write them verbatim into the prompt):
 ${visualRules}
