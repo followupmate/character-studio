@@ -5,6 +5,7 @@ export interface SceneBriefJson {
   color_palette: string[];
   visual_rules: string[];
   location_constraints: string[];
+  spatial_setup: string;
   wardrobe_lock: string;
   allowed_props: string[];
   lighting_state: string;
@@ -118,9 +119,10 @@ Valid JSON only, no markdown:
   "camera_language": "one short phrase in plain words (e.g. 'static handheld 50mm' or 'slow dolly 35mm')",
   "color_palette": ["3 to 5 simple color tokens (e.g. 'charcoal', 'fluorescent green', 'concrete grey')"],
   "visual_rules": ["3 to 5 plain rules each in 3-7 words (e.g. 'no direct eye contact', 'no smiling', 'wardrobe never changed', 'no mirrors')"],
-  "location_constraints": ["2 to 4 short constraints (e.g. 'same Shinagawa platform', 'same overhead lighting')"],
+  "location_constraints": ["3 to 5 GEOMETRIC/SPATIAL constraints — describe what is WHERE in physical space. Examples: 'subject stands on north-side platform edge', 'escalator descends to her left at 30 degrees', 'concrete pillar 2m in front of her', 'fluorescent ceiling lights at 3m height', 'no signage or text visible in frame'. AVOID vague constraints like 'same lighting' — instead say 'overhead fluorescent fixtures every 3m'."],
+  "spatial_setup": "ONE concrete sentence describing the SINGLE 3D layout that every slot will frame from a different angle. Example: 'Subject stands on a Shinagawa underground platform facing south; an escalator descends behind her right shoulder; tiled concrete wall 5m in front; overhead fluorescent strip lights at 3m height; concrete floor extends ~8m in all directions before a stair railing on the left. The entire batch is shot within this single physical setup; only camera position changes between slots.' Be physically possible. Avoid impossible geometry (escalators into walls, stairs to nowhere).",
   "wardrobe_lock": "EXHAUSTIVE list of garments, comma-separated. Format: 'charcoal wool coat (knee-length, late-90s cut), black trousers, black ankle boots, brown leather shoulder bag (worn strap), no jewelry, no scarf, no hat'. If a garment is not listed, it is NOT in the frame.",
-  "allowed_props": ["EXHAUSTIVE enumeration of objects the subject may carry, touch, or be near today. Anchored to character's sacred_details.props plus 1-3 scene-specific items. If an object is not listed, it CANNOT appear in any frame. Examples: 'three loose mandarins in right coat pocket', 'used ferry ticket in left pocket', 'plain notebook in shoulder bag', 'metal token on keyring'. NEVER include: plastic bags, shopping bags, takeaway containers, coffee cups, phones, branded items — unless explicitly part of character canon."],
+  "allowed_props": ["AT MOST 3-4 objects that MAY appear in detail/interaction-archetype slots. Most slots will use NONE of these. Anchored to character's sacred_details.props. Examples: 'three loose mandarins in right coat pocket', 'used ferry ticket in left pocket', 'plain notebook in shoulder bag', 'metal token on keyring'. Do NOT include scene-specific newcomers — keep tight. NEVER include: plastic bags, shopping bags, takeaway containers, coffee cups, phones, branded items."],
   "lighting_state": "one light source, direction, color (e.g. 'overhead fluorescent, harsh, neutral white')",
   "time_of_day": "one of: dawn | morning | midday | golden_hour | dusk | blue_hour | night | indoor_lamp | fluorescent",
   "weather_implied": "simple word (clear, overcast, humid, dry wind, post-rain, indoor)"
