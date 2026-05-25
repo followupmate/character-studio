@@ -36,6 +36,23 @@ type QueuePost = {
   chs_media: { type: string; media_url: string | null } | null;
 };
 
+type BatchSlot = {
+  id: string;
+  slot: string;
+  sequence_index: number | null;
+  type: string;
+  channel: string | null;
+  media_url: string | null;
+  generation_status: string | null;
+};
+
+type BatchStatusResponse = {
+  storyDay: { id: string; ig_caption: string | null; hashtags: string[] | null } | null;
+  plan: { id: string; batch_status: string | null } | null;
+  media: BatchSlot[];
+  queued: Array<{ id: string; post_type: string; status: string; scheduled_at: string | null }>;
+};
+
 type Toast = { ok: boolean; msg: string };
 type PostType = "single" | "carousel";
 type CaptionSource = "story_day" | "generated" | null;
@@ -254,15 +271,15 @@ export default function PublishClient({
   const [queue, setQueue] = useState<QueuePost[]>(initialQueue);
   const [toast, setToast] = useState<Toast | null>(null);
 
+  // Today's batch info
+  const [batch, setBatch] = useState<BatchStatusResponse | null>(null);
+  const [batchScheduling, setBatchScheduling] = useState(false);
+
   const showToast = useCallback((ok: boolean, msg: string) => setToast({ ok, msg }), []);
 
-  // Pre-fill from Growth System query params
+  // Pre-fill scheduled time from query param (direct linking)
   useEffect(() => {
-    const caption = searchParams.get("ig_caption");
-    const hashtags = searchParams.get("hashtags");
     const time = searchParams.get("scheduled_time");
-    if (caption) { setIgCaption(caption); setCaptionReady(true); }
-    if (hashtags) setHashtags(hashtags);
     if (time && time !== "now") {
       const today = new Date();
       const [h, m] = time.split(":").map(Number);
@@ -294,6 +311,38 @@ export default function PublishClient({
       setStoryLinkUrl(localStorage.getItem(`story_link_url_${charId}`) ?? "");
     }
   }, [charId]);
+
+  // Fetch today's batch info when character changes
+  useEffect(() => {
+    if (!charId) { setBatch(null); return; }
+    fetch(`/api/publish/batch-status?character_id=${charId}`)
+      .then((r) => r.json())
+      .then((data: BatchStatusResponse) => setBatch(data))
+      .catch(() => setBatch(null));
+  }, [charId]);
+
+  const scheduleBatch = async () => {
+    if (!charId) return;
+    setBatchScheduling(true);
+    try {
+      const res = await fetch(`/api/publish/from-batch?character_id=${charId}`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        const created = data.totalCreated ?? 0;
+        showToast(true, created > 0 ? `Naplánovaných ${created} postov` : "Nič nové (všetko už v queue)");
+        // Refresh batch info + queue
+        const refreshed = await fetch(`/api/publish/batch-status?character_id=${charId}`).then((r) => r.json());
+        setBatch(refreshed);
+        await refreshQueue();
+      } else {
+        showToast(false, "Chyba: " + (data.error ?? "unknown"));
+      }
+    } catch (e) {
+      showToast(false, String(e));
+    } finally {
+      setBatchScheduling(false);
+    }
+  };
 
   // Persist story link URL to localStorage
   const handleStoryLinkChange = (url: string) => {
@@ -581,12 +630,20 @@ export default function PublishClient({
 
   return (
     <div className="p-4 lg:p-8 space-y-8 max-w-4xl">
-      {/* ── Section A: Upload & Prepare ────────────────────────── */}
+      {/* ── Section 0: Today's batch (auto-publish path) ─────── */}
+      <BatchSection
+        batch={batch}
+        scheduling={batchScheduling}
+        onSchedule={scheduleBatch}
+        charName={selectedChar?.name ?? "—"}
+      />
+
+      {/* ── Section A: Upload & Prepare (manual path) ─────────── */}
       <section className="bg-bg2 border border-border">
         <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center gap-3">
           <span className="material-symbols-outlined text-[16px] text-muted">upload</span>
           <p className="font-mono text-[9px] tracking-widest text-muted uppercase">
-            // Upload &amp; Prepare
+            // Manual upload &amp; prepare
           </p>
         </div>
 
@@ -1123,4 +1180,146 @@ function defaultScheduledAt(postingTime: string): string {
   today.setHours(h ?? 10, m ?? 0, 0, 0);
   if (today <= new Date()) today.setDate(today.getDate() + 1);
   return today.toISOString().slice(0, 16);
+}
+
+const SLOT_ORDER = ["carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5", "reel_video", "story_bts"];
+const SLOT_SHORT: Record<string, string> = {
+  carousel_1: "C1", carousel_2: "C2", carousel_3: "C3", carousel_4: "C4", carousel_5: "C5",
+  reel_video: "Reel", story_bts: "Story",
+};
+
+function BatchSection({
+  batch, scheduling, onSchedule, charName,
+}: {
+  batch: BatchStatusResponse | null;
+  scheduling: boolean;
+  onSchedule: () => void;
+  charName: string;
+}) {
+  const planExists = !!batch?.plan;
+  const slotMap = new Map<string, BatchSlot>();
+  (batch?.media ?? []).forEach((m) => slotMap.set(m.slot, m));
+
+  const readySlots = (batch?.media ?? []).filter((m) => !!m.media_url);
+  const totalSlots = (batch?.media ?? []).length;
+
+  const queuedByType = new Set((batch?.queued ?? []).map((q) => q.post_type));
+  const expectedQueueable: Array<{ type: string; requires: string[] }> = [
+    { type: "carousel", requires: ["carousel_1","carousel_2","carousel_3","carousel_4","carousel_5"] },
+    { type: "reel",     requires: ["reel_video"] },
+    { type: "story",    requires: ["story_bts"] },
+  ];
+
+  const readyTypes: string[] = [];
+  const blockedTypes: Array<{ type: string; missing: string[] }> = [];
+  for (const e of expectedQueueable) {
+    const missing = e.requires.filter((slot) => !slotMap.get(slot)?.media_url);
+    if (missing.length === 0) readyTypes.push(e.type);
+    else blockedTypes.push({ type: e.type, missing });
+  }
+
+  const newlyQueueable = readyTypes.filter((t) => !queuedByType.has(t));
+  const canSchedule = newlyQueueable.length > 0;
+
+  return (
+    <section className="bg-bg2 border border-border">
+      <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-[16px] text-muted">auto_awesome</span>
+          <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Dnešný batch — {charName}</p>
+        </div>
+        <span className="font-mono text-[10px] text-muted">
+          {totalSlots > 0 ? `${readySlots.length} / ${totalSlots} ready` : "—"}
+        </span>
+      </div>
+
+      <div className="p-6 space-y-4">
+        {!planExists ? (
+          <p className="font-mono text-[10px] text-muted italic">
+            — žiadny batch pre dnešok (cron 06:00 UTC ho ešte nespustil) —
+          </p>
+        ) : (
+          <>
+            {/* 7-slot grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {SLOT_ORDER.map((slot) => {
+                const m = slotMap.get(slot);
+                const status = m?.media_url
+                  ? "ready"
+                  : m?.generation_status === "completed"
+                  ? "no_media"
+                  : m?.generation_status ?? "missing";
+                const cls =
+                  status === "ready"      ? "border-teal/40 bg-teal/10 text-teal" :
+                  status === "no_media"   ? "border-amber/30 bg-amber/5 text-amber" :
+                  status === "completed"  ? "border-amber/30 text-amber" :
+                  status === "failed"     ? "border-red-400/30 bg-red-400/5 text-red-400" :
+                  "border-border/40 text-muted/40";
+                const symbol =
+                  status === "ready"   ? "✓" :
+                  status === "no_media"? "URL?" :
+                  status === "failed"  ? "✕" : "○";
+                return (
+                  <div key={slot} className={`flex flex-col items-center justify-center h-14 border font-mono ${cls}`}>
+                    <span className="text-[8px] tracking-wider">{SLOT_SHORT[slot]}</span>
+                    <span className="text-[10px]">{symbol}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Queueable summary */}
+            <div className="grid grid-cols-3 gap-2">
+              {expectedQueueable.map((e) => {
+                const isReady = readyTypes.includes(e.type);
+                const isQueued = queuedByType.has(e.type);
+                const cls = isQueued
+                  ? "border-accent/30 bg-accent/5 text-accent"
+                  : isReady
+                  ? "border-teal/30 bg-teal/5 text-teal"
+                  : "border-border bg-bg3 text-muted2";
+                const label = isQueued ? "v queue" : isReady ? "pripravený" : "chýba media";
+                return (
+                  <div key={e.type} className={`border px-3 py-2 ${cls}`}>
+                    <p className="font-mono text-[8px] uppercase tracking-wider">{e.type}</p>
+                    <p className="font-mono text-[11px] mt-0.5">{label}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Action */}
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/40">
+              <div className="font-mono text-[9px] text-muted2 leading-relaxed flex-1">
+                {canSchedule ? (
+                  <>Naplánuje <span className="text-teal">{newlyQueueable.join(", ")}</span> z dnešného batchu do queue.</>
+                ) : readyTypes.length === 0 ? (
+                  "Žiadne sloty zatiaľ pripravené (treba uložiť media_url cez Dashboard alebo Today)."
+                ) : (
+                  "Všetko ready už je v queue."
+                )}
+              </div>
+              <button
+                onClick={onSchedule}
+                disabled={scheduling || !canSchedule}
+                className="flex items-center gap-2 px-3 py-2 border border-teal/40 text-teal bg-teal/10 font-mono text-[10px] uppercase tracking-wider hover:bg-teal/20 transition-all disabled:opacity-40"
+              >
+                {scheduling ? (
+                  <><span className="w-3 h-3 border border-teal border-t-transparent animate-spin rounded-full" />Plánujem…</>
+                ) : (
+                  <><span className="material-symbols-outlined text-[14px]">event_available</span>Naplánuj batch</>
+                )}
+              </button>
+            </div>
+
+            {blockedTypes.length > 0 && (
+              <p className="font-mono text-[9px] text-muted">
+                Blokované: {blockedTypes.map((b) => `${b.type} (chýba: ${b.missing.map((s) => SLOT_SHORT[s] ?? s).join(", ")})`).join(" · ")}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
 }

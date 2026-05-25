@@ -6,9 +6,16 @@ export const maxDuration = 60;
 
 function isAuthorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // no secret configured — open (Vercel internal calls)
+  if (!secret) return true; // no secret configured — open
+
   const auth = req.headers.get("authorization");
-  return auth === `Bearer ${secret}`;
+  if (auth === `Bearer ${secret}`) return true;
+
+  // Query param fallback for external schedulers (cron-job.org etc.)
+  const url = new URL(req.url);
+  if (url.searchParams.get("secret") === secret) return true;
+
+  return false;
 }
 
 export async function POST(req: Request) {
@@ -18,7 +25,7 @@ export async function POST(req: Request) {
   try {
     const { data: duePosts, error } = await supabase
       .from("chs_posts")
-      .select("id, platform, post_type")
+      .select("id, platform, post_type, media_ids, character_id, ig_caption, hashtags")
       .eq("status", "scheduled")
       .lte("scheduled_at", new Date().toISOString());
 
@@ -31,8 +38,34 @@ export async function POST(req: Request) {
       ? `https://${req.headers.get("x-forwarded-host")}`
       : process.env.APP_URL ?? "http://localhost:3000";
 
+    type DuePost = {
+      id: string;
+      platform: string;
+      post_type: string | null;
+      media_ids: string[] | null;
+      character_id: string | null;
+      ig_caption: string | null;
+      hashtags: string[] | null;
+    };
+
     const results = await Promise.allSettled(
-      duePosts.map(async (post: { id: string; platform: string; post_type: string | null }) => {
+      (duePosts as DuePost[]).map(async (post) => {
+        if (post.post_type === "carousel" && post.media_ids && post.media_ids.length >= 2) {
+          const res = await fetch(`${origin}/api/publish/post-instagram-carousel`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              media_ids: post.media_ids,
+              caption: post.ig_caption ?? "",
+              hashtags: post.hashtags ?? [],
+              character_id: post.character_id,
+              post_id: post.id,
+            }),
+          });
+          const data = await res.json();
+          return { post_id: post.id, post_type: post.post_type, ...data };
+        }
+
         const isStory = post.post_type === "story";
         const endpoint = isStory
           ? `${origin}/api/publish/post-instagram-story`
