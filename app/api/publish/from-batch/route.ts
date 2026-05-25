@@ -165,6 +165,9 @@ async function processCharacter(
     if (missing > 0) result.warnings.push(`carousel: ${missing} slot(s) not ready`);
   }
 
+  // NOTE: reel_start_frame is intentionally NOT queued — it's a Kling helper asset.
+  // User feeds it to Kling 3.0 as image-to-video input; the resulting video lands in reel_video slot.
+
   // 2) Reel — instagram + youtube (if both platforms enabled)
   const reel = bySlot("reel_video");
   if (ready(reel)) {

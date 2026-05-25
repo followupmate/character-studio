@@ -1182,10 +1182,10 @@ function defaultScheduledAt(postingTime: string): string {
   return today.toISOString().slice(0, 16);
 }
 
-const SLOT_ORDER = ["carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5", "reel_video", "story_bts"];
+const SLOT_ORDER = ["carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5", "reel_start_frame", "reel_video", "story_bts"];
 const SLOT_SHORT: Record<string, string> = {
   carousel_1: "C1", carousel_2: "C2", carousel_3: "C3", carousel_4: "C4", carousel_5: "C5",
-  reel_video: "Reel", story_bts: "Story",
+  reel_start_frame: "Start", reel_video: "Reel", story_bts: "Story",
 };
 
 function BatchSection({
@@ -1240,8 +1240,8 @@ function BatchSection({
           </p>
         ) : (
           <>
-            {/* 7-slot grid */}
-            <div className="grid grid-cols-7 gap-1">
+            {/* 8-slot grid */}
+            <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
               {SLOT_ORDER.map((slot) => {
                 const m = slotMap.get(slot);
                 const status = m?.media_url

@@ -19,6 +19,7 @@ export type SlotName =
   | "carousel_3"
   | "carousel_4"
   | "carousel_5"
+  | "reel_start_frame"
   | "reel_video"
   | "story_bts";
 
@@ -79,12 +80,20 @@ export const DAILY_SLOTS: SlotSpec[] = [
     framing: "Emotional close on face — eyes, mouth, micro-expression. Reads as the punchline of the visual sentence. The viewer leaves with this image.",
   },
   {
+    slot: "reel_start_frame",
+    channel: "reel",
+    type: "photo",
+    sequence_index: null,
+    family: "subject",
+    framing: "First frame of the 9:16 vertical reel — this image will be fed to Kling 3.0 (image-to-video). Same scene, light, wardrobe as carousel. Subject anchored in the exact pose the motion will continue from — caught mid-action, mid-pose (not at start, not at end). Camera framing must leave room for the motion described in reel_video. Vertical 9:16.",
+  },
+  {
     slot: "reel_video",
     channel: "reel",
     type: "video",
     sequence_index: null,
     family: "motion",
-    framing: "5–9 seconds, 9:16. SAME SCENE as carousel — same location, light, wardrobe. First 0–3s must be a scroll-stopping hook: strongest motion or composition front-loaded. Loop logic explicit at end.",
+    framing: "5–9 seconds, 9:16. Motion prompt for Kling 3.0 image-to-video. Motion CONTINUES from the reel_start_frame pose — describe what changes from that frame onward (camera move, subject motion, environmental element). First 0–3s = strongest motion. Loop logic explicit at end.",
   },
   {
     slot: "story_bts",

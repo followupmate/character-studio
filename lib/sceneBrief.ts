@@ -6,6 +6,7 @@ export interface SceneBriefJson {
   visual_rules: string[];
   location_constraints: string[];
   wardrobe_lock: string;
+  allowed_props: string[];
   lighting_state: string;
   time_of_day: string;
   weather_implied: string;
@@ -118,7 +119,8 @@ Valid JSON only, no markdown:
   "color_palette": ["3 to 5 simple color tokens (e.g. 'charcoal', 'fluorescent green', 'concrete grey')"],
   "visual_rules": ["3 to 5 plain rules each in 3-7 words (e.g. 'no direct eye contact', 'no smiling', 'wardrobe never changed', 'no mirrors')"],
   "location_constraints": ["2 to 4 short constraints (e.g. 'same Shinagawa platform', 'same overhead lighting')"],
-  "wardrobe_lock": "exact garments in plain words, e.g. 'dark wool coat, black trousers, worn leather bag — no jewelry, no scarf'",
+  "wardrobe_lock": "EXHAUSTIVE list of garments, comma-separated. Format: 'charcoal wool coat (knee-length, late-90s cut), black trousers, black ankle boots, brown leather shoulder bag (worn strap), no jewelry, no scarf, no hat'. If a garment is not listed, it is NOT in the frame.",
+  "allowed_props": ["EXHAUSTIVE enumeration of objects the subject may carry, touch, or be near today. Anchored to character's sacred_details.props plus 1-3 scene-specific items. If an object is not listed, it CANNOT appear in any frame. Examples: 'three loose mandarins in right coat pocket', 'used ferry ticket in left pocket', 'plain notebook in shoulder bag', 'metal token on keyring'. NEVER include: plastic bags, shopping bags, takeaway containers, coffee cups, phones, branded items — unless explicitly part of character canon."],
   "lighting_state": "one light source, direction, color (e.g. 'overhead fluorescent, harsh, neutral white')",
   "time_of_day": "one of: dawn | morning | midday | golden_hour | dusk | blue_hour | night | indoor_lamp | fluorescent",
   "weather_implied": "simple word (clear, overcast, humid, dry wind, post-rain, indoor)"
