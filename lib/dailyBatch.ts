@@ -16,6 +16,22 @@ function resolveDoctrine(raw: unknown): DoctrineKey {
   return (ALLOWED_DOCTRINES as string[]).includes(v) ? (v as DoctrineKey) : "cinematic";
 }
 
+// Strip marseille_stranger from sacred_details unless the drift seed is active.
+// Without this filter, Claude sees stranger data in sacred_details JSON and
+// includes it in scene brief / slot prompts even when no drift seed says it
+// should appear today. Conditional instructions ("ONLY if drift seed active")
+// are unreliable — the only safe way is to remove the data.
+function filterSacredForGeneration(
+  sacred: Record<string, unknown> | null,
+  includeStranger: boolean
+): Record<string, unknown> | null {
+  if (!sacred) return null;
+  if (includeStranger) return sacred;
+  const filtered = { ...sacred };
+  delete filtered.marseille_stranger;
+  return filtered;
+}
+
 export interface DailyBatchResult {
   batchId: string;
   status: "ready" | "partial_failed" | "failed";
@@ -44,6 +60,15 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   if (charErr || !character) throw charErr ?? new Error("Character not found");
 
   const date = storyDay.date;
+
+  // Determine whether Marseille Stranger is active in today's batch.
+  // If not, strip from sacred_details so Claude never sees the data.
+  const driftSeedsForDay = (storyDay.drift_seeds as Array<{ kind: string; detail?: string }>) ?? [];
+  const strangerActive = driftSeedsForDay.some((s) => s.kind === "recurring_stranger");
+  const filteredSacred = filterSacredForGeneration(
+    (character.sacred_details as Record<string, unknown>) ?? null,
+    strangerActive
+  );
 
   const { data: existingPlan } = await supabase
     .from("chs_daily_plans")
@@ -76,12 +101,12 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
         emotional_beat: storyDay.emotional_beat ?? null,
         scene: storyDay.scene ?? null,
         tier: storyDay.tier ?? null,
-        drift_seeds: (storyDay.drift_seeds as Array<{ kind: string; detail?: string }>) ?? null,
+        drift_seeds: driftSeedsForDay,
       },
       character: {
         name: character.name,
         visual_brief: character.visual_brief,
-        sacred_details: character.sacred_details ?? null,
+        sacred_details: filteredSacred,
         visual_tone: character.visual_tone ?? null,
         styling_note: character.styling_note ?? null,
       },
@@ -153,6 +178,10 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
 
   const doctrine = resolveDoctrine(character.prompt_doctrine);
 
+  // Inject filtered sacred_details into the character object passed to slot prompts,
+  // so stranger data is only visible to Claude when the drift seed is actually active.
+  const characterForGen = { ...character, sacred_details: filteredSacred };
+
   for (const wave of [wave1, wave2, wave3]) {
     if (wave.length === 0) continue;
     const settled = await Promise.allSettled(
@@ -163,7 +192,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           archetypeGuidance: guidanceCache.get(archetypeMap[slot.slot]) ?? "",
           sceneBriefJson: sceneBriefJson as never,
           sceneBriefDoctrine,
-          character,
+          character: characterForGen,
           arcPosition: storyDay.arc_position,
           batchId,
           storyDayId,
@@ -201,7 +230,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           archetypeGuidance: guidanceCache.get(archetypeMap[slot.slot]) ?? "",
           sceneBriefJson: sceneBriefJson as never,
           sceneBriefDoctrine,
-          character,
+          character: characterForGen,
           arcPosition: storyDay.arc_position,
           batchId,
           storyDayId,
@@ -403,7 +432,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
 
     const { data: storyDay } = await supabase
       .from("chs_story_days")
-      .select("arc_position")
+      .select("arc_position, drift_seeds")
       .eq("id", row.chs_daily_plans.story_day_id)
       .single();
 
@@ -411,6 +440,15 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
 
     const guidance = await getArchetypeGuidance(row.shot_archetype);
     const doctrine = resolveDoctrine((char as { prompt_doctrine?: unknown }).prompt_doctrine);
+    const seeds = ((storyDay as { drift_seeds?: Array<{ kind: string }> }).drift_seeds) ?? [];
+    const strangerActive = seeds.some((s) => s.kind === "recurring_stranger");
+    const filteredChar = {
+      ...char,
+      sacred_details: filterSacredForGeneration(
+        (char as { sacred_details?: Record<string, unknown> }).sacred_details ?? null,
+        strangerActive
+      ),
+    };
 
     try {
       await supabase
@@ -428,7 +466,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
         archetypeGuidance: guidance,
         sceneBriefJson: row.chs_daily_plans.scene_brief,
         sceneBriefDoctrine: row.chs_daily_plans.scene_brief_doctrine,
-        character: char,
+        character: filteredChar,
         arcPosition: storyDay.arc_position,
       });
 
