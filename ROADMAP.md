@@ -43,3 +43,16 @@ ALTER TABLE chs_characters
 ## 2. Aspirational — eliminate Higgsfield dependency entirely
 
 Once Astria is solid for images and Kling for video, the Higgsfield SoulID2 lock-in becomes optional. Higgsfield can stay for users who prefer it, but Character Studio no longer requires it.
+
+## 3. Publish layer — deferred items
+
+Originally listed as "intentionally NOT in Option A" of the publish review. Two of the four were addressed in the later Option B refactor (commit 38efda0); two remain.
+
+### Completed in Option B
+- ✅ Konsolidácia dvoch paralelných publish pipelines — `/api/characters/publish` je teraz thin wrapper nad `from-batch`, žiadny duplicitný IG kód. Single source of truth: chs_posts queue.
+- ✅ Skutočné mapovanie 5-carousel batch slotov 1:1 na IG carousel auto-posting — `from-batch` vytvára JEDEN `chs_posts` row s `media_ids[]=[carousel_1..5]`, ktorý sa publikuje cez `post-instagram-carousel` v jedinom IG API call.
+
+### Still deferred
+- ⏳ Refactor `PublishClient.tsx` na menšie komponenty — 1126 LOC monolit s 19 useState hookmi. Single vs carousel logika vetvená všade. Risk regresií na živé IG/YT posty je nezanedbateľný; refactor sa oplatí keď bude solidný test coverage alebo druhý character. Plan: extract `BatchSection` (existuje), `ManualUploadForm`, `SchedulePanel`, `QueueTable` ako samostatné komponenty. Zdieľať file upload pipeline medzi single + carousel.
+- ⏳ Migrácia `story_link_url` z localStorage do DB — dnes per-character ostáva v prehliadači užívateľa. Stratí sa pri prepnutí zariadenia / inkognito. Treba: nový stĺpec `chs_characters.default_story_link_url` (alebo na úroveň posts: `chs_posts.story_link_url` už existuje, ale default per character chýba), API update endpoint, čítanie v PublishClient.
+
