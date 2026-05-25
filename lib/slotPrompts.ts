@@ -40,6 +40,18 @@ A prop appears in the frame ONLY when the slot's archetype explicitly demands it
 - archetype family 'bts' with archetype id 'creator_process' or 'setup_shot' → relevant work prop
 For ALL OTHER archetypes (wide_street, wide_interior, wide_nature, walking_solitude, sitting_window, over_shoulder, fabric_texture, emotional_close, walking_motion, gesture_motion, light_motion): NO PROP. Hands empty or in pockets.
 
+ANATOMY ANCHOR (CRITICAL for close-up / face-cropped shots):
+When the slot's archetype crops out the subject's face — hands_object, fabric_texture, certain emotional_close framings, any "from behind" shots — image generators lose gender context and default to generic or male-coded anatomy (hairy hands, thick male wrists, Adam's apple, beard shadow on jawline).
+
+If the CHARACTER VISUAL BRIEF describes the subject as a woman, EVERY close-up or partial-body frame MUST explicitly include feminine anatomy markers from this list:
+- HANDS visible (hands_object, any holding/touching): "feminine hands, slim fingers, smooth skin, no body hair, short neutral unpolished nails, no rings beyond what's in wardrobe"
+- WRISTS / FOREARMS visible (sleeves rolled, reaching): "slim feminine wrist, smooth skin, no body hair"
+- NECK / COLLARBONE visible (fabric_texture at collar, over_shoulder): "smooth feminine neck, no Adam's apple"
+- JAWLINE close (emotional_close, profile): "soft feminine jawline, no facial hair, no beard shadow"
+- SHOULDERS visible: "narrow feminine shoulders, soft musculature"
+
+Skipping these markers in a face-cropped shot causes the image gen to invent generic/male anatomy. Mandatory for all woman-subject characters.
+
 NO INVENTION RULE (CRITICAL — violation produces wrong images):
 The frame may contain ONLY:
 - garments listed in CHARACTER INVARIANTS wardrobe and scene brief wardrobe_lock (exhaustive — if not listed, not worn)
@@ -73,7 +85,7 @@ const CINEMATIC_PHOTO_OUTPUT = `OUTPUT RULES:
 Write 60–100 words. Single paragraph OR comma-separated tags — whichever reads more naturally for a photo caption. Plain visual language only.
 
 Cover in this order:
-1. Subject — short physical description (age, hair, build) from the visual brief
+1. Subject — short physical description (age, hair, build) from the visual brief. If THIS slot is a close-up / face-cropped archetype (hands_object, fabric_texture, emotional_close, or any frame that doesn't show the full face), ADD feminine anatomy markers from the ANATOMY ANCHOR rules at the front of the description (e.g. "feminine hands, slim fingers, smooth skin, no body hair" for hands_object).
 2. Wardrobe — REPEAT the scene brief wardrobe_lock verbatim, garment by garment. Do not paraphrase. Do not add unlisted items.
 3. Action — what she is doing right now (one verb in present participle). DEFAULT VERBS WITHOUT PROPS: walking, standing, looking, leaning, descending, riding (escalator), pausing, turning. Use a prop-action verb (holding, examining, peeling, reading) ONLY if this slot's archetype is hands_object, interaction_object, creator_process, or setup_shot. Otherwise: empty hands, hands in pockets, or hands at sides.
 4. Setting — location respecting the scene brief SPATIAL SETUP exactly. Do NOT invent geometry (no walls where there are stairs, no escalators going into walls, no impossible perspectives). Camera position must be one that physically exists in the described setup.
@@ -331,6 +343,11 @@ function sacredBlock(sacred: Record<string, unknown> | null): string {
   const stranger = (sacred as { marseille_stranger?: { prompt_injection?: string } }).marseille_stranger;
   if (stranger?.prompt_injection) {
     lines.push(`- Background figure (ONLY if drift seed recurring_stranger is active in this batch — otherwise NO background figure): ${stranger.prompt_injection}`);
+  }
+  const anatomy = (sacred as { anatomy_anchors?: Record<string, string> }).anatomy_anchors;
+  if (anatomy && typeof anatomy === "object" && Object.keys(anatomy).length > 0) {
+    const parts = Object.entries(anatomy).map(([k, v]) => `${k}: ${v}`);
+    lines.push(`- Anatomy anchors (mandatory in close-up / face-cropped frames): ${parts.join("; ")}`);
   }
   const never = (sacred as { never_show?: unknown }).never_show;
   if (Array.isArray(never) && never.length > 0) {
