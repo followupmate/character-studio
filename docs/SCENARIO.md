@@ -1,152 +1,114 @@
-# Scenario — Vivienne / Drift Edition
+# Scenario — Vivienne / Luxury Travel + Aesthetic Edition
 
 This is the editorial source of truth for the project. Every system decision (cron behaviour, prompt structure, UI choice) must be checked against the principles here.
 
 ## Core principle
 
-This is **not serial fiction**. There is no plot, no protagonist arc, no reveal. Vivienne is not a character moving through a story; she is a **stable presence in a slowly-destabilising world**.
+Vivienne is a luxury traveller and aspirational lifestyle figure. She moves between cities — Paris, Amalfi, Lisbon, Mykonos, Milan — and documents her life with the casual confidence of someone who has always lived this way. Her feed is warm, desirable, and slightly personal. The audience wants to travel with her, or simply be her.
 
-The progression is not narrative. It is **atmospheric erosion**: reality itself becomes incrementally less coherent over time. The audience's emotional investment grows with the world, not with the character.
-
-The product is the mystery. Explanation destroys the product.
+The commercial goal is dual: **brand deals** (luxury travel, fashion, hospitality) and **Fanvue** (intimate/exclusive content subscription). Phase 1 builds the travel audience. Phase 2+ layers in the intimate track.
 
 ## What must never exist
 
-The moment any of these appear, the project is dead:
+- ❌ Influencer clichés: "living my best life", "wanderlust", "blessed", "grateful", "healing era"
+- ❌ Hollow affirmations addressed to the audience ("you deserve this too!")
+- ❌ Press-release language ("excited to partner with")
+- ❌ Overly explicit content on the main feed — sensuality stays editorial
+- ❌ AI disclosure in any form
+- ❌ Brand name drops without a real deal in place
 
-- ❌ Reveals or explanations
-- ❌ "She is AI" / "It's a simulation" disclosure
-- ❌ A villain or antagonist
-- ❌ An ending, season finale, resolution
-- ❌ ARG-style puzzles inviting audience to "solve" anything
-- ❌ Classical 3-act structure
-- ❌ Backstory dumps
-- ❌ Direct address to camera ("guys, today I…")
-- ❌ Influencer voice patterns
+## Progression structure — 4 commercial phases
 
-If the audience asks "are you AI?" → comment about weather instead. If they ask "what's the lore?" → "the train was on time." If they ask "what year is it?" → silence.
+Phases are **time-gated**. Day count resets from 0 with the pivot launch.
 
-## Progression structure — 5 atmospheric phases
+---
 
-Phases are **time-gated, not event-gated**. They unfold whether or not anything "happens".
+### Phase 1 — Location Establishment
+**Days 1–30**
 
-### Phase 1 — Accepted Reality
-**Days 1–30 · Month 1**
+Build the travel aesthetic. Pure lifestyle_travel tier — no intimate_aesthetic content yet.
 
-The audience learns the rhythm.
+- Cities: rotate between 2–3 locations (Paris, Lisbon, Amalfi recommended for Phase 1)
+- Content: golden hour terraces, café mornings, coastal walks, hotel rooms from outside
+- Wardrobe: linen, silk, minimal gold jewelry — no lingerie or robe yet
+- Hashtag strategy: location + travel + aesthetic
+- **Goal:** reach 500–1000 followers organically. Get the algorithm baseline. Establish the aesthetic identity.
 
-- Grounded routine 80% / cinematic melancholy 20%
-- Mandarins, Shinagawa station, escalators, empty corridors
-- **No drift seeds active**
-- **No Marseille Stranger**
-- Comments handled with extreme restraint (`i thought so too`, `the train was on time`)
+**Automated:** cron picks `lifestyle_travel` tier 100% of days 1–30. No intimate_aesthetic. No content phase signals.
 
-**Purpose:** make the account feel safe, slow, predictable. Build the algorithmic-fatigue-relief audience. Establish that this account is not asking anything of the viewer.
+**What to post manually:** 1–2 story frames per day (location sticker, candid BTS). Engage with luxury travel comments.
 
-**Automated:** cron picks tier 80/20, drift seed probability = 0.
+---
 
-### Phase 2 — Recurring Dislocation
-**Days 31–90 · Months 2–3**
+### Phase 2 — Audience Deepening + Intimate Layer Unlock
+**Days 31–60**
 
-Reality begins to softly loop.
+Introduce intimate_aesthetic tier (30% of days). First soft Fanvue signal.
 
-- Same station, same hour, same silhouette recurring across days
-- Timestamp mismatches first appear (`04:17` in caption while video is daylight)
-- Marseille Stranger first emerges as a vague background figure
-- Impossible weather memories surface ("yesterday's rain" with dry ground)
-- Vivienne never acknowledges — that is what unsettles
+- Continue travel content as primary (70%)
+- Introduce bedroom/suite mornings: silk robe, window light, room service — editorial not explicit
+- First Fanvue link in bio (soft launch, no announcement caption)
+- ig_caption for intimate_aesthetic days: oblique and personal ("do not disturb", "room 214 had the best light")
+- **Goal:** first Fanvue subscribers from IG. First brand DM responses.
 
-**Audience reaction:** micro-paranoia. Viewers ask each other in comments: "Did anyone notice the time?" Vivienne responds with strict micro-validation, never explanation.
+**Automated:** tier mix unlocked (70/30). Content phase signals active (location_drop, golden_hour_moment, hotel_morning).
 
-**Automated:** tier mix unchanged (80/20). Drift seeds enabled with low probability per `lib/storyTier.ts`. Marseille Stranger asymmetric recurrence (cluster after first sighting, hard gap after 3 in 14 days).
+---
 
-### Phase 3 — Infrastructural Unease
-**Days 91–180 · Months 4–6**
+### Phase 3 — First Monetization Drop
+**Days 61–90**
 
-The city begins to have its own will.
+Active monetization. Link in bio prominent. First brand collaboration if DMs converted.
 
-- Metro announcements that repeat at impossible moments
-- Vending machine that "reacts"
-- Split-flap boards that freeze mid-rotation
-- Ferry horns at hours when no ferry is running
-- Same passers-by appearing at distant locations
+- Fanvue funnel: 1 explicit link drop per week in captions ("for more:")
+- First brand story frames (if deals secured) — disclosed per platform rules
+- Reel quality: prioritise reel_video for algorithm reach during this phase
+- **Goal:** €500+/month Fanvue recurring. First paid brand post.
 
-Still **not sci-fi**. Still **not horror**. Systemic strangeness without explanation.
+**Automated:** same tier mix. Story slots start including link-drop language in ig_caption when hotel_morning phase signal is active.
 
-**Audience reaction:** systemic tension. Comments shift from "What is this account?" to "What is this place?"
+---
 
-**Automated:** new drift seed type `infrastructure_glitch` introduced. Marseille Stranger more frequent. Operator (manual) injects ~1 Failed Fragment per 14 days.
+### Phase 4 — Dual-Track Growth
+**Days 91+**
 
-### Phase 4 — Memory Erosion
-**Days 181–365 · Months 7–12**
+Full operation. Both revenue streams active and compounding.
 
-The strongest phase. Vivienne begins to **mis-remember reality** without commentary, without correction.
+- Travel cadence: 2 new cities per month
+- Fanvue: exclusive location content + room content
+- Brand deals: 1–2 per month at this follower tier
+- Reel frequency: daily reel_video processed via Kling 3.0
+- **Goal:** €2000+/month combined. Waiting list for brand partnerships.
 
-- "it rained all morning" caption on a dry, sunlit video
-- Reference to a person/place that doesn't appear in any frame
-- Timestamps that don't match what the audience already learned
-- A casual mention of "yesterday" describing something that happened the week before
-
-The audience never gets confirmation that anything is wrong.
-
-**Automated:** memory contradiction drift seeds. Failed Fragments cadence: ~1 per 10 days. Comment voice now openly evasive.
-
-### Phase 5 — Environmental Consciousness
-**Day 365+**
-
-Vivienne becomes less the centre, more the presence. The city itself begins to feel like the subject.
-
-- Full days without her appearing
-- Long static shots of empty trains, empty platforms, empty corridors with environmental audio only
-- The Ghost Stream events (~quarterly, manual): 4-hour live stream of an empty night train, auto-deleted afterwards
-- Social Contamination active: manual ghost comments on unrelated brutalist-architecture videos, ferry videos, ambient channels
-
-Open-ended endgame. There is no closure. The account can run for years in this state.
+---
 
 ## Phase operational matrix
 
-| Element | P1 | P2 | P3 | P4 | P5 |
-|---|---|---|---|---|---|
-| Daily 8-slot batch | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Tier mix 80/20 grounded/cinematic | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Drift seeds | ✗ | ✓ | ✓ | ✓ | ✓ |
-| Marseille Stranger | ✗ | ✓ | ✓✓ | ✓✓ | ✓✓ |
-| Timestamp mismatch | ✗ | ✓ | ✓ | ✓ | ✓ |
-| Impossible weather memory | ✗ | ✓ | ✓ | ✓ | ✓ |
-| Infrastructure glitch (new seed) | ✗ | ✗ | ✓ | ✓ | ✓ |
-| Memory contradiction (new seed) | ✗ | ✗ | ✗ | ✓ | ✓ |
-| Failed Fragments (manual) | ✗ | ✗ | rare | ✓ | ✓ |
-| Ghost Comments (manual) | ✗ | ✗ | ✗ | ✗ | ✓ |
-| Ghost Stream events (manual) | ✗ | ✗ | ✗ | ✗ | ✓ |
-| Full days without subject | ✗ | ✗ | ✗ | rare | ✓ |
+| Element | P1 | P2 | P3 | P4 |
+|---|---|---|---|---|
+| Daily 8-slot batch | ✓ | ✓ | ✓ | ✓ |
+| Tier: lifestyle_travel | 100% | 70% | 70% | 70% |
+| Tier: intimate_aesthetic | 0% | 30% | 30% | 30% |
+| Content phase signals | ✗ | ✓ | ✓ | ✓ |
+| Fanvue link in bio | ✗ | ✓ | ✓ | ✓ |
+| Link drop in caption | ✗ | ✗ | ✓ | ✓ |
+| Brand deal posts | ✗ | ✗ | rare | ✓ |
+| Reel daily | ✗ | rare | ✓ | ✓ |
 
-## Automated vs manual — what lives where
+## City rotation guidance
 
-The repo handles **all daily automated content**: batch generation, story chapters, scene briefs, slot prompts, queue, scheduling, dispatch. This runs hands-off.
+Rotate location every 5–10 days. Keep 2–3 "home base" cities (Paris, Amalfi) that she returns to repeatedly — this builds recognition. One "new city" drop per 3–4 weeks creates arrival energy content.
 
-The operator handles **all intentional strangeness**: Failed Fragments, ghost comments under unrelated videos, geotag anomalies, ghost streams. Automating these destroys them — strangeness must feel like a glitch a real person noticed, not a feature on a cron.
+**Tier A cities (high Soul 2 training data = best image quality):**
+Paris, Amalfi, Positano, Lisbon, Santorini, Monaco, Milan, Rome, Barcelona, Dubrovnik
 
-## Drift "plot" — the actual progression
-
-The only real story is **audience attachment growth over time**. The progression is measured by:
-
-- Day 7: viewer recognises the station
-- Day 14: viewer waits for 04:17 to appear in a caption
-- Day 30: viewer can name three of her objects without being told
-- Day 60: viewer asks in comments "is that the same man?"
-- Day 100: viewer feels uneasy about Tuesday
-- Day 200: viewer says they dreamed of the platform
-- Day 365: viewer cannot remember when they started following
-
-That is the story. Nothing else.
+**Tier B cities (good but verify image quality):**
+Mykonos, Porto, Florence, Nice, Capri, Valletta, Split
 
 ## Reference — phase boundaries in code
 
 ```
 lib/storyTier.ts → PHASE_1_LAST_DAY = 30
-                  PHASE_2_LAST_DAY = 90  (planned)
-                  PHASE_3_LAST_DAY = 180 (planned)
-                  PHASE_4_LAST_DAY = 365 (planned)
 ```
 
-Phase 2+ drift seed probabilities and new seed types will be added when those days arrive. Phase 1 is the only enforced gate today.
+Phase 2+ content phase signal probabilities live in `lib/storyTier.ts → pickDriftSeeds`.

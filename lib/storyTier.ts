@@ -1,24 +1,38 @@
 import { supabase } from "@/lib/supabase";
 
 export type StoryTier =
-  | "grounded_routine"
-  | "cinematic_melancholy"
-  | "incidental_wrongness"
-  | "entropy";
+  | "lifestyle_travel"
+  | "intimate_aesthetic";
 
-export type DriftSeedKind =
-  | "recurring_stranger"
-  | "timestamp_mismatch"
-  | "impossible_weather_memory";
+export type ContentPhaseKind =
+  | "location_drop"
+  | "golden_hour_moment"
+  | "hotel_morning";
 
-export interface DriftSeed {
-  kind: DriftSeedKind;
+export interface ContentPhase {
+  kind: ContentPhaseKind;
   detail?: string;
 }
 
-const AUTO_TIER_RATIO = { grounded_routine: 0.8, cinematic_melancholy: 0.2 };
+const AUTO_TIER_RATIO = { lifestyle_travel: 0.7, intimate_aesthetic: 0.3 };
+
+// Phase 1 (days 1-30): pure lifestyle_travel only — establish location + aesthetic, build trust
+// Phase 2+ (day 31+): intimate_aesthetic tier unlocked per ratio
+const PHASE_1_LAST_DAY = 30;
 
 export async function pickTier(characterId: string, lookbackDays = 10): Promise<StoryTier> {
+  const { data: dayData } = await supabase
+    .from("chs_story_days")
+    .select("day_number")
+    .eq("character_id", characterId)
+    .order("day_number", { ascending: false })
+    .limit(1);
+
+  const latestDay = (dayData?.[0]?.day_number ?? 0) + 1;
+
+  // Phase 1: travel only
+  if (latestDay <= PHASE_1_LAST_DAY) return "lifestyle_travel";
+
   const { data } = await supabase
     .from("chs_story_days")
     .select("tier")
@@ -27,35 +41,29 @@ export async function pickTier(characterId: string, lookbackDays = 10): Promise<
     .limit(lookbackDays);
 
   const autoTiers = (data ?? []).filter(
-    (d) => d.tier === "grounded_routine" || d.tier === "cinematic_melancholy"
+    (d) => d.tier === "lifestyle_travel" || d.tier === "intimate_aesthetic"
   );
 
   if (autoTiers.length < lookbackDays / 2) {
-    return Math.random() < AUTO_TIER_RATIO.grounded_routine
-      ? "grounded_routine"
-      : "cinematic_melancholy";
+    return Math.random() < AUTO_TIER_RATIO.lifestyle_travel
+      ? "lifestyle_travel"
+      : "intimate_aesthetic";
   }
 
-  const groundedCount = autoTiers.filter((d) => d.tier === "grounded_routine").length;
-  const groundedRatio = groundedCount / autoTiers.length;
+  const travelCount = autoTiers.filter((d) => d.tier === "lifestyle_travel").length;
+  const travelRatio = travelCount / autoTiers.length;
 
-  if (groundedRatio < AUTO_TIER_RATIO.grounded_routine - 0.05) return "grounded_routine";
-  if (groundedRatio > AUTO_TIER_RATIO.grounded_routine + 0.1) return "cinematic_melancholy";
+  if (travelRatio < AUTO_TIER_RATIO.lifestyle_travel - 0.05) return "lifestyle_travel";
+  if (travelRatio > AUTO_TIER_RATIO.lifestyle_travel + 0.1) return "intimate_aesthetic";
 
-  return Math.random() < AUTO_TIER_RATIO.grounded_routine
-    ? "grounded_routine"
-    : "cinematic_melancholy";
+  return Math.random() < AUTO_TIER_RATIO.lifestyle_travel
+    ? "lifestyle_travel"
+    : "intimate_aesthetic";
 }
 
-const MISMATCH_HOURS = ["04:17", "03:09", "01:42", "23:56", "00:13", "02:48"];
-
-// Atmospheric erosion phases — see docs/SCENARIO.md
-// Phase 1 (days 1-30): ZERO drift, pure grounded routine. Establish predictability.
-// Phase 2+ (day 31+): drift seeds active per probability table below.
-const PHASE_1_LAST_DAY = 30;
-
-export async function pickDriftSeeds(characterId: string, dayNumber: number, lookbackDays = 14): Promise<DriftSeed[]> {
-  // Phase 1: no drift at all
+// Repurposed as content phase signals — location drops and golden hour moments
+export async function pickDriftSeeds(characterId: string, dayNumber: number, lookbackDays = 14): Promise<ContentPhase[]> {
+  // Phase 1: no intimate drops, no teaser signals
   if (dayNumber <= PHASE_1_LAST_DAY) return [];
 
   const { data } = await supabase
@@ -65,101 +73,87 @@ export async function pickDriftSeeds(characterId: string, dayNumber: number, loo
     .order("date", { ascending: false })
     .limit(lookbackDays);
 
-  const rows = (data ?? []) as Array<{ drift_seeds: DriftSeed[] | null }>;
+  const rows = (data ?? []) as Array<{ drift_seeds: ContentPhase[] | null }>;
 
-  const countOf = (kind: DriftSeedKind) =>
+  const countOf = (kind: ContentPhaseKind) =>
     rows.filter((r) => Array.isArray(r.drift_seeds) && r.drift_seeds.some((s) => s.kind === kind)).length;
 
-  const seeds: DriftSeed[] = [];
+  const phases: ContentPhase[] = [];
 
-  // Marseille Stranger — asymmetric: cluster after first appearance, hard gap after 3 in 14 days
-  const strangerCount = countOf("recurring_stranger");
-  const lastDayHadStranger =
-    Array.isArray(rows[0]?.drift_seeds) &&
-    rows[0].drift_seeds.some((s) => s.kind === "recurring_stranger");
-
-  let strangerProb = 0.12;
-  if (strangerCount === 0) strangerProb = 0.10;
-  else if (strangerCount === 1) strangerProb = lastDayHadStranger ? 0.28 : 0.18;
-  else if (strangerCount === 2) strangerProb = lastDayHadStranger ? 0.15 : 0.06;
-  else strangerProb = 0;
-
-  if (Math.random() < strangerProb) {
-    seeds.push({ kind: "recurring_stranger" });
+  // Location drop — "new city" signal, cluster at start of a location stay
+  if (countOf("location_drop") === 0 && Math.random() < 0.15) {
+    phases.push({ kind: "location_drop" });
   }
 
-  // Timestamp mismatch — independent, rare
-  if (countOf("timestamp_mismatch") === 0 && Math.random() < 0.10) {
-    seeds.push({
-      kind: "timestamp_mismatch",
-      detail: MISMATCH_HOURS[Math.floor(Math.random() * MISMATCH_HOURS.length)],
-    });
+  // Golden hour moment — special lighting note for reel/carousel
+  if (countOf("golden_hour_moment") === 0 && Math.random() < 0.12) {
+    phases.push({ kind: "golden_hour_moment" });
   }
 
-  // Impossible weather memory — independent, rare
-  if (countOf("impossible_weather_memory") === 0 && Math.random() < 0.08) {
-    seeds.push({ kind: "impossible_weather_memory" });
+  // Hotel morning — intimate bedroom/suite layer (Phase 2+ only)
+  if (countOf("hotel_morning") === 0 && Math.random() < 0.10) {
+    phases.push({ kind: "hotel_morning" });
   }
 
-  return seeds;
+  return phases;
 }
 
 export function tierGuidance(tier: StoryTier): string {
-  if (tier === "grounded_routine") {
-    return `TIER: grounded_routine (mundane, repeating, non-event)
+  if (tier === "lifestyle_travel") {
+    return `TIER: lifestyle_travel (location-led, aspirational, golden-hour energy)
 
-This is an ordinary day. No drama. No atmospheric epiphany.
-
-Scene must be:
-- one mundane physical action: buying, waiting, paying, descending stairs, riding an escalator
-- environment: convenience store, station platform, market stall, bus, underpass, escalator
-- daylight or fluorescent or harsh — never golden hour, never artful dusk
-- one small repeating gesture (peeling, holding a token, counting coins, holding a ticket)
-
-Narrative tone: flat observation. No metaphor. No mood adjective unless neutral ("cold", "warm", "loud", "quiet"). Avoid any phrasing that frames the moment as significant.
-
-Wardrobe: same coat, same bag. No "outfit" register.`;
-  }
-  if (tier === "cinematic_melancholy") {
-    return `TIER: cinematic_melancholy (liminal, displaced, quiet)
-
-This is a quiet displaced day. Wong Kar-Wai grading and pacing, not Vogue.
+This is a travel day. The location is the story. She is passing through somewhere beautiful.
 
 Scene must be:
-- liminal space: empty station, harbour at dusk, underground passage, hotel corridor, after-hours convenience store
-- artificial light or low natural light (sodium, fluorescent, blue hour) — never high noon
-- one moment of pause that lasts a beat too long
-- the world is between rushes; no crowd
+- exterior or hotel terrace / balcony / rooftop — city or coast visible
+- natural light: golden hour, blue hour, Mediterranean afternoon, morning haze
+- one clear travel anchor: a city view, a coastline, cobblestones, a hotel pool edge, a café terrace
+- her posture: relaxed, off-duty, mid-moment — not posed for camera
 
-Narrative tone: observational, with one disorienting detail that is never explained.
+Narrative tone: present, warm, slightly candid. One sentence of location. One observation. End with a soft hook ("next stop:" / "the light here does something" / "checked in. do not disturb.").
 
-Wardrobe: same coat, slight asymmetry — collar half-up, one cuff folded back.`;
+Wardrobe: silk, linen, minimal gold jewelry. Light, effortless. Travel-editorial register.`;
   }
+
+  if (tier === "intimate_aesthetic") {
+    return `TIER: intimate_aesthetic (soft light, suite or bedroom, sensual but editorial)
+
+This is a slow morning or late evening. She is in the room, not the city.
+
+Scene must be:
+- interior: hotel suite, bedroom with window light, bathroom vanity, balcony at golden hour from inside
+- light: soft side-window, warm lamp, indirect — never harsh overhead
+- one intimate anchor: silk robe, unmade bed (she is NOT in it — standing near it), mirror, morning coffee tray
+- her posture: unhurried — stretching, reaching, looking out the window, adjusting a strap
+
+Narrative tone: personal, close, slightly warm. Not explicit. Sensuality through light and fabric, not description.
+
+SAFE FASHION RULES: editorial sensuality only. No explicit action, no pornographic framing. Lingerie/robe is acceptable as editorial fashion.`;
+  }
+
   return "";
 }
 
-export function driftSeedGuidance(seeds: DriftSeed[]): string {
+export function driftSeedGuidance(seeds: ContentPhase[]): string {
   if (seeds.length === 0) return "";
 
   const lines: string[] = [];
   for (const seed of seeds) {
-    if (seed.kind === "recurring_stranger") {
+    if (seed.kind === "location_drop") {
       lines.push(
-        "- recurring_stranger: A motionless background silhouette in a long charcoal coat appears in this scene. Mention it in exactly one sentence inside narrative. Do NOT describe him as a character. Do not assign him intent. He is environmental geometry."
+        "- location_drop: Today is the first day in a new city. Narrative must name the city explicitly once. Tone is arrival energy — fresh, slightly disoriented in a good way."
       );
-    } else if (seed.kind === "timestamp_mismatch") {
+    } else if (seed.kind === "golden_hour_moment") {
       lines.push(
-        `- timestamp_mismatch: The ig_caption must include the time "${seed.detail ?? "04:17"}" verbatim, while the scene takes place in clear daylight or evident afternoon. Do NOT reconcile the contradiction. The mismatch IS the post.`
+        "- golden_hour_moment: The scene peaks at golden hour. Mention the light quality once — warm, low, hitting the wall or her face — without using the phrase 'golden hour'. Scene brief lighting must reflect this."
       );
-    } else if (seed.kind === "impossible_weather_memory") {
+    } else if (seed.kind === "hotel_morning") {
       lines.push(
-        "- impossible_weather_memory: Narrative contains one passing reference to rain that did not happen — e.g. 'yesterday's rain still on the asphalt' — while every other detail confirms days of dry weather. Do not flag it. Do not justify it."
+        "- hotel_morning: The scene is a suite morning before leaving — room service, light through curtains, unhurried. ig_caption should be intimate and personal (\"do not disturb\", \"last morning here\", \"room 214 had the best light\"). This is Fanvue-adjacent content."
       );
     }
   }
 
-  return `DRIFT SEEDS ACTIVE TODAY (treat as physical reality of the day, do NOT resolve the contradictions):
-${lines.join("\n")}
-
-These are not poetic devices. They are continuity errors. Write them flat, without commentary, exactly once.`;
+  return `CONTENT PHASE SIGNALS ACTIVE TODAY:
+${lines.join("\n")}`;
 }

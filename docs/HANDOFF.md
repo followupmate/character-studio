@@ -6,7 +6,7 @@ Owner is pausing Opus 4.7 and switching to Sonnet 4.6 for cost reasons. This doc
 
 Character Studio is a Next.js + Supabase app that generates daily 8-slot Instagram/YouTube content batches for AI characters (text + image prompts), then publishes to IG / YT via Graph API.
 
-**The technical infrastructure works.** The strategic / editorial direction is the open question.
+**The technical infrastructure works. The pivot to Vivienne v2.0 (Luxury Travel + Sexy Aesthetic) is complete as of 2026-05-26.**
 
 ## What's broken and what's not
 
@@ -25,23 +25,31 @@ Character Studio is a Next.js + Supabase app that generates daily 8-slot Instagr
 - YT video posting works (resumable upload)
 - /today, /growth, /publish, /launch, /playbook, /monetization, /prompts pages all functional
 
-### Strategic problem — read this first
-The Drift Vivienne character concept (ambient existential attachment, 5-phase 1-year atmospheric erosion arc captured in `docs/SCENARIO.md`) was deemed commercially unviable by the project owner:
-- Image gen quality issues kept recurring (mandarins in every frame, escalators into walls, plastic AI faces, male hands on female character, ghost figures in Phase 1, environment furniture invention across frames)
-- Each fix addressed a symptom; the root cause is that Drift's high-concept abstract aesthetic ("atmospheric erosion") doesn't map to what current image generators (Soul 2) can render reliably
-- 1-year arc commercial timeline doesn't match owner's goal of fast revenue (2-3 months to first $)
+### Pivot complete — Vivienne v2.0
 
-**Owner is open to pivoting the character entirely.** Three commercial archetypes proposed:
+Drift Edition abandoned. Owner chose **A/B combo: Luxury Travel + Sexy Aesthetic**.
 
-| Option | Aesthetic | Monetization | Soul 2 difficulty | Time to first $ |
-|---|---|---|---|---|
-| A. Soft Luxury Travel | Paris/Milan/Lisbon, linen, neutral palette, golden hour | Brand deals + Fanvue | very low (massive training data) | 2-3 months |
-| B. Sexy Aesthetic | Soft lighting, bedroom, sultry, lingerie/casual mix | Direct Fanvue, fastest revenue | medium | 1-2 months |
-| C. Fitness Lifestyle | Athletic, gym, healthy meals | Workout programs, supplements | medium | 2-3 months |
+Vivienne is now a luxury traveller (Paris, Amalfi, Lisbon, Mykonos) with an editorial aesthetic and a Fanvue intimate content funnel. Dual monetization: brand deals + Fanvue subscriptions.
 
-Owner's first instinct (before getting talked into Drift) was luxury. **Outgoing model's recommendation: option A** because (a) Soul 2 renders it best, (b) broadest appeal, (c) dual monetization, (d) closest to owner's original intent.
+**Pivot implementation (2026-05-26):**
+- `lib/storyTier.ts` — new tiers: `lifestyle_travel` (70%) / `intimate_aesthetic` (30%). Phase 1 (days 1-30) = travel only.
+- `app/api/characters/story/route.ts` — VOICE_DOCTRINE rewritten for aspirational/candid travel. emotional_beat enum updated.
+- `docs/SCENARIO.md` — rewritten as 4-phase commercial growth funnel (30/60/90/90+ days).
+- `supabase/migration.sql` — v2.0 UPDATE appended with new backstory, visual_brief, personality, sacred_details.
 
-Owner has not yet committed to a pivot or chosen an option. **Sonnet should ASK directly which path before changing any character data.**
+**DB step required before first run:**
+```sql
+-- 1. Clear old Drift history
+BEGIN;
+DELETE FROM chs_posts WHERE character_id = (SELECT id FROM chs_characters WHERE slug = 'vivienne');
+DELETE FROM chs_daily_plans WHERE character_id = (SELECT id FROM chs_characters WHERE slug = 'vivienne');
+DELETE FROM chs_story_days WHERE character_id = (SELECT id FROM chs_characters WHERE slug = 'vivienne');
+DELETE FROM chs_archetype_usage WHERE character_id = (SELECT id FROM chs_characters WHERE slug = 'vivienne');
+COMMIT;
+
+-- 2. Run the v2.0 UPDATE block from supabase/migration.sql (lines 349+)
+-- 3. Trigger Day 1: GET /api/characters/story
+```
 
 ## Scope of the pivot work
 
@@ -80,20 +88,18 @@ COMMIT;
 
 ## Open work items in priority order
 
-See `ROADMAP.md` for full detail. Priority order:
-
-1. **Character pivot** (item 0 in roadmap) — blocks everything else. Owner must choose A/B/C first.
-2. **Drop video slots temporarily** (item 2) — reduces friction during first 30-60 days.
-3. **Astria LoRA** (item 1) — deferred until commercial pivot is producing daily content with acceptable Soul 2 quality.
-4. **PublishClient refactor** (item 4) — tech debt, low priority.
-5. **story_link_url to DB** (item 4) — small UX fix, low priority.
+1. **Run DB migration v2.0** — clear old Drift data, run v2.0 UPDATE, trigger Day 1 cron. (Manual step, owner runs in Supabase dashboard.)
+2. **PublishClient refactor** — 1325 LOC monolith, low priority but growing.
+3. **story_link_url to DB** — currently localStorage, should be persisted in chs_posts.
+4. **Astria LoRA** — deferred until v2.0 is producing daily content with acceptable Soul 2 quality.
 
 ## What NOT to do
 
-- **Don't iterate on prompt rules without confirming pivot first.** Owner explicitly said: "minam s tebou vela tokenov, ocakaval som rychlejsi progres je to skor tocenie v kruhu". The Opus session iterated 8+ commits on prompt anti-confabulation, anatomy anchors, text rules, foreground priority etc. — each fix worked but the root cause (concept mismatch with image gen capability) remained. Don't repeat this pattern.
-- **Don't push Astria.** Owner has declined twice. Revisit only after pivot character is producing daily content.
+- **Don't go back to Drift.** Pivot is done. Do not revert storyTier or VOICE_DOCTRINE.
+- **Don't push Astria.** Revisit only after v2.0 is producing daily content with acceptable Soul 2 quality.
 - **Don't redesign the publish pipeline.** It works. IG + YT integrations are live.
 - **Don't touch IG/YT integration code in `/api/publish/post-now`, `/api/publish/post-instagram-carousel`, `/api/publish/post-instagram-story`, `/api/publish/sign-upload`.** Those are working live integrations.
+- **Don't drop video slots.** Owner wants to keep reel_start_frame + reel_video. They stay in DAILY_SLOTS.
 
 ## Owner preferences (from session history)
 
@@ -112,8 +118,6 @@ See `ROADMAP.md` for full detail. Priority order:
 
 Run `git log --oneline -30` to see the iteration history. Key commits in chronological order include the foundation batch architecture, Drift Edition voice, 4-doctrine switch, cinematic prompt simplification, page splits (launch / playbook / monetization), publish pipeline consolidation, anti-confabulation rules, reel start frame slot, anatomy anchors, foreground priority, Phase 1 drift gate, and the latest stranger filter + location lock fix.
 
-## First message Sonnet should send
+## First message next session should send
 
-> Pred tým než čokoľvek zmením, potrebujem od teba rozhodnutie podľa `docs/HANDOFF.md` a `ROADMAP.md` (sekcia 0). Tri archetypy: A) Soft Luxury Travel, B) Sexy Aesthetic Fanvue funnel, C) Fitness Lifestyle. Predošlá relácia odporúčala A. Ktorou ideme?
-
-Nečakaj odpoveď cez viacero turnov — keď owner odpovie, hneď spusti pivot work (data update + 4 file edits + commit + push) v jednom turne, max 2 turnov. Owner už nechce iteráciu.
+> Pivot na Vivienne v2.0 (Luxury Travel + Sexy Aesthetic) je hotový. DB migráciu ešte treba spustiť manuálne v Supabase (SQL blok v HANDOFF.md sekcia "Pivot complete"). Po tom môžeme spustiť Day 1 cron. Čo chceš riešiť ďalej?
