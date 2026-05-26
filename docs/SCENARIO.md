@@ -23,20 +23,20 @@ Phases are **time-gated**. Day count resets from 0 with the pivot launch.
 
 ---
 
-### Phase 1 — Location Establishment
+### Phase 1 — Launch
 **Days 1–30**
 
-Build the travel aesthetic. Pure lifestyle_travel tier — no intimate_aesthetic content yet.
+Build the aesthetic identity fast. Both tiers active from Day 1 (70% travel / 30% intimate). No slow burn.
 
 - Cities: rotate between 2–3 locations (Paris, Lisbon, Amalfi recommended for Phase 1)
-- Content: golden hour terraces, café mornings, coastal walks, hotel rooms from outside
-- Wardrobe: linen, silk, minimal gold jewelry — no lingerie or robe yet
-- Hashtag strategy: location + travel + aesthetic
-- **Goal:** reach 500–1000 followers organically. Get the algorithm baseline. Establish the aesthetic identity.
+- Travel content: golden hour terraces, café mornings, coastal walks, hotel balconies
+- Intimate content: silk robe, suite morning light, body-confident editorial — edge in captions
+- Wardrobe: silk, linen, gold jewelry; silk robe and lingerie acceptable from Day 1
+- **Goal:** reach 500–1000 followers organically. Get the algorithm baseline. Establish both the travel identity and the body-confident edge simultaneously.
 
-**Automated:** cron picks `lifestyle_travel` tier 100% of days 1–30. No intimate_aesthetic. No content phase signals.
+**Automated:** cron picks tier per 70/30 ratio. All content phase signals active from Day 1.
 
-**What to post manually:** 1–2 story frames per day (location sticker, candid BTS). Engage with luxury travel comments.
+**What to post manually:** 1–2 story frames per day (location sticker, candid BTS). Engage with both travel and aesthetic comments.
 
 ---
 
@@ -87,9 +87,9 @@ Full operation. Both revenue streams active and compounding.
 | Element | P1 | P2 | P3 | P4 |
 |---|---|---|---|---|
 | Daily 8-slot batch | ✓ | ✓ | ✓ | ✓ |
-| Tier: lifestyle_travel | 100% | 70% | 70% | 70% |
-| Tier: intimate_aesthetic | 0% | 30% | 30% | 30% |
-| Content phase signals | ✗ | ✓ | ✓ | ✓ |
+| Tier: lifestyle_travel | 70% | 70% | 70% | 70% |
+| Tier: intimate_aesthetic | 30% | 30% | 30% | 30% |
+| Content phase signals | ✓ | ✓ | ✓ | ✓ |
 | Fanvue link in bio | ✗ | ✓ | ✓ | ✓ |
 | Link drop in caption | ✗ | ✗ | ✓ | ✓ |
 | Brand deal posts | ✗ | ✗ | rare | ✓ |
@@ -107,8 +107,6 @@ Mykonos, Porto, Florence, Nice, Capri, Valletta, Split
 
 ## Reference — phase boundaries in code
 
-```
-lib/storyTier.ts → PHASE_1_LAST_DAY = 30
-```
+Both tiers active from Day 1. No phase gate.
 
-Phase 2+ content phase signal probabilities live in `lib/storyTier.ts → pickDriftSeeds`.
+Content phase signal probabilities live in `lib/storyTier.ts → pickDriftSeeds`.

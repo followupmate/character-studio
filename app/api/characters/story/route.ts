@@ -8,7 +8,7 @@ import {
   tierGuidance,
   driftSeedGuidance,
   StoryTier,
-  DriftSeed,
+  ContentPhase,
 } from "@/lib/storyTier";
 import { Character, StoryDay } from "@/types";
 
@@ -17,37 +17,43 @@ export const maxDuration = 300;
 
 const VOICE_DOCTRINE = `VOICE DOCTRINE (mandatory — overrides anything in recent history that drifted off-tone)
 
-You are writing for an aspirational travel and lifestyle Instagram account. The viewer should want to be her — or be with her. Content is warm, candid, desirable. NOT influencer fluff.
+You are writing for a luxury travel + confident aesthetic Instagram account. Two modes, one voice.
+
+LIFESTYLE_TRAVEL tier: Viewer wants to be her, or be where she is. Warm, sharp, location-anchored.
+INTIMATE_AESTHETIC tier: Viewer wants to be with her. Body-aware, slightly daring, self-possessed. The caption carries an edge.
 
 WRITE LIKE:
 - first or third person, present or recent past tense
-- candid, personal — like a note to a close friend, not a brand caption
-- name the city, the hotel, the terrace, the view
-- describe light, fabric, heat, the feeling of arriving somewhere new
-- leave room for desire — the image does the work, the caption adds warmth
+- direct and personal — like a note someone wasn't supposed to read
+- name the place (travel) or describe the fabric/light/body (intimate)
+- healthy confidence — she knows she looks good and doesn't apologise for it
+- leave desire in the room — never explain the image, let the caption tighten around it
 
 NEVER WRITE:
-- influencer vocabulary: "healing", "soft life", "main character", "era", "manifesting", "vibe check", "girlboss", "slay"
+- influencer vocabulary: "healing", "soft life", "main character", "era", "manifesting", "vibe check", "slay", "girlboss"
 - hollow affirmations: "life is beautiful", "every day is a gift", "grateful and blessed"
 - generic travel blog: "hidden gem", "breathtaking", "magical", "wanderlust"
-- emoji-as-punctuation (no 🌅🤍✨💫 unless the character's personality explicitly allows one)
-- rhetorical questions addressed to the audience: "Who else loves Paris?", "Can you believe this view??"
-- press-release language: "proud to partner with", "excited to announce", "truly honored"
+- emoji chains (one emoji maximum if it adds — no 🌅🤍✨💫 clusters)
+- rhetorical questions to audience: "Who else loves Paris?", "Can you believe this view??"
+- press-release language: "proud to partner with", "excited to announce"
+- over-describing the body explicitly — the provocation is through confidence and indirection, not pornographic language
 
-GOOD: "lisbon at 7am before anyone wakes up. the light does something different here."
-GOOD: "checked in. do not disturb."
-GOOD: "still warm from the sun. the kind of afternoon you try to photograph and can't."
-GOOD: "last morning in amalfi. room service and the wrong kind of quiet."
-GOOD (intimate tier): "the robe they give you at this hotel is the only reason to stay."
+GOOD (travel): "lisbon at 7am before anyone wakes up. the light does something different here."
+GOOD (travel): "still warm from the sun. the kind of afternoon you try to photograph and can't."
+GOOD (travel): "checked in. do not disturb."
+GOOD (intimate): "the mirror in this room is doing something illegal."
+GOOD (intimate): "woke up like this. stayed like this."
+GOOD (intimate): "the robe doesn't stay on long here."
+GOOD (intimate): "last morning in amalfi. room service and very little else."
 
 BAD: "Living my best life in the eternal city! ✨ So grateful for these moments 🙏"
 BAD: "Paris is always a good idea 🥐🗼 Who else is obsessed with this city?"
-BAD: "Another magical day in paradise — truly blessed."`;
+BAD: "feeling so sexy and confident today 💋💋" — explicit self-labelling kills the provocation`;
 
 function buildSystemPrompt(args: {
   character: Character;
   tier: StoryTier;
-  driftSeeds: DriftSeed[];
+  driftSeeds: ContentPhase[];
   dayNumber: number;
   historyText: string;
 }): string {
@@ -96,7 +102,7 @@ Required fields:
       "energy": "one short phrase — flat, no register-up"
     }
 - next_hint: one sentence hint of tomorrow — must obey the voice doctrine
-- ig_caption: 1 to 2 lines. lowercase preferred. no hashtags. one emoji maximum if it adds warmth (not mandatory). candid and personal, never a brand caption. lifestyle_travel tier: name the city/place. intimate_aesthetic tier: intimate and oblique ("do not disturb", "room had the best light").
+- ig_caption: 1 to 2 lines. lowercase preferred. no hashtags. one emoji maximum (not mandatory). lifestyle_travel tier: name the city/place, one sharp observation, soft hook. intimate_aesthetic tier: body-confident and daring — the caption must have an edge, a knowing tone, a slight provocation (e.g. "the robe doesn't stay on long here", "woke up like this. stayed like this.", "the mirror in this room is doing something illegal"). Never bland, never just describing the room.
 - hashtags: array of 10 strings without # (3 location · 2 travel/lifestyle · 2 aesthetic · 2 niche · 1 branded for this character)
 
 Pick a single emotional beat — do not blend.
@@ -123,7 +129,7 @@ export async function GET() {
       storyDayId: string;
       dayNumber: number;
       tier: StoryTier;
-      driftSeeds: DriftSeed[];
+      driftSeeds: ContentPhase[];
       created: boolean;
     }> = [];
 
@@ -141,7 +147,7 @@ export async function GET() {
           storyDayId: existing.id,
           dayNumber: existing.day_number,
           tier: (existing.tier as StoryTier) ?? "grounded_routine",
-          driftSeeds: (existing.drift_seeds as DriftSeed[]) ?? [],
+          driftSeeds: (existing.drift_seeds as ContentPhase[]) ?? [],
           created: false,
         });
         continue;
