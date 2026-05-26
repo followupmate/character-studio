@@ -93,6 +93,23 @@ Required fields:
 ALL text fields in English.`;
 }
 
+function errMsg(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object") {
+    const e = err as Record<string, unknown>;
+    // Supabase error shape: { message, code, details, hint }
+    if (typeof e.message === "string") return `${e.code ?? ""} ${e.message} ${e.details ?? ""}`.trim();
+    return JSON.stringify(e).slice(0, 300);
+  }
+  return String(err).slice(0, 300);
+}
+
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split("T")[0];
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -119,24 +136,22 @@ export async function POST(req: Request) {
     for (const char of characters as Character[]) {
       const charResult: (typeof allResults)[0] = { character: char.name, days: [] };
 
+      // Query latest story_day ONCE before the loop — date/dayNumber track locally
+      const { data: latestData } = await supabase
+        .from("chs_story_days")
+        .select("day_number, date")
+        .eq("character_id", char.id)
+        .order("day_number", { ascending: false })
+        .limit(1);
+
+      const latestRow = (latestData as StoryDay[])?.[0];
+      const todayStr = new Date().toISOString().split("T")[0];
+      let nextDayNumber = (latestRow?.day_number ?? 0) + 1;
+      let nextDate = latestRow?.date ? addDays(latestRow.date, 1) : addDays(todayStr, 0);
+
       for (let i = 0; i < days; i++) {
-        // Find the next date to generate (after latest existing story_day)
-        const { data: latest } = await supabase
-          .from("chs_story_days")
-          .select("day_number, date")
-          .eq("character_id", char.id)
-          .order("day_number", { ascending: false })
-          .limit(1);
-
-        const latestDay = (latest as StoryDay[])?.[0];
-        const dayNumber = (latestDay?.day_number ?? 0) + 1;
-
-        // Next date: +1 day from latest, or tomorrow if no history
-        const baseDate = latestDay?.date
-          ? new Date(latestDay.date + "T12:00:00Z")
-          : new Date();
-        baseDate.setUTCDate(baseDate.getUTCDate() + 1);
-        const targetDate = baseDate.toISOString().split("T")[0];
+        const targetDate = nextDate;
+        const dayNumber = nextDayNumber;
 
         // Skip if this date already exists
         const { data: existing } = await supabase
@@ -148,11 +163,12 @@ export async function POST(req: Request) {
 
         if (existing) {
           charResult.days.push({ date: targetDate, day_number: dayNumber, tier: "skip", status: "already_exists" });
+          nextDate = addDays(nextDate, 1);
+          nextDayNumber++;
           continue;
         }
 
         try {
-          // Get recent history (last 7 days)
           const { data: history } = await supabase
             .from("chs_story_days")
             .select("day_number, location, mood, narrative, arc_position")
@@ -184,25 +200,27 @@ export async function POST(req: Request) {
           const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
           const story = JSON.parse(jsonText);
 
+          const insertPayload: Record<string, unknown> = {
+            character_id: char.id,
+            day_number: dayNumber,
+            date: targetDate,
+            location: story.location,
+            mood: story.mood,
+            narrative: story.narrative,
+            arc_position: story.arc_position,
+            emotional_beat: story.emotional_beat,
+            scene: story.scene,
+            tier,
+            drift_seeds: driftSeeds,
+            next_hint: story.next_hint,
+            ig_caption: story.ig_caption,
+            hashtags: story.hashtags,
+          };
+          if (story.hook_text) insertPayload.hook_text = story.hook_text;
+
           const { data: storyDay, error: storyError } = await supabase
             .from("chs_story_days")
-            .insert({
-              character_id: char.id,
-              day_number: dayNumber,
-              date: targetDate,
-              location: story.location,
-              mood: story.mood,
-              narrative: story.narrative,
-              arc_position: story.arc_position,
-              emotional_beat: story.emotional_beat,
-              scene: story.scene,
-              tier,
-              drift_seeds: driftSeeds,
-              next_hint: story.next_hint,
-              ig_caption: story.ig_caption,
-              hashtags: story.hashtags,
-              ...(story.hook_text ? { hook_text: story.hook_text } : {}),
-            })
+            .insert(insertPayload)
             .select("id")
             .single();
 
@@ -210,21 +228,20 @@ export async function POST(req: Request) {
 
           const batch = await generateDailyBatch({ characterId: char.id, storyDayId: storyDay.id });
 
-          charResult.days.push({
-            date: targetDate,
-            day_number: dayNumber,
-            tier,
-            status: batch.status,
-          });
+          charResult.days.push({ date: targetDate, day_number: dayNumber, tier, status: batch.status });
         } catch (err) {
           charResult.days.push({
             date: targetDate,
             day_number: dayNumber,
             tier: "unknown",
             status: "failed",
-            error: String(err).slice(0, 300),
+            error: errMsg(err),
           });
         }
+
+        // Always advance — even on failure, next iteration uses the next date
+        nextDate = addDays(nextDate, 1);
+        nextDayNumber++;
       }
 
       allResults.push(charResult);
@@ -233,6 +250,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, generated: allResults });
   } catch (error) {
     console.error("[generate-forward]", error);
-    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+    return NextResponse.json({ success: false, error: errMsg(error) }, { status: 500 });
   }
 }
