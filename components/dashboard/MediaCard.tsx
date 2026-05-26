@@ -55,8 +55,18 @@ export default function MediaCard({ media }: { media: Media }) {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [hookCopied, setHookCopied] = useState(false);
   const [posting, setPosting] = useState(false);
   const [imgError, setImgError] = useState(false);
+
+  const isCarousel = media.channel === "feed";
+
+  async function copyHook() {
+    if (!media.hook_text) return;
+    await navigator.clipboard.writeText(media.hook_text);
+    setHookCopied(true);
+    setTimeout(() => setHookCopied(false), 2000);
+  }
 
   async function saveUrl() {
     if (!urlInput.trim()) return;
@@ -119,6 +129,12 @@ export default function MediaCard({ media }: { media: Media }) {
             → {media.media_url}
           </a>
         )}
+        {isCarousel && media.hook_text && (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[8px] text-muted tracking-widest uppercase">Hook:</span>
+            <span className="font-mono text-[10px] text-white bg-bg border border-border2 px-2 py-0.5">{media.hook_text}</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -159,6 +175,18 @@ export default function MediaCard({ media }: { media: Media }) {
           >
             → {media.media_url}
           </a>
+        )}
+
+        {isCarousel && media.hook_text && (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[8px] text-muted tracking-widest uppercase flex-shrink-0">Hook:</span>
+            <button
+              onClick={copyHook}
+              className="font-mono text-[10px] text-white bg-bg border border-border2 hover:border-accent/50 px-2 py-0.5 text-left transition-colors"
+            >
+              {hookCopied ? "✓ Skopírované" : media.hook_text}
+            </button>
+          </div>
         )}
 
         <button
@@ -213,6 +241,19 @@ export default function MediaCard({ media }: { media: Media }) {
               {media.visual_signature.palette} / {media.visual_signature.lens} / {media.visual_signature.movement}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Hook text for carousel slots */}
+      {isCarousel && media.hook_text && (
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[8px] text-muted tracking-widest uppercase flex-shrink-0">Hook:</span>
+          <button
+            onClick={copyHook}
+            className="font-mono text-[10px] text-white bg-bg border border-border2 hover:border-accent/50 px-2 py-0.5 text-left transition-colors"
+          >
+            {hookCopied ? "✓ Skopírované" : media.hook_text}
+          </button>
         </div>
       )}
 

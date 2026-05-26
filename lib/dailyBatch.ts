@@ -362,6 +362,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
       .update({
         higgsfield_prompt: result.prompt,
         visual_signature: result.visualSignature,
+        hook_text: result.hookText ?? null,
         generation_status: "completed",
         last_error: null,
         prompt_doctrine: args.doctrine,
@@ -475,6 +476,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
         .update({
           higgsfield_prompt: result.prompt,
           visual_signature: result.visualSignature,
+          hook_text: result.hookText ?? null,
           generation_status: "completed",
           last_error: null,
           prompt_doctrine: doctrine,

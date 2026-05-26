@@ -467,9 +467,36 @@ ${commonBody(args)}
 ${spec.videoOutputRules}`;
 }
 
+const CAROUSEL_SLOTS = new Set(["carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5"]);
+
+const HOOK_INSTRUCTION = `
+
+HOOK TEXT (carousel overlay — optional):
+After the Signature line, add one optional line in this exact format:
+Hook: [2 to 5 words, lowercase, no punctuation]
+
+The hook is a short text overlay the photographer places on the finished photo. Match the slot's framing and today's tier:
+
+lifestyle_travel tier:
+- carousel_1 (wide/establishing): location or arrival energy — "rome at noon", "last light here", "nobody's arrived yet", "still in lisbon"
+- carousel_2 (mid, subject): presence — "she stays longer", "still moving", "in transit"
+- carousel_3 (texture/detail): material or sensory — "silk season", "this texture", "linen and light", "the weight of it"
+- carousel_4 (reverse/over-shoulder): perspective — "from here", "what she sees", "the other side", "looking back"
+- carousel_5 (emotional close): most impactful — "don't look away", "she knows", "impossible not to", "stay"
+
+intimate_aesthetic tier:
+- carousel_1: arrival/setting the scene — "checked in", "do not disturb", "south-facing room"
+- carousel_2: slow morning — "unhurried", "still here", "room service"
+- carousel_3 (fabric/skin detail): material and body — "the silk stays", "skin first", "this texture"
+- carousel_4: perspective shift — "from behind", "what you'd see", "if you were here"
+- carousel_5 (emotional close): most daring — "you wouldn't", "don't pretend", "she always wins", "stay longer"
+
+Omit the Hook line entirely if no strong one-liner emerges naturally from this frame. Never force it.`;
+
 export interface SlotPromptResult {
   prompt: string;
   visualSignature: { palette: string; lens: string; movement: string } | null;
+  hookText: string | null;
 }
 
 function extractSignature(text: string): SlotPromptResult["visualSignature"] {
@@ -482,18 +509,34 @@ function extractSignature(text: string): SlotPromptResult["visualSignature"] {
   };
 }
 
+function extractHookText(text: string): string | null {
+  const match = text.match(/^Hook:\s*(.+)$/im);
+  if (!match) return null;
+  return match[1].trim().toLowerCase().replace(/[.!?]+$/, "");
+}
+
 export async function generateSlotPrompt(args: BuildArgs): Promise<SlotPromptResult> {
   const spec = DOCTRINES[args.doctrine];
-  const systemPrompt = args.slot.type === "video" ? buildVideoSystem(args) : buildPhotoSystem(args);
+  const isCarousel = CAROUSEL_SLOTS.has(args.slot.slot);
+
+  // Inject hook instruction only for carousel photo slots
+  const extraInstruction = (isCarousel && args.slot.type === "photo") ? HOOK_INSTRUCTION : "";
+  const baseSystem = args.slot.type === "video" ? buildVideoSystem(args) : buildPhotoSystem(args);
+  const systemPrompt = extraInstruction ? `${baseSystem}${extraInstruction}` : baseSystem;
+
   const maxTokens = args.slot.type === "video" ? spec.videoMaxTokens : spec.photoMaxTokens;
 
   const msg = await claudeWithRetry({
     model: "claude-sonnet-4-6",
-    max_tokens: maxTokens,
+    max_tokens: maxTokens + (isCarousel ? 30 : 0),
     system: systemPrompt,
     messages: [{ role: "user", content: `Generate the ${args.slot.slot} prompt now.` }],
   });
 
   const text = (msg.content[0] as { type: string; text: string }).text;
-  return { prompt: text, visualSignature: extractSignature(text) };
+  return {
+    prompt: text,
+    visualSignature: extractSignature(text),
+    hookText: isCarousel ? extractHookText(text) : null,
+  };
 }

@@ -42,20 +42,9 @@ function ProductionGroup({ title, hint, items }: { title: string; hint: string; 
   );
 }
 
-function CaptionBlock({ caption, hashtags, hookText }: { caption: string; hashtags?: string[] | null; hookText?: string | null }) {
+function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: string[] | null }) {
   return (
     <div className="pt-4 border-t border-border space-y-4">
-      {hookText && (
-        <div>
-          <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-2">// Hook text (carousel overlay)</p>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-sm text-white bg-bg border border-accent/30 rounded px-3 py-1.5 tracking-wide">
-              {hookText}
-            </span>
-            <span className="font-mono text-[9px] text-muted italic">~35% dní · vložiť manuálne pri produkcii</span>
-          </div>
-        </div>
-      )}
       <div>
         <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-3">
           // Instagram caption
@@ -275,7 +264,6 @@ export default async function TodayPage({
                         <CaptionBlock
                           caption={story.ig_caption}
                           hashtags={story.hashtags}
-                          hookText={story.hook_text}
                         />
                       )}
                     </div>

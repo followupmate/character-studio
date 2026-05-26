@@ -6,12 +6,13 @@ export type ArcPosition = "opening" | "rising" | "peak" | "turning" | "falling" 
 export type PromptDoctrine = "cinematic" | "instagram" | "deepseek" | "editorial";
 export type EmotionalBeat =
   | "detached" | "observed" | "mundane" | "drifting" | "mildly_displaced"
-  | "watchful" | "absent" | "uneventful" | "half_present" | "almost_there";
+  | "watchful" | "absent" | "uneventful" | "half_present" | "almost_there"
+  | "present" | "playful" | "sultry" | "golden" | "effortless" | "candid" | "intimate" | "wandering" | "languid" | "aspirational";
 export type SlotChannel = "feed" | "reel" | "story";
 export type GenerationStatus = "pending" | "generating" | "completed" | "failed" | "retrying";
 export type BatchStatus = "planned" | "generating" | "ready" | "partial_failed" | "published" | "failed";
-export type StoryTier = "grounded_routine" | "cinematic_melancholy" | "incidental_wrongness" | "entropy";
-export type DriftSeedKind = "recurring_stranger" | "timestamp_mismatch" | "impossible_weather_memory";
+export type StoryTier = "grounded_routine" | "cinematic_melancholy" | "incidental_wrongness" | "entropy" | "lifestyle_travel" | "intimate_aesthetic";
+export type DriftSeedKind = "recurring_stranger" | "timestamp_mismatch" | "impossible_weather_memory" | "location_drop" | "golden_hour_moment" | "hotel_morning";
 export interface DriftSeed { kind: DriftSeedKind; detail?: string }
 
 export interface Character {
@@ -48,6 +49,7 @@ export interface StoryDay {
   next_hint: string | null;
   ig_caption: string | null;
   hashtags: string[] | null;
+  hook_text: string | null;
   created_at: string;
 }
 
@@ -70,6 +72,7 @@ export interface Media {
   retry_count: number | null;
   last_error: string | null;
   visual_signature: { palette: string; lens: string; movement: string } | null;
+  hook_text: string | null;
   created_at: string;
 }
 

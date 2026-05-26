@@ -434,3 +434,6 @@ ALTER TABLE chs_story_days
 
 -- Hook text for carousel overlay (optional, ~35% of days)
 ALTER TABLE chs_story_days ADD COLUMN IF NOT EXISTS hook_text text;
+
+-- Per-slot hook text on carousel media assets
+ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS hook_text text;
