@@ -3,10 +3,13 @@ import { Character, StoryDay, Media } from "@/types";
 import Sidebar from "@/components/dashboard/Sidebar";
 import MediaCard from "@/components/dashboard/MediaCard";
 import CharacterSelector from "@/components/today/CharacterSelector";
+import DateNav from "@/components/today/DateNav";
+import GenerateForwardButton from "@/components/today/GenerateForwardButton";
 
 type TodayStory = StoryDay & {
   chs_media: Media[];
   chs_characters: Character;
+  hook_text?: string | null;
 };
 
 const arcColors: Record<string, string> = {
@@ -16,6 +19,11 @@ const arcColors: Record<string, string> = {
   turning: "text-amber border-amber/20 bg-amber/10",
   falling: "text-muted2 border-border2 bg-bg3",
   quiet: "text-muted2 border-border2 bg-bg3",
+};
+
+const tierColors: Record<string, string> = {
+  lifestyle_travel: "text-teal border-teal/20 bg-teal/10",
+  intimate_aesthetic: "text-pink-400 border-pink-400/20 bg-pink-400/10",
 };
 
 function ProductionGroup({ title, hint, items }: { title: string; hint: string; items: Media[] }) {
@@ -34,27 +42,36 @@ function ProductionGroup({ title, hint, items }: { title: string; hint: string; 
   );
 }
 
-function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: string[] | null }) {
+function CaptionBlock({ caption, hashtags, hookText }: { caption: string; hashtags?: string[] | null; hookText?: string | null }) {
   return (
-    <div className="pt-4 border-t border-border">
-      <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-3">
-        // Instagram caption
-      </p>
-      <div className="space-y-2">
-        <div className="flex items-start gap-2">
-          <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 rounded-sm flex-shrink-0 mt-0.5">EN</span>
-          <p className="text-sm text-ink italic leading-relaxed whitespace-pre-line">{caption}</p>
+    <div className="pt-4 border-t border-border space-y-4">
+      {hookText && (
+        <div>
+          <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-2">// Hook text (carousel overlay)</p>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-sm text-white bg-bg border border-accent/30 rounded px-3 py-1.5 tracking-wide">
+              {hookText}
+            </span>
+            <span className="font-mono text-[9px] text-muted italic">~35% dní · vložiť manuálne pri produkcii</span>
+          </div>
         </div>
-        <div className="flex items-start gap-2">
-          <span className="font-mono text-[8px] bg-border border border-border2 text-muted px-1.5 py-0.5 rounded-sm flex-shrink-0 mt-0.5">SK</span>
-          <p className="text-xs text-muted italic leading-relaxed">(SK preklad bude vygenerovaný)</p>
-        </div>
-      </div>
-      {hashtags && hashtags.length > 0 && (
-        <p className="font-mono text-[10px] text-muted leading-relaxed mt-2">
-          {hashtags.map((h) => `#${h}`).join(" ")}
-        </p>
       )}
+      <div>
+        <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-3">
+          // Instagram caption
+        </p>
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 rounded-sm flex-shrink-0 mt-0.5">EN</span>
+            <p className="text-sm text-ink italic leading-relaxed whitespace-pre-line">{caption}</p>
+          </div>
+        </div>
+        {hashtags && hashtags.length > 0 && (
+          <p className="font-mono text-[10px] text-muted leading-relaxed mt-2">
+            {hashtags.map((h) => `#${h}`).join(" ")}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -62,15 +79,16 @@ function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: strin
 export default async function TodayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ char?: string }>;
+  searchParams: Promise<{ char?: string; date?: string }>;
 }) {
-  const { char: selectedCharId } = await searchParams;
+  const { char: selectedCharId, date: dateParam } = await searchParams;
+  const todayDate = new Date().toISOString().split("T")[0];
+  const viewDate = dateParam ?? todayDate;
 
-  const today = new Date().toISOString().split("T")[0];
   const { data } = await supabase
     .from("chs_story_days")
     .select("*, chs_media(*), chs_characters(*)")
-    .eq("date", today)
+    .eq("date", viewDate)
     .order("created_at", { ascending: false });
 
   const allStories = (data as TodayStory[]) ?? [];
@@ -83,40 +101,62 @@ export default async function TodayPage({
     ? allStories.filter((s) => s.chs_characters?.id === selectedCharId)
     : allStories;
 
-  const todayLabel = new Date().toLocaleDateString("sk-SK", {
+  const viewDateLabel = new Date(viewDate + "T12:00:00Z").toLocaleDateString("sk-SK", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
 
+  const isToday = viewDate === todayDate;
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 lg:ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
-          <h1 className="text-white font-medium text-sm tracking-wide">Dnešný deň</h1>
-          <div className="flex items-center gap-3">
+        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between gap-4">
+          <h1 className="text-white font-medium text-sm tracking-wide flex-shrink-0">
+            {isToday ? "Dnešný deň" : "Archív"}
+          </h1>
+          <div className="flex items-center gap-3 flex-wrap">
             {characters.length > 1 && (
               <CharacterSelector characters={characters} selectedCharId={selectedCharId ?? "all"} />
             )}
-            <span className="font-mono text-[10px] text-muted hidden sm:block">{todayLabel}</span>
+            <DateNav currentDate={viewDate} todayDate={todayDate} charId={selectedCharId} />
           </div>
         </div>
 
-        <div className="p-4 lg:p-8">
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Dnešné príbehy</p>
-          <h2 className="text-2xl font-medium text-white mb-1">Dnešný deň</h2>
-          <p className="text-sm text-muted2 mb-8">
-            Príbehy, médiá a Instagram captions vygenerované dnes.
-          </p>
+        <div className="p-4 lg:p-8 space-y-8">
+          {/* Header */}
+          <div>
+            <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-1">
+              // {isToday ? "Dnešné príbehy" : `Archív · ${viewDate}`}
+            </p>
+            <h2 className="text-2xl font-medium text-white mb-1">{viewDateLabel}</h2>
+            <p className="text-sm text-muted2">
+              {isToday
+                ? "Príbehy, médiá a Instagram captions vygenerované dnes."
+                : "Archivovaný deň — médiá a captions z tohto dňa."}
+            </p>
+          </div>
 
+          {/* Generate ahead panel — always visible */}
+          <div className="bg-bg2 border border-border rounded-md p-5">
+            <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-3">// Generovanie dopredu</p>
+            <GenerateForwardButton characterId={selectedCharId} />
+          </div>
+
+          {/* Stories */}
           {stories.length === 0 ? (
             <div className="bg-bg2 border border-border border-dashed rounded-md p-12 text-center">
               <div className="text-4xl mb-4">◎</div>
-              <p className="text-white font-medium mb-2">Žiadny príbeh dnes</p>
-              <p className="text-sm text-muted">Cron job sa spustí o 6:00 UTC. Alebo spusti manuálne z Dashboardu.</p>
+              <p className="text-white font-medium mb-2">Žiadny príbeh pre {viewDate}</p>
+              <p className="text-sm text-muted">
+                {isToday
+                  ? "Cron job sa spustí o 6:00 UTC. Alebo generuj dopredu hore."
+                  : "Pre tento deň ešte nebol vygenerovaný príbeh. Použi tlačidlo hore."}
+              </p>
             </div>
           ) : (
             <div className="space-y-8">
@@ -134,6 +174,11 @@ export default async function TodayPage({
                         <span className="font-mono text-[9px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-wider">
                           DAY {story.day_number}
                         </span>
+                        {story.tier && (
+                          <span className={`font-mono text-[9px] border px-2 py-0.5 tracking-wider uppercase ${tierColors[story.tier] ?? "text-muted2 border-border bg-bg3"}`}>
+                            {story.tier.replace(/_/g, " ")}
+                          </span>
+                        )}
                       </div>
                       <span className={`font-mono text-[9px] border px-2 py-0.5 rounded-sm tracking-wider ${arcColors[story.arc_position] ?? arcColors.quiet}`}>
                         {story.arc_position.toUpperCase()}
@@ -141,7 +186,7 @@ export default async function TodayPage({
                     </div>
 
                     <div className="p-6 space-y-6">
-                      {/* Location + mood + emotional beat + tier + drift seeds */}
+                      {/* Location + mood + emotional beat + drift seeds */}
                       <div className="flex items-center gap-3 flex-wrap">
                         <div className="font-mono text-[11px] text-teal tracking-wider">📍 {story.location}</div>
                         <span className="text-border2">·</span>
@@ -154,12 +199,7 @@ export default async function TodayPage({
                             </span>
                           </>
                         )}
-                        {story.tier && (
-                          <span className="font-mono text-[9px] bg-bg3 border border-border text-muted2 px-2 py-0.5 tracking-wider uppercase">
-                            {story.tier.replace(/_/g, " ")}
-                          </span>
-                        )}
-                        {story.drift_seeds?.map((s) => (
+                        {(story as TodayStory & { drift_seeds?: Array<{ kind: string; detail?: string }> }).drift_seeds?.map((s) => (
                           <span key={s.kind} className="font-mono text-[9px] bg-amber/10 border border-amber/20 text-amber px-2 py-0.5 tracking-wider uppercase">
                             ⊘ {s.kind.replace(/_/g, " ")}{s.detail ? ` · ${s.detail}` : ""}
                           </span>
@@ -182,7 +222,7 @@ export default async function TodayPage({
                         </div>
                       )}
 
-                      {/* Production — 7-slot batch grouped by channel */}
+                      {/* Production assets grouped by channel */}
                       {(() => {
                         const sorted = [...story.chs_media].sort((a, b) => {
                           const ai = a.sequence_index ?? 99;
@@ -192,7 +232,7 @@ export default async function TodayPage({
                         });
                         const feed = sorted.filter((m) => m.channel === "feed");
                         const reel = sorted.filter((m) => m.channel === "reel");
-                        const stories = sorted.filter((m) => m.channel === "story");
+                        const storyAssets = sorted.filter((m) => m.channel === "story");
                         const legacy = sorted.filter((m) => !m.channel);
 
                         if (sorted.length === 0) return null;
@@ -213,11 +253,11 @@ export default async function TodayPage({
                                 items={reel}
                               />
                             )}
-                            {stories.length > 0 && (
+                            {storyAssets.length > 0 && (
                               <ProductionGroup
                                 title="Story"
                                 hint="BTS · 9:16"
-                                items={stories}
+                                items={storyAssets}
                               />
                             )}
                             {legacy.length > 0 && (
@@ -232,7 +272,11 @@ export default async function TodayPage({
                       })()}
 
                       {story.ig_caption && (
-                        <CaptionBlock caption={story.ig_caption} hashtags={story.hashtags} />
+                        <CaptionBlock
+                          caption={story.ig_caption}
+                          hashtags={story.hashtags}
+                          hookText={story.hook_text}
+                        />
                       )}
                     </div>
                   </div>

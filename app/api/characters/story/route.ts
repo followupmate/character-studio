@@ -103,6 +103,7 @@ Required fields:
     }
 - next_hint: one sentence hint of tomorrow — must obey the voice doctrine
 - ig_caption: 1 to 2 lines. lowercase preferred. no hashtags. one emoji maximum (not mandatory). lifestyle_travel tier: name the city/place, one sharp observation, soft hook. intimate_aesthetic tier: body-confident and daring — the caption must have an edge, a knowing tone, a slight provocation (e.g. "the robe doesn't stay on long here", "woke up like this. stayed like this.", "the mirror in this room is doing something illegal"). Never bland, never just describing the room.
+- hook_text: OPTIONAL. Short overlay text for carousel image — include in roughly 35% of days only, when the day has a strong visual hook worth displaying as text. 2 to 5 words, lowercase, no punctuation. lifestyle_travel: location-punchy ("rome at midnight", "arrived. not leaving.", "nobody told me about lisbon"). intimate_aesthetic: body-confident ("do not disturb", "you're not invited", "the robe stays"). Omit this field entirely on days where no strong hook emerges — do not force it.
 - hashtags: array of 10 strings without # (3 location · 2 travel/lifestyle · 2 aesthetic · 2 niche · 1 branded for this character)
 
 Pick a single emotional beat — do not blend.
@@ -202,6 +203,7 @@ export async function GET() {
           next_hint: story.next_hint,
           ig_caption: story.ig_caption,
           hashtags: story.hashtags,
+          ...(story.hook_text ? { hook_text: story.hook_text } : {}),
         })
         .select("id, day_number")
         .single();

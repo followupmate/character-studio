@@ -431,3 +431,6 @@ ALTER TABLE chs_story_days DROP CONSTRAINT IF EXISTS chs_story_days_tier_check;
 ALTER TABLE chs_story_days
   ADD CONSTRAINT chs_story_days_tier_check
   CHECK (tier IN ('grounded_routine','cinematic_melancholy','incidental_wrongness','entropy','lifestyle_travel','intimate_aesthetic'));
+
+-- Hook text for carousel overlay (optional, ~35% of days)
+ALTER TABLE chs_story_days ADD COLUMN IF NOT EXISTS hook_text text;
