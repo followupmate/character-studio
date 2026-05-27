@@ -1,6 +1,7 @@
 import { claudeWithRetry } from "@/lib/generatePrompts";
 import { SlotSpec } from "@/lib/archetypeDeck";
 import { SceneBriefJson } from "@/lib/sceneBrief";
+import { CarouselSlide } from "@/lib/carouselScript";
 
 export type DoctrineKey = "cinematic" | "instagram" | "editorial" | "deepseek";
 
@@ -17,6 +18,7 @@ interface BuildArgs {
     soul_id: string | null;
   };
   arcPosition: string;
+  carouselSlide?: CarouselSlide; // pre-planned arc role from carousel script
 }
 
 interface DoctrineSpec {
@@ -444,7 +446,11 @@ ${sacredBlock(args.character.sacred_details)}
 
 SLOT: ${args.slot.slot}${args.slot.sequence_index ? ` (carousel position ${args.slot.sequence_index} of 5)` : ""}
 SLOT FRAMING: ${args.slot.framing}
-
+${args.carouselSlide ? `
+CAROUSEL ARC ROLE — slide ${args.carouselSlide.slide} of 5 (${args.carouselSlide.role.toUpperCase()}):
+Visual intention: ${args.carouselSlide.visual_intention}
+Align composition, framing, and subject action to serve this arc position in the 5-slide story. The overlay text for this slide is already set — do NOT add a Hook: line.
+` : ""}
 ARCHETYPE: ${args.archetypeId}
 ARCHETYPE GUIDANCE: ${args.archetypeGuidance}`;
 }
@@ -517,26 +523,35 @@ function extractHookText(text: string): string | null {
 
 export async function generateSlotPrompt(args: BuildArgs): Promise<SlotPromptResult> {
   const spec = DOCTRINES[args.doctrine];
-  const isCarousel = CAROUSEL_SLOTS.has(args.slot.slot);
+  const isCarouselPhoto = CAROUSEL_SLOTS.has(args.slot.slot) && args.slot.type === "photo";
 
-  // Inject hook instruction only for carousel photo slots
-  const extraInstruction = (isCarousel && args.slot.type === "photo") ? HOOK_INSTRUCTION : "";
+  // If carousel script provided, arc role is already injected in commonBody — no hook generation needed.
+  // If no script, fall back to per-slot HOOK_INSTRUCTION.
+  const extraInstruction = (isCarouselPhoto && !args.carouselSlide) ? HOOK_INSTRUCTION : "";
   const baseSystem = args.slot.type === "video" ? buildVideoSystem(args) : buildPhotoSystem(args);
   const systemPrompt = extraInstruction ? `${baseSystem}${extraInstruction}` : baseSystem;
 
   const maxTokens = args.slot.type === "video" ? spec.videoMaxTokens : spec.photoMaxTokens;
+  const extraTokens = isCarouselPhoto && !args.carouselSlide ? 30 : 0;
 
   const msg = await claudeWithRetry({
     model: "claude-sonnet-4-6",
-    max_tokens: maxTokens + (isCarousel ? 30 : 0),
+    max_tokens: maxTokens + extraTokens,
     system: systemPrompt,
     messages: [{ role: "user", content: `Generate the ${args.slot.slot} prompt now.` }],
   });
 
   const text = (msg.content[0] as { type: string; text: string }).text;
+
+  // Hook text: use pre-planned from carousel script, or extract from response (fallback)
+  let hookText: string | null = null;
+  if (isCarouselPhoto) {
+    hookText = args.carouselSlide?.overlay_text ?? extractHookText(text);
+  }
+
   return {
     prompt: text,
     visualSignature: extractSignature(text),
-    hookText: isCarousel ? extractHookText(text) : null,
+    hookText,
   };
 }

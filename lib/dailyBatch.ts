@@ -8,6 +8,7 @@ import {
 } from "@/lib/archetypeDeck";
 import { generateSceneBrief } from "@/lib/sceneBrief";
 import { generateSlotPrompt, DoctrineKey } from "@/lib/slotPrompts";
+import { generateCarouselScript, CarouselSlide } from "@/lib/carouselScript";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek"];
 
@@ -155,6 +156,36 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     return { batchId, status: "ready", generated: [] };
   }
 
+  // Generate carousel script (coordinated 5-slide arc). Falls back to per-slot hooks on failure.
+  const carouselSlideMap: Record<string, CarouselSlide> = {};
+  try {
+    const existingScript = planComplete
+      ? (existingPlan as { carousel_script?: unknown }).carousel_script
+      : null;
+    const script = existingScript
+      ? (existingScript as import("@/lib/carouselScript").CarouselScript)
+      : await generateCarouselScript({
+          tier: storyDay.tier ?? "lifestyle_travel",
+          location: storyDay.location,
+          mood: storyDay.mood,
+          narrative: storyDay.narrative,
+          emotional_beat: storyDay.emotional_beat ?? null,
+          character: { name: character.name, visual_brief: character.visual_brief },
+        });
+    if (!existingScript) {
+      await supabase
+        .from("chs_daily_plans")
+        .update({ carousel_script: script })
+        .eq("id", batchId);
+    }
+    for (const slide of script.slides) {
+      carouselSlideMap[`carousel_${slide.slide}`] = slide;
+    }
+  } catch (err) {
+    console.error("[carousel-script]", err);
+    // Non-fatal: slots fall back to per-slot hook generation
+  }
+
   const archetypeMap = await pickArchetypesForBatch({
     characterId,
     slots: slotsToGenerate,
@@ -198,6 +229,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           storyDayId,
           characterId,
           doctrine,
+          carouselSlide: carouselSlideMap[slot.slot],
         })
       )
     );
@@ -236,6 +268,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           storyDayId,
           characterId,
           doctrine,
+          carouselSlide: carouselSlideMap[slot.slot],
           isRetry: true,
         });
       })
@@ -332,6 +365,7 @@ interface RunSlotArgs {
   storyDayId: string;
   characterId: string;
   doctrine: DoctrineKey;
+  carouselSlide?: CarouselSlide;
   isRetry?: boolean;
 }
 
@@ -355,6 +389,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
       sceneBriefDoctrine: args.sceneBriefDoctrine,
       character: args.character,
       arcPosition: args.arcPosition,
+      carouselSlide: args.carouselSlide,
     });
 
     const { error: updErr } = await supabase

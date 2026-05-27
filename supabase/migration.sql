@@ -437,3 +437,6 @@ ALTER TABLE chs_story_days ADD COLUMN IF NOT EXISTS hook_text text;
 
 -- Per-slot hook text on carousel media assets
 ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS hook_text text;
+
+-- Coordinated 5-slide carousel arc script (Hook → Rehook → Story → AHA → CTA)
+ALTER TABLE chs_daily_plans ADD COLUMN IF NOT EXISTS carousel_script jsonb;
