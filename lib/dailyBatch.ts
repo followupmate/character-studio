@@ -93,6 +93,19 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     sceneBriefJson = existingPlan.scene_brief;
     sceneBriefDoctrine = existingPlan.scene_brief_doctrine;
   } else {
+    const { data: recentPlanRows } = await supabase
+      .from("chs_daily_plans")
+      .select("scene_brief")
+      .eq("character_id", characterId)
+      .not("scene_brief", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(7);
+
+    const recentBriefs = ((recentPlanRows ?? []) as Array<{ scene_brief: import("@/lib/sceneBrief").SceneBriefJson | null }>)
+      .map((r) => r.scene_brief)
+      .filter((b): b is import("@/lib/sceneBrief").SceneBriefJson => !!b && typeof b.wardrobe_lock === "string")
+      .map((b) => ({ wardrobe_lock: b.wardrobe_lock, allowed_props: b.allowed_props ?? [] }));
+
     const brief = await generateSceneBrief({
       storyScene: {
         location: storyDay.location,
@@ -111,6 +124,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
         visual_tone: character.visual_tone ?? null,
         styling_note: character.styling_note ?? null,
       },
+      recentBriefs,
     });
 
     sceneBriefJson = brief.json as unknown as Record<string, unknown>;

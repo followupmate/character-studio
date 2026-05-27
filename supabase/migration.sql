@@ -440,3 +440,26 @@ ALTER TABLE chs_media ADD COLUMN IF NOT EXISTS hook_text text;
 
 -- Coordinated 5-slide carousel arc script (Hook → Rehook → Story → AHA → CTA)
 ALTER TABLE chs_daily_plans ADD COLUMN IF NOT EXISTS carousel_script jsonb;
+
+-- =============================================
+-- Vivienne — wardrobe expansion (fixes same-dress-every-day repetition)
+-- Run this block in Supabase SQL Editor to apply
+-- =============================================
+UPDATE chs_characters SET
+  sacred_details = jsonb_set(
+    sacred_details,
+    '{wardrobe_anchors}',
+    '[
+      "silk slip dress — cream or ivory, mid-length, thin straps, soft bias drape. worn alone or layered with blazer.",
+      "wide-leg linen trousers — warm sand or off-white, high-waisted, fluid. paired with a fitted knit or simple tucked tee.",
+      "lightweight knit top — cream or ecru, slightly oversized, round neck. paired with slip skirt or trousers.",
+      "bias-cut silk slip skirt — ivory or champagne, mid-length. paired with tucked knit or simple linen shirt.",
+      "linen shirt dress — warm sand or stone, relaxed fit, midi length, loosely belted or open.",
+      "linen blazer — unstructured, slightly oversized, off-white or camel. layering piece only — never worn alone as main garment.",
+      "soft silk robe — cream or champagne — intimate/hotel content only (morning hotel scenes, not outdoor).",
+      "thin gold chain necklace, always worn",
+      "small gold stud or hoop earrings",
+      "no logos, no branded items, no visible fashion house labels"
+    ]'::jsonb
+  )
+WHERE slug = 'vivienne';

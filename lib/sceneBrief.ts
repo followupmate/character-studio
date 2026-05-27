@@ -36,6 +36,7 @@ interface GenerateArgs {
     visual_tone: string | null;
     styling_note: string | null;
   };
+  recentBriefs?: Array<{ wardrobe_lock: string; allowed_props: string[] }>;
 }
 
 function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | null, sacred: Record<string, unknown> | null): string[] {
@@ -72,7 +73,7 @@ function safeJsonExtract(raw: string): SceneBriefJson {
   return JSON.parse(slice);
 }
 
-export async function generateSceneBrief({ storyScene, character }: GenerateArgs): Promise<SceneBriefResult> {
+export async function generateSceneBrief({ storyScene, character, recentBriefs }: GenerateArgs): Promise<SceneBriefResult> {
   const sacredText = character.sacred_details
     ? `SACRED DETAILS (invariant across all 7 assets — never change):\n${JSON.stringify(character.sacred_details, null, 2)}`
     : "";
@@ -84,6 +85,18 @@ export async function generateSceneBrief({ storyScene, character }: GenerateArgs
   const driftRules = driftRulesForBrief(storyScene.drift_seeds, character.sacred_details);
   const driftText = driftRules.length > 0
     ? `\nDRIFT SEEDS ACTIVE TODAY (mandatory — bake these into the brief's visual_rules array verbatim):\n${driftRules.map((r) => `- ${r}`).join("\n")}`
+    : "";
+
+  const rotationText = recentBriefs && recentBriefs.length > 0
+    ? `\nWARDROBE + PROP ROTATION (mandatory — enforce visible variety day to day):
+Recent wardrobe_lock values (most recent first — do NOT repeat the same combination):
+${recentBriefs.map((b, i) => `  Day -${i + 1}: ${b.wardrobe_lock}`).join("\n")}
+
+Recent allowed_props (avoid repeating the same prop two days in a row):
+${recentBriefs.slice(0, 3).map((b, i) => `  Day -${i + 1}: ${b.allowed_props.join(", ")}`).join("\n")}
+
+RULE: today's wardrobe_lock must use a DIFFERENT garment combination than Day -1 above. Rotate through the full wardrobe_anchors list — do not default to the same dress + blazer every day.
+RULE: today's allowed_props must include at most ONE prop that appeared yesterday. Prefer props that have not appeared in the last 3 days.`
     : "";
 
   const systemPrompt = `You are the cinematic director for ${character.name}.
@@ -101,6 +114,7 @@ ${toneText}
 ${stylingText}
 
 ${tierText}
+${rotationText}
 
 STORY CONTEXT:
 Location: ${storyScene.location}
@@ -122,7 +136,7 @@ Valid JSON only, no markdown:
   "location_constraints": ["3 to 5 GEOMETRIC/SPATIAL constraints — describe what is WHERE in physical space. Examples: 'subject stands on north-side platform edge', 'escalator descends to her left at 30 degrees', 'concrete pillar 2m in front of her', 'fluorescent ceiling lights at 3m height', 'no signage or text visible in frame'. AVOID vague constraints like 'same lighting' — instead say 'overhead fluorescent fixtures every 3m'."],
   "spatial_setup": "ONE concrete sentence describing a SINGLE MICRO-LOCATION (max 10m × 10m radius) where ALL 8 slots are captured. Camera moves around within this micro-location; subject stays in this micro-location for the entire batch. PICK ONE entry from the character's sacred_details.recurring_environment — do not span multiple. Example: 'Shinagawa station underground passage between exits 2 and 3, concrete walls left and right, fluorescent strip lights overhead, descending escalator 5m to the right, no benches no stalls no vendors no shop fronts in frame.' Be physically possible — no escalators into walls, no stairs to nowhere. Be EXHAUSTIVE about what is and is NOT in this micro-location, so slot prompts cannot invent secondary furniture or environment elements (benches, tables, fruit crates, market stalls, signs, second rooms).",
   "wardrobe_lock": "EXHAUSTIVE list of garments, comma-separated. Format: 'charcoal wool coat (knee-length, late-90s cut), black trousers, black ankle boots, brown leather shoulder bag (worn strap), no jewelry, no scarf, no hat'. If a garment is not listed, it is NOT in the frame.",
-  "allowed_props": ["AT MOST 3-4 objects that MAY appear in detail/interaction-archetype slots. Most slots will use NONE of these. Anchored to character's sacred_details.props. Examples: 'three loose mandarins in right coat pocket', 'used ferry ticket in left pocket', 'plain notebook in shoulder bag', 'metal token on keyring'. Do NOT include scene-specific newcomers — keep tight. NEVER include: plastic bags, shopping bags, takeaway containers, coffee cups, phones, branded items."],
+  "allowed_props": ["AT MOST 2 objects that MAY appear in detail/interaction-archetype slots. Most slots will use NONE — default is empty hands. Anchored to character's sacred_details.props only. Pick props that fit the current time_of_day and location: espresso cup → morning; champagne/wine → evening; sunglasses → outdoor; book → terrace/hotel. Do NOT include props that appeared yesterday (see WARDROBE + PROP ROTATION above). NEVER include: plastic bags, shopping bags, takeaway containers, phones, branded items."],
   "lighting_state": "one light source, direction, color (e.g. 'overhead fluorescent, harsh, neutral white')",
   "time_of_day": "one of: dawn | morning | midday | golden_hour | dusk | blue_hour | night | indoor_lamp | fluorescent",
   "weather_implied": "simple word (clear, overcast, humid, dry wind, post-rain, indoor)"
