@@ -9,6 +9,7 @@ import {
 import { generateSceneBrief } from "@/lib/sceneBrief";
 import { generateSlotPrompt, DoctrineKey } from "@/lib/slotPrompts";
 import { generateCarouselScript, CarouselSlide } from "@/lib/carouselScript";
+import { pickStylingProfile, StylingProfile } from "@/lib/stylingDeck";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek"];
 
@@ -106,6 +107,18 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       .filter((b): b is import("@/lib/sceneBrief").SceneBriefJson => !!b && typeof b.wardrobe_lock === "string")
       .map((b) => ({ wardrobe_lock: b.wardrobe_lock, allowed_props: b.allowed_props ?? [] }));
 
+    // Pick styling profile for today (or reuse from existing plan)
+    let stylingProfile: StylingProfile | undefined;
+    if (planComplete && (existingPlan as { styling_profile?: string }).styling_profile) {
+      const existingId = (existingPlan as { styling_profile: string }).styling_profile;
+      const { STYLING_PROFILES } = await import("@/lib/stylingDeck");
+      stylingProfile = STYLING_PROFILES.find((p) => p.id === existingId);
+    }
+    if (!stylingProfile) {
+      stylingProfile = await pickStylingProfile(characterId, storyDay.tier ?? "lifestyle_travel");
+      // Persist after scene brief is saved (update below)
+    }
+
     const brief = await generateSceneBrief({
       storyScene: {
         location: storyDay.location,
@@ -125,6 +138,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
         styling_note: character.styling_note ?? null,
       },
       recentBriefs,
+      stylingProfile,
     });
 
     sceneBriefJson = brief.json as unknown as Record<string, unknown>;
@@ -138,6 +152,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           scene_brief: sceneBriefJson,
           scene_brief_doctrine: sceneBriefDoctrine,
           batch_status: "generating",
+          styling_profile: stylingProfile?.id ?? null,
         })
         .eq("id", existingPlan.id);
       if (updErr) throw updErr;
@@ -152,6 +167,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           scene_brief: sceneBriefJson,
           scene_brief_doctrine: sceneBriefDoctrine,
           batch_status: "generating",
+          styling_profile: stylingProfile?.id ?? null,
         })
         .select()
         .single();

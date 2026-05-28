@@ -1,4 +1,5 @@
 import { claudeWithRetry } from "@/lib/generatePrompts";
+import { StylingProfile } from "@/lib/stylingDeck";
 
 export interface SceneBriefJson {
   camera_language: string;
@@ -37,6 +38,7 @@ interface GenerateArgs {
     styling_note: string | null;
   };
   recentBriefs?: Array<{ wardrobe_lock: string; allowed_props: string[] }>;
+  stylingProfile?: StylingProfile;
 }
 
 function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | null, sacred: Record<string, unknown> | null): string[] {
@@ -73,7 +75,7 @@ function safeJsonExtract(raw: string): SceneBriefJson {
   return JSON.parse(slice);
 }
 
-export async function generateSceneBrief({ storyScene, character, recentBriefs }: GenerateArgs): Promise<SceneBriefResult> {
+export async function generateSceneBrief({ storyScene, character, recentBriefs, stylingProfile }: GenerateArgs): Promise<SceneBriefResult> {
   const sacredText = character.sacred_details
     ? `SACRED DETAILS (invariant across all 7 assets — never change):\n${JSON.stringify(character.sacred_details, null, 2)}`
     : "";
@@ -85,6 +87,20 @@ export async function generateSceneBrief({ storyScene, character, recentBriefs }
   const driftRules = driftRulesForBrief(storyScene.drift_seeds, character.sacred_details);
   const driftText = driftRules.length > 0
     ? `\nDRIFT SEEDS ACTIVE TODAY (mandatory — bake these into the brief's visual_rules array verbatim):\n${driftRules.map((r) => `- ${r}`).join("\n")}`
+    : "";
+
+  const stylingText2 = stylingProfile
+    ? `\nSTYLING PROFILE FOR TODAY — MANDATORY OVERRIDE (replaces wardrobe_anchors for this batch):
+Label: ${stylingProfile.label}
+Vibe: ${stylingProfile.vibe}
+Outfit: ${stylingProfile.outfit}
+Hair: ${stylingProfile.hair}
+Jewelry: ${stylingProfile.jewelry}
+Makeup: ${stylingProfile.makeup}
+
+RULE: Use this profile as the wardrobe_lock. Adapt minor details to fit the location (${storyScene.location}) and time of day, but the styling category must be preserved — if it says beach club, she is in beach club attire; if it says couture gown, she is in a gown.
+RULE: Do NOT revert to the generic silk slip dress + linen blazer from wardrobe_anchors. The slip dress is NOT today's look.
+Add the character constants from sacred_details (gold chain, earrings) as always-present accessories.`
     : "";
 
   const rotationText = recentBriefs && recentBriefs.length > 0
@@ -112,6 +128,7 @@ ${sacredText}
 
 ${toneText}
 ${stylingText}
+${stylingText2}
 
 ${tierText}
 ${rotationText}
