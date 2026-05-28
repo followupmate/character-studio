@@ -445,6 +445,24 @@ ALTER TABLE chs_daily_plans ADD COLUMN IF NOT EXISTS carousel_script jsonb;
 ALTER TABLE chs_daily_plans ADD COLUMN IF NOT EXISTS styling_profile text;
 
 -- =============================================
+-- Fix: remove suggestive prop hints that caused coffee to appear everywhere
+-- =============================================
+UPDATE chs_characters SET
+  sacred_details = jsonb_set(
+    sacred_details,
+    '{props}',
+    '[
+      "espresso cup — ONLY at café terrace or balcony WITH a table surface. NEVER in bathroom, bedroom, hallway, beach, or any location without a table.",
+      "champagne coupe or wine glass — ONLY at terrace, balcony, or restaurant WITH a table surface. Evening only. NEVER in bathroom or bedroom.",
+      "oversized sunglasses — outdoor locations only. Can be worn or held in hand.",
+      "small leather passport wallet — tan, worn, no logo. Arrival/departure scenes only.",
+      "hotel key card — hotel room or corridor only. Never show room number.",
+      "linen or hardcover book — terrace, balcony, or hotel room WITH a desk or table only. NEVER in bathroom or mid-walk."
+    ]'::jsonb
+  )
+WHERE slug = 'vivienne';
+
+-- =============================================
 -- Vivienne — wardrobe_anchors reduced to character constants only.
 -- Actual daily outfits now come from STYLING_PROFILES in lib/stylingDeck.ts.
 -- Run this block in Supabase SQL Editor to apply.

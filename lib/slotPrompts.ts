@@ -104,7 +104,7 @@ If the scene logically would benefit from an object that is not listed, you MUST
 
 EXPLICITLY DO NOT ADD (common confabulation):
 - plastic bags, paper bags, shopping bags, takeaway bags
-- coffee cups, water bottles, food containers
+- coffee cups, water bottles, food containers (UNLESS "espresso cup" or "wine glass" is in the ALLOWED PROPS list AND this slot's archetype is hands_object or interaction_object AND the spatial_setup contains a table or counter surface — if any of these three conditions is false, no drink in frame)
 - phones, earbuds, watches, sunglasses (unless in wardrobe)
 - jewelry beyond what's listed
 - branded items, logos, shop signs, posters with text
@@ -112,6 +112,13 @@ EXPLICITLY DO NOT ADD (common confabulation):
 - pets, vehicles, secondary characters
 - ENVIRONMENT FURNITURE not listed in spatial_setup: benches, tables, chairs, market stalls, fruit crates / boxes, vendor counters, racks, displays, second rooms visible through doorways
 - A different location than the one named in spatial_setup. All 8 slots happen at the SAME micro-location. If an archetype's framing suggests a different setting, choose an angle within the current setup instead of jumping to a new place.
+
+PROP SPATIAL LOGIC (mandatory check before including any prop):
+Ask: does the spatial_setup contain a surface where this prop would naturally sit or be held?
+- Bathroom / sink area: NO drink props, NO book, NO sunglasses indoors — hands empty or touching sink/mirror edge only
+- Bedroom: NO drink on bed, NO coffee mid-air — drink only if there is an explicit bedside table or desk in spatial_setup
+- Standing on street / stairs / walking: NO props in hand unless archetype is hands_object AND prop is in allowed_props
+When in doubt: empty hands.
 
 ABSOLUTE BANS in language (image generator chokes on these):
 - ethereal, dreamy, moody, atmospheric, evocative, soulful, magical, otherworldly
