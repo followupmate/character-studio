@@ -1,4 +1,4 @@
-import { anthropic } from "@/lib/anthropic";
+import { claudeWithRetry } from "@/lib/generatePrompts";
 
 export type CarouselRole = "hook" | "rehook" | "story" | "aha" | "cta";
 
@@ -67,7 +67,7 @@ OUTPUT: valid JSON only. No markdown, no explanation.
 }
 
 export async function generateCarouselScript(args: ScriptArgs): Promise<CarouselScript> {
-  const msg = await anthropic.messages.create({
+  const msg = await claudeWithRetry({
     model: "claude-sonnet-4-6",
     max_tokens: 600,
     system: buildPrompt(args),
@@ -76,7 +76,12 @@ export async function generateCarouselScript(args: ScriptArgs): Promise<Carousel
 
   const rawText = (msg.content[0] as { type: string; text: string }).text;
   const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-  const script = JSON.parse(jsonText) as CarouselScript;
+  let script: CarouselScript;
+  try {
+    script = JSON.parse(jsonText) as CarouselScript;
+  } catch {
+    throw new Error(`Carousel script JSON parse failed. Claude returned: ${rawText.slice(0, 300)}`);
+  }
 
   for (const slide of script.slides) {
     slide.overlay_text = slide.overlay_text.toLowerCase().replace(/[.!?,]+$/, "").trim();

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { anthropic } from "@/lib/anthropic";
 import { generateDailyBatch } from "@/lib/dailyBatch";
+import { claudeWithRetry } from "@/lib/generatePrompts";
 import {
   pickTier,
   pickDriftSeeds,
@@ -187,7 +187,7 @@ export async function POST(req: Request) {
 
           const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText });
 
-          const msg = await anthropic.messages.create({
+          const msg = await claudeWithRetry({
             model: "claude-sonnet-4-6",
             max_tokens: 1800,
             system,
@@ -198,7 +198,12 @@ export async function POST(req: Request) {
 
           const rawText = (msg.content[0] as { type: string; text: string }).text;
           const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-          const story = JSON.parse(jsonText);
+          let story: Record<string, unknown>;
+          try {
+            story = JSON.parse(jsonText);
+          } catch {
+            throw new Error(`Story JSON parse failed. Claude returned: ${rawText.slice(0, 300)}`);
+          }
 
           const insertPayload: Record<string, unknown> = {
             character_id: char.id,

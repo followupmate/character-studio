@@ -518,8 +518,10 @@ export async function claudeWithRetry(params: { model: string; max_tokens: numbe
       return await anthropic.messages.create(params as any);
     } catch (err: any) {
       const isOverloaded = err?.status === 529 || String(err).includes("overloaded");
-      if (isOverloaded && attempt < retries) {
-        await new Promise((r) => setTimeout(r, attempt * 6000));
+      const isRateLimit = err?.status === 429 || String(err).includes("rate_limit");
+      if ((isOverloaded || isRateLimit) && attempt < retries) {
+        const waitMs = isRateLimit ? attempt * 15000 : attempt * 6000;
+        await new Promise((r) => setTimeout(r, waitMs));
         continue;
       }
       throw err;

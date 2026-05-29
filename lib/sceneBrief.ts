@@ -72,7 +72,11 @@ function safeJsonExtract(raw: string): SceneBriefJson {
   const first = cleaned.indexOf("{");
   const last = cleaned.lastIndexOf("}");
   const slice = first >= 0 && last > first ? cleaned.slice(first, last + 1) : cleaned;
-  return JSON.parse(slice);
+  try {
+    return JSON.parse(slice);
+  } catch {
+    throw new Error(`Scene brief JSON parse failed. Claude returned: ${raw.slice(0, 300)}`);
+  }
 }
 
 export async function generateSceneBrief({ storyScene, character, recentBriefs, stylingProfile }: GenerateArgs): Promise<SceneBriefResult> {
