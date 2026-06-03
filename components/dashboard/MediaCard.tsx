@@ -127,9 +127,11 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [generator, setGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : "google");
+  const [audioStyle, setAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
   const [showRegen, setShowRegen] = useState(false);
   const [regenPrompt, setRegenPrompt] = useState(cleanPrompt(media.higgsfield_prompt));
   const [regenGenerator, setRegenGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : "google");
+  const [regenAudioStyle, setRegenAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
 
@@ -147,6 +149,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
           loraScale: g.loraScale,
           steps: g.steps,
           guidance: g.guidance,
+          audioStyle,
         }),
       });
       const data = await res.json();
@@ -184,6 +187,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
           steps: g.steps,
           guidance: g.guidance,
           promptOverride: regenPrompt.trim() || undefined,
+          audioStyle: regenAudioStyle,
         }),
       });
       const data = await res.json();
@@ -406,6 +410,21 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
                       </button>
                     ))}
                   </div>
+                  {isVideoSlot && regenGenerator.startsWith("seedance") && (
+                    <div className="flex gap-1 flex-wrap">
+                      {(["scene","ambient","dialogue","silent"] as const).map((a) => (
+                        <button
+                          key={a}
+                          onClick={() => setRegenAudioStyle(a)}
+                          className={`font-mono text-[8px] uppercase tracking-[0.06em] px-2 py-0.5 border transition-colors ${
+                            regenAudioStyle === a ? "border-amber/50 bg-amber/10 text-amber" : "border-border text-muted hover:text-ink"
+                          }`}
+                        >
+                          {a === "scene" ? "🎙 scene" : a === "ambient" ? "🎵 ambient" : a === "dialogue" ? "🗣 dialogue" : "🔇 silent"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <motion.button
                     onClick={regenerate}
                     disabled={regenerating}
@@ -505,10 +524,20 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
             <p className="font-mono text-[8px] text-muted/60">
               {activeGenerators.find((g) => g.id === generator)?.desc}
             </p>
-            {isVideoSlot && (
-              <p className="font-mono text-[8px] text-violet-400/70">
-                Vyžaduje vygenerovaný Start Frame · Veo berie ho ako vstupný obrázok
-              </p>
+            {isVideoSlot && generator.startsWith("seedance") && (
+              <div className="flex gap-1 flex-wrap">
+                {(["scene","ambient","dialogue","silent"] as const).map((a) => (
+                  <button
+                    key={a}
+                    onClick={() => setAudioStyle(a)}
+                    className={`font-mono text-[8px] uppercase tracking-[0.06em] px-2 py-0.5 border transition-colors ${
+                      audioStyle === a ? "border-amber/50 bg-amber/10 text-amber" : "border-border text-muted hover:text-ink"
+                    }`}
+                  >
+                    {a === "scene" ? "🎙 scene" : a === "ambient" ? "🎵 ambient" : a === "dialogue" ? "🗣 dialogue" : "🔇 silent"}
+                  </button>
+                ))}
+              </div>
             )}
             <motion.button
               onClick={generateWithFal}

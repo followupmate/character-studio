@@ -537,13 +537,24 @@ interface SeedanceResult {
   video?: { url?: string };
 }
 
+// audioStyle controls what Seedance generates as audio track.
+// Seedance has no dedicated audio param — audio type is driven entirely by prompt language.
+const AUDIO_HINTS: Record<string, string> = {
+  scene:    "Sound design: natural diegetic sounds only — fabric movement, soft breathing, ambient environment, no background music.",
+  ambient:  "Sound design: subtle ambient background music matching the mood.",
+  dialogue: "Sound design: clear foreground voice and speech, natural room tone, no music.",
+  silent:   "Muted audio. No sound effects, no music, no speech.",
+};
+
 async function generateWithSeedance(
   rawPrompt: string,
   referenceImageUrls: string[],
   startFrameUrl: string | null,
   mediaId: string,
-  mode: "reference" | "i2v" | "fast" = "reference"
+  mode: "reference" | "i2v" | "fast" = "reference",
+  audioStyle: "scene" | "ambient" | "dialogue" | "silent" = "scene"
 ): Promise<string> {
+  const audioHint = AUDIO_HINTS[audioStyle] ?? AUDIO_HINTS.scene;
   const cleanedPrompt = sanitizePrompt(
     rawPrompt
       .replace(/^Model:\s*(?:Soul\s*\d+|Seedance\s*\S*)\s*[\u{1F000}-\u{1FFFF}☀-⟿🎬]*\s*(?:Video\s*Prompt|Image\s*Prompt)?[\s:]*/imu, "")
@@ -564,12 +575,12 @@ async function generateWithSeedance(
 
     const result = await fal.subscribe(modelId, {
       input: {
-        prompt: `Cinematic motion. ${cleanedPrompt}`,
+        prompt: `Cinematic motion. ${cleanedPrompt} ${audioHint}`,
         image_url: startFrameUrl,
         resolution: "720p",
         duration: "10",
         aspect_ratio: "auto",
-        generate_audio: true,
+        generate_audio: audioStyle !== "silent",
       },
     }) as SeedanceResult;
 
@@ -590,12 +601,12 @@ async function generateWithSeedance(
 
     const result = await fal.subscribe("bytedance/seedance-2.0/reference-to-video", {
       input: {
-        prompt,
+        prompt: `${prompt} ${audioHint}`,
         image_urls: images,
         resolution: "720p",
         duration: "10",
         aspect_ratio: "9:16",
-        generate_audio: true,
+        generate_audio: audioStyle !== "silent",
       },
     }) as SeedanceResult;
 
@@ -660,10 +671,12 @@ export async function POST(req: Request) {
       steps          = 40,
       guidance       = 3.5,
       promptOverride,
+      audioStyle     = "scene",
     } = body as {
       mediaId?: string;
       batchId?: string;
       model?: string;
+      audioStyle?: "scene" | "ambient" | "dialogue" | "silent";
       loraScale?: number;
       steps?: number;
       guidance?: number;
@@ -791,7 +804,8 @@ export async function POST(req: Request) {
             referenceUrls,
             startFrameUrl,
             media.id,
-            seedanceMode
+            seedanceMode,
+            audioStyle
           );
           provider = `seedance-${seedanceMode}`;
         } else if (useKling) {
