@@ -275,6 +275,8 @@ export default function PublishClient({
   const [batch, setBatch] = useState<BatchStatusResponse | null>(null);
   const [batchScheduling, setBatchScheduling] = useState(false);
   const [batchDate, setBatchDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [schedulingAll, setSchedulingAll] = useState(false);
+  const [scheduleAllLog, setScheduleAllLog] = useState<string[]>([]);
 
   const showToast = useCallback((ok: boolean, msg: string) => setToast({ ok, msg }), []);
 
@@ -343,6 +345,46 @@ export default function PublishClient({
     } finally {
       setBatchScheduling(false);
     }
+  };
+
+  // Schedule all upcoming days that have ready media (today + next 14 days)
+  const scheduleAllDays = async () => {
+    if (!charId) return;
+    setSchedulingAll(true);
+    setScheduleAllLog([]);
+    const today = new Date();
+    const log: string[] = [];
+    let totalCreated = 0;
+
+    for (let i = 0; i <= 14; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const dateStr = d.toISOString().split("T")[0];
+      try {
+        const res = await fetch(`/api/publish/from-batch?character_id=${charId}&date=${dateStr}`, { method: "POST" });
+        const data = await res.json();
+        if (data.success && data.totalCreated > 0) {
+          totalCreated += data.totalCreated;
+          log.push(`✓ ${dateStr} — ${data.totalCreated} postov`);
+          setScheduleAllLog([...log]);
+        } else if (data.success && data.totalCreated === 0) {
+          // skip — nothing ready or already queued
+        } else {
+          log.push(`✗ ${dateStr} — ${data.error ?? "chyba"}`);
+          setScheduleAllLog([...log]);
+        }
+      } catch {
+        // skip days that fail silently
+      }
+    }
+
+    if (totalCreated > 0) {
+      showToast(true, `Naplánovaných ${totalCreated} postov pre ${log.filter(l => l.startsWith("✓")).length} dní`);
+    } else {
+      showToast(false, "Žiadne pripravené posty nenájdené (skontroluj médium v /today)");
+    }
+    await refreshQueue();
+    setSchedulingAll(false);
   };
 
   // Persist story link URL to localStorage
@@ -639,6 +681,9 @@ export default function PublishClient({
         charName={selectedChar?.name ?? "—"}
         batchDate={batchDate}
         onBatchDateChange={setBatchDate}
+        schedulingAll={schedulingAll}
+        scheduleAllLog={scheduleAllLog}
+        onScheduleAll={scheduleAllDays}
       />
 
       {/* ── Section A: Upload & Prepare (manual path) ─────────── */}
@@ -1201,6 +1246,7 @@ const SLOT_SHORT: Record<string, string> = {
 
 function BatchSection({
   batch, scheduling, onSchedule, charName, batchDate, onBatchDateChange,
+  schedulingAll, scheduleAllLog, onScheduleAll,
 }: {
   batch: BatchStatusResponse | null;
   scheduling: boolean;
@@ -1208,6 +1254,9 @@ function BatchSection({
   charName: string;
   batchDate: string;
   onBatchDateChange: (d: string) => void;
+  schedulingAll: boolean;
+  scheduleAllLog: string[];
+  onScheduleAll: () => void;
 }) {
   const todayStr = new Date().toISOString().split("T")[0];
   const isToday = batchDate === todayStr;
@@ -1238,32 +1287,60 @@ function BatchSection({
 
   return (
     <section className="bg-bg2 border border-border">
-      <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-[16px] text-muted">auto_awesome</span>
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase">
-            // {isToday ? "Dnešný" : "Batch"} batch — {charName}
-          </p>
+      <div className="px-6 py-4 border-b border-border bg-bg3 flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-[16px] text-muted">auto_awesome</span>
+            <p className="font-mono text-[9px] tracking-widest text-muted uppercase">
+              // {isToday ? "Dnešný" : "Batch"} batch — {charName}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="date"
+              value={batchDate}
+              onChange={(e) => e.target.value && onBatchDateChange(e.target.value)}
+              className="font-mono text-[10px] bg-bg border border-border text-ink rounded px-2 py-1 focus:outline-none focus:border-accent"
+            />
+            {!isToday && (
+              <button
+                onClick={() => onBatchDateChange(todayStr)}
+                className="font-mono text-[9px] text-accent border border-accent/30 rounded px-2 py-1 hover:bg-accent/10 transition-colors"
+              >
+                dnes
+              </button>
+            )}
+            <span className="font-mono text-[10px] text-muted">
+              {totalSlots > 0 ? `${readySlots.length} / ${totalSlots} ready` : "—"}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={batchDate}
-            onChange={(e) => e.target.value && onBatchDateChange(e.target.value)}
-            className="font-mono text-[10px] bg-bg border border-border text-ink rounded px-2 py-1 focus:outline-none focus:border-accent"
-          />
-          {!isToday && (
-            <button
-              onClick={() => onBatchDateChange(todayStr)}
-              className="font-mono text-[9px] text-accent border border-accent/30 rounded px-2 py-1 hover:bg-accent/10 transition-colors"
-            >
-              dnes
-            </button>
-          )}
-          <span className="font-mono text-[10px] text-muted">
-            {totalSlots > 0 ? `${readySlots.length} / ${totalSlots} ready` : "—"}
-          </span>
+
+        {/* Schedule all upcoming days */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={onScheduleAll}
+            disabled={schedulingAll}
+            className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider border border-teal/30 text-teal bg-teal/5 px-3 py-1.5 hover:bg-teal/15 transition-all disabled:opacity-40"
+          >
+            {schedulingAll ? (
+              <><span className="w-3 h-3 border border-teal border-t-transparent animate-spin rounded-full" />Plánujem všetky dni…</>
+            ) : (
+              <><span className="material-symbols-outlined text-[14px]">calendar_month</span>Naplánuj všetky dostupné dni</>
+            )}
+          </button>
+          <span className="font-mono text-[8px] text-muted">prejde cez najbližších 14 dní automaticky</span>
         </div>
+
+        {scheduleAllLog.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {scheduleAllLog.map((line, i) => (
+              <span key={i} className={`font-mono text-[9px] px-2 py-0.5 border rounded ${line.startsWith("✓") ? "text-teal border-teal/30 bg-teal/5" : "text-red-400 border-red-400/30 bg-red-400/5"}`}>
+                {line}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="p-6 space-y-4">
