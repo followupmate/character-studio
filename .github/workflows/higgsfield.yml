@@ -1,0 +1,67 @@
+name: Higgsfield Generate
+
+on:
+  workflow_dispatch:
+    inputs:
+      media_id:
+        description: "chs_media UUID to update after generation"
+        required: true
+      prompt:
+        description: "Generation prompt"
+        required: true
+      type:
+        description: "Media type: photo or video"
+        required: true
+      soul_id:
+        description: "Higgsfield Soul ID (required for photo)"
+        required: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Higgsfield CLI
+        run: npm install -g @higgsfield/cli
+
+      - name: Authenticate
+        run: |
+          if higgsfield auth login --help 2>&1 | grep -q -- '--token'; then
+            higgsfield auth login --token "${{ secrets.HIGGSFIELD_TOKEN }}"
+          else
+            HIGGSFIELD_TOKEN="${{ secrets.HIGGSFIELD_TOKEN }}" higgsfield auth login
+          fi
+
+      - name: Generate media
+        id: generate
+        run: |
+          if [ "${{ inputs.type }}" = "photo" ]; then
+            RESULT=$(higgsfield generate create text2image_soul_v2 \
+              --prompt "${{ inputs.prompt }}" \
+              --soul-id "${{ inputs.soul_id }}" \
+              --wait --json)
+          else
+            RESULT=$(higgsfield generate create cinematic_studio_3_0 \
+              --prompt "${{ inputs.prompt }}" \
+              --aspect_ratio 9:16 \
+              --wait --json)
+          fi
+          echo "result=$RESULT" >> $GITHUB_OUTPUT
+
+      - name: Save result to Supabase
+        run: |
+          MEDIA_URL=$(echo '${{ steps.generate.outputs.result }}' | jq -r '.result_url')
+          curl -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/chs_media?id=eq.${{ inputs.media_id }}" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"media_url\": \"${MEDIA_URL}\", \"status\": \"ready\"}"
+
+      - name: Mark failed on error
+        if: failure()
+        run: |
+          curl -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/chs_media?id=eq.${{ inputs.media_id }}" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"status": "failed"}'
