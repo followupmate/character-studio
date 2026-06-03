@@ -241,7 +241,7 @@ export default async function TodayPage({
                             {reel.length > 0 && (
                               <ProductionGroup
                                 title="Reel"
-                                hint="Start frame → image gen · motion → Kling Pro i2v · 9:16 · 5s"
+                                hint="Start frame → image gen · motion → Seedance 2.0 · 9:16 · 10s · audio"
                                 items={reel}
                                 canAutoGenerate={canAutoGenerate}
                               />

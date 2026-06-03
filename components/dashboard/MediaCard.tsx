@@ -12,9 +12,10 @@ const IMAGE_GENERATORS = [
 ] as const;
 
 const VIDEO_GENERATORS = [
-  { id: "kling",       label: "Kling Pro",    desc: "fal.ai · Kling 2.1 Pro i2v · ~3 min",  model: "kling",       loraScale: 0, steps: 0, guidance: 0 },
-  { id: "veo",         label: "Veo 3.1 Fast", desc: "Google · Veo 3.1 Fast · ~2 min",       model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
-  { id: "veo-quality", label: "Veo 3.1",      desc: "Google · Veo 3.1 · highest quality",   model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-ref", label: "Seedance Ref", desc: "Seedance 2.0 · ref photos + audio · ~3 min",  model: "seedance-ref", loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-i2v", label: "Seedance i2v", desc: "Seedance 2.0 · start frame + audio · ~3 min", model: "seedance-i2v", loraScale: 0, steps: 0, guidance: 0 },
+  { id: "kling",        label: "Kling Pro",    desc: "fal.ai · Kling 2.1 Pro i2v · ~3 min",         model: "kling",        loraScale: 0, steps: 0, guidance: 0 },
+  { id: "veo",          label: "Veo 3.1 Fast", desc: "Google · Veo 3.1 Fast · ~2 min",              model: "veo",          loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];
@@ -124,10 +125,10 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [generator, setGenerator] = useState<GeneratorId>(isVideoSlot ? "kling" : "google");
+  const [generator, setGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : "google");
   const [showRegen, setShowRegen] = useState(false);
   const [regenPrompt, setRegenPrompt] = useState(cleanPrompt(media.higgsfield_prompt));
-  const [regenGenerator, setRegenGenerator] = useState<GeneratorId>(isVideoSlot ? "kling" : "google");
+  const [regenGenerator, setRegenGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : "google");
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
 
