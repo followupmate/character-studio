@@ -115,8 +115,34 @@ export default function GenerateForwardButton({ characterId }: { characterId?: s
       {results && (
         <div className="space-y-3">
           {results.map((r) => (
-            <div key={r.character} className="bg-bg3 border border-border rounded px-4 py-3 space-y-2">
+            <div key={r.character} className="bg-bg3 border border-border rounded px-4 py-3 space-y-3">
               <p className="font-mono text-[10px] text-muted uppercase tracking-widest">{r.character}</p>
+
+              {/* Quick day navigation buttons */}
+              <div className="flex flex-wrap gap-1.5">
+                {r.days.map((d) => {
+                  const label = new Date(d.date + "T12:00:00Z").toLocaleDateString("sk-SK", { day: "numeric", month: "numeric" });
+                  const isOk = d.status === "ready" || d.status === "already_exists";
+                  return (
+                    <a
+                      key={d.date}
+                      href={`/today?date=${d.date}`}
+                      className={`font-mono text-[10px] border rounded px-2.5 py-1 transition-colors ${
+                        isOk
+                          ? "border-teal/40 bg-teal/10 text-teal hover:bg-teal/20"
+                          : d.status === "failed"
+                          ? "border-red-400/30 bg-red-400/5 text-red-400"
+                          : "border-border text-muted hover:border-border2 hover:text-ink"
+                      }`}
+                      title={`${d.date} · Day ${d.day_number} · ${d.tier.replace(/_/g, " ")}`}
+                    >
+                      {label}
+                    </a>
+                  );
+                })}
+              </div>
+
+              {/* Detail list */}
               <div className="space-y-1">
                 {r.days.map((d) => (
                   <div key={d.date} className="flex items-center gap-3">
@@ -136,9 +162,6 @@ export default function GenerateForwardButton({ characterId }: { characterId?: s
                   </div>
                 ))}
               </div>
-              <p className="font-mono text-[9px] text-muted pt-1">
-                Hotové dni nájdeš v <span className="text-accent">/today?date=YYYY-MM-DD</span>
-              </p>
             </div>
           ))}
         </div>

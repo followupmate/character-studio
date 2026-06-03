@@ -274,6 +274,7 @@ export default function PublishClient({
   // Today's batch info
   const [batch, setBatch] = useState<BatchStatusResponse | null>(null);
   const [batchScheduling, setBatchScheduling] = useState(false);
+  const [batchDate, setBatchDate] = useState(() => new Date().toISOString().split("T")[0]);
 
   const showToast = useCallback((ok: boolean, msg: string) => setToast({ ok, msg }), []);
 
@@ -312,26 +313,26 @@ export default function PublishClient({
     }
   }, [charId]);
 
-  // Fetch today's batch info when character changes
+  // Fetch batch info when character or date changes
   useEffect(() => {
     if (!charId) { setBatch(null); return; }
-    fetch(`/api/publish/batch-status?character_id=${charId}`)
+    fetch(`/api/publish/batch-status?character_id=${charId}&date=${batchDate}`)
       .then((r) => r.json())
       .then((data: BatchStatusResponse) => setBatch(data))
       .catch(() => setBatch(null));
-  }, [charId]);
+  }, [charId, batchDate]);
 
   const scheduleBatch = async () => {
     if (!charId) return;
     setBatchScheduling(true);
     try {
-      const res = await fetch(`/api/publish/from-batch?character_id=${charId}`, { method: "POST" });
+      const res = await fetch(`/api/publish/from-batch?character_id=${charId}&date=${batchDate}`, { method: "POST" });
       const data = await res.json();
       if (data.success) {
         const created = data.totalCreated ?? 0;
         showToast(true, created > 0 ? `Naplánovaných ${created} postov` : "Nič nové (všetko už v queue)");
         // Refresh batch info + queue
-        const refreshed = await fetch(`/api/publish/batch-status?character_id=${charId}`).then((r) => r.json());
+        const refreshed = await fetch(`/api/publish/batch-status?character_id=${charId}&date=${batchDate}`).then((r) => r.json());
         setBatch(refreshed);
         await refreshQueue();
       } else {
@@ -636,6 +637,8 @@ export default function PublishClient({
         scheduling={batchScheduling}
         onSchedule={scheduleBatch}
         charName={selectedChar?.name ?? "—"}
+        batchDate={batchDate}
+        onBatchDateChange={setBatchDate}
       />
 
       {/* ── Section A: Upload & Prepare (manual path) ─────────── */}
@@ -1197,13 +1200,17 @@ const SLOT_SHORT: Record<string, string> = {
 };
 
 function BatchSection({
-  batch, scheduling, onSchedule, charName,
+  batch, scheduling, onSchedule, charName, batchDate, onBatchDateChange,
 }: {
   batch: BatchStatusResponse | null;
   scheduling: boolean;
   onSchedule: () => void;
   charName: string;
+  batchDate: string;
+  onBatchDateChange: (d: string) => void;
 }) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const isToday = batchDate === todayStr;
   const planExists = !!batch?.plan;
   const slotMap = new Map<string, BatchSlot>();
   (batch?.media ?? []).forEach((m) => slotMap.set(m.slot, m));
@@ -1231,14 +1238,32 @@ function BatchSection({
 
   return (
     <section className="bg-bg2 border border-border">
-      <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-[16px] text-muted">auto_awesome</span>
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Dnešný batch — {charName}</p>
+          <p className="font-mono text-[9px] tracking-widest text-muted uppercase">
+            // {isToday ? "Dnešný" : "Batch"} batch — {charName}
+          </p>
         </div>
-        <span className="font-mono text-[10px] text-muted">
-          {totalSlots > 0 ? `${readySlots.length} / ${totalSlots} ready` : "—"}
-        </span>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={batchDate}
+            onChange={(e) => e.target.value && onBatchDateChange(e.target.value)}
+            className="font-mono text-[10px] bg-bg border border-border text-ink rounded px-2 py-1 focus:outline-none focus:border-accent"
+          />
+          {!isToday && (
+            <button
+              onClick={() => onBatchDateChange(todayStr)}
+              className="font-mono text-[9px] text-accent border border-accent/30 rounded px-2 py-1 hover:bg-accent/10 transition-colors"
+            >
+              dnes
+            </button>
+          )}
+          <span className="font-mono text-[10px] text-muted">
+            {totalSlots > 0 ? `${readySlots.length} / ${totalSlots} ready` : "—"}
+          </span>
+        </div>
       </div>
 
       <div className="p-6 space-y-4">
