@@ -16,6 +16,7 @@ export async function GET() {
          chs_media(type, media_url, chs_daily_plans(chs_characters(name, slug)))`
       )
       .gte("created_at", thirtyDaysAgo)
+      .neq("source", "manual")
       .order("scheduled_at", { ascending: false });
 
     if (error) throw error;
