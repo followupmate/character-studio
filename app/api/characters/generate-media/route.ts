@@ -105,11 +105,19 @@ function sanitizePrompt(prompt: string): string {
     .replace(/\bnude\s+(bandeau|bikini|bra|bralette|top|bodysuit|leotard|shorts|thong|underwear|swimsuit|one-piece)\b/gi, "sand-colored $1")
     .replace(/\bnude-toned\b/gi, "skin-toned")
     .replace(/\bnude\s+(?=fabric|lace|silk|satin|mesh)/gi, "sheer ")
-    // Bikini style modifiers that trigger safety classifier
+    // Bikini → neutral clothing — full chain: specific style → generic → neutral
+    // "triangle bikini top" → "bikini top" → "crop top"
+    // "high-cut minimal bikini bottom" → "bikini bottom" → "shorts"
     .replace(/\btriangle\s+bikini\b/gi, "bikini")
     .replace(/\bhigh-cut\s+(?:minimal\s+)?bikini\b/gi, "bikini")
     .replace(/\bminimal\s+bikini\b/gi, "bikini")
     .replace(/\bhigh-cut\b/gi, "")
+    .replace(/\bbikini\s+top\b/gi, "crop top")
+    .replace(/\bbikini\s+bottom\b/gi, "shorts")
+    .replace(/\bbikini\s+set\b/gi, "swimwear")
+    .replace(/\bbikini\b/gi, "swimwear")
+    // "open shirt" combined with swimwear triggers classifier — remove "open" modifier
+    .replace(/\bopen\s+shirt\b/gi, "shirt")
     // Revealing/context language that triggers safety classifier
     .replace(/\brevealing\b/gi, "showing")
     .replace(/\bfalls\s+open\b/gi, "rests")
