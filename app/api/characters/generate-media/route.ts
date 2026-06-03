@@ -522,14 +522,15 @@ async function generateWithKling(
 }
 
 // ── Seedance 2.0 generation (fal.ai / ByteDance) ──────────────
-// reference-to-video: up to 9 ref images, @Image1 syntax, audio+video
-// image-to-video:     single start frame animate, simpler + cheaper
+// Confirmed model IDs (official fal.ai docs):
+//   bytedance/seedance-2.0/image-to-video            $0.3034/s  720p
+//   bytedance/seedance-2.0/fast/image-to-video       $0.2419/s  720p
+//   bytedance/seedance-2.0/reference-to-video        $0.3024/s  720p
+//   bytedance/seedance-2.0/fast/reference-to-video   $0.2419/s  720p
 //
-// model strings:
-//   bytedance/seedance-2.0/reference-to-video        ($0.30/s)
-//   bytedance/seedance-2.0/fast/reference-to-video   ($0.24/s)
-//   bytedance/seedance-2.0/image-to-video            ($0.30/s)
-//   bytedance/seedance-2.0/fast/image-to-video       ($0.24/s)
+// seedance-i2v  → image-to-video  (start frame required; "auto" aspect = inherit from input)
+// seedance-ref  → reference-to-video (char ref photos + optional start frame as @Image1)
+// seedance-fast → fast/image-to-video ($0.24/s, same quality target but faster queue)
 
 interface SeedanceResult {
   data?: { video?: { url?: string }; seed?: number };
@@ -541,7 +542,7 @@ async function generateWithSeedance(
   referenceImageUrls: string[],
   startFrameUrl: string | null,
   mediaId: string,
-  mode: "reference" | "i2v" = "reference"
+  mode: "reference" | "i2v" | "fast" = "reference"
 ): Promise<string> {
   const cleanedPrompt = sanitizePrompt(
     rawPrompt
@@ -552,17 +553,22 @@ async function generateWithSeedance(
 
   let videoUrl: string;
 
-  if (mode === "i2v") {
+  if (mode === "i2v" || mode === "fast") {
     // ── Image-to-Video: animate the start frame ──────────────
+    // aspect_ratio "auto" inherits 9:16 from the input image (cleaner than hardcoding)
     if (!startFrameUrl) throw new Error("Seedance i2v: start frame required");
 
-    const result = await fal.subscribe("bytedance/seedance-2.0/fast/image-to-video", {
+    const modelId = mode === "fast"
+      ? "bytedance/seedance-2.0/fast/image-to-video"
+      : "bytedance/seedance-2.0/image-to-video";
+
+    const result = await fal.subscribe(modelId, {
       input: {
         prompt: `Cinematic motion. ${cleanedPrompt}`,
         image_url: startFrameUrl,
         resolution: "720p",
         duration: "10",
-        aspect_ratio: "9:16",
+        aspect_ratio: "auto",
         generate_audio: true,
       },
     }) as SeedanceResult;
@@ -570,7 +576,7 @@ async function generateWithSeedance(
     videoUrl = result?.data?.video?.url ?? result?.video?.url ?? "";
   } else {
     // ── Reference-to-Video: character ref photos + optional start frame ──
-    // Build image list: start frame first (becomes @Image1), then ref photos
+    // Start frame = @Image1 (motion anchor); ref photos fill @Image2..@Image9
     const images: string[] = [];
     if (startFrameUrl) images.push(startFrameUrl);
     for (const u of referenceImageUrls) {
@@ -580,10 +586,9 @@ async function generateWithSeedance(
 
     if (images.length === 0) throw new Error("Seedance ref: no reference images available");
 
-    // @Image1 = start frame (or first ref photo) — anchor for character identity
     const prompt = `@Image1 ${cleanedPrompt}`;
 
-    const result = await fal.subscribe("bytedance/seedance-2.0/fast/reference-to-video", {
+    const result = await fal.subscribe("bytedance/seedance-2.0/reference-to-video", {
       input: {
         prompt,
         image_urls: images,
@@ -752,22 +757,24 @@ export async function POST(req: Request) {
       // google / google-pro → Nano Banana (2 or Pro) for image slots
       // bfl                 → BFL FLUX.2 multi-ref (fallback)
       // flux-lora           → fal.ai LoRA (scene consistency fallback)
-      const useSeedanceRef = isVideoSlot && model === "seedance-ref";
-      const useSeedanceI2V = isVideoSlot && model === "seedance-i2v";
+      const useSeedanceRef  = isVideoSlot && model === "seedance-ref";
+      const useSeedanceI2V  = isVideoSlot && model === "seedance-i2v";
+      const useSeedanceFast = isVideoSlot && model === "seedance-fast";
       const useKling       = isVideoSlot && model === "kling";
       const useVeoQuality  = model === "veo-quality";
-      const useVeo         = isVideoSlot && !useKling && !useSeedanceRef && !useSeedanceI2V && !!googleApiKey && (model === "veo" || model === "veo-quality" || model === "auto");
+      const anySeedance    = useSeedanceRef || useSeedanceI2V || useSeedanceFast;
+      const useVeo         = isVideoSlot && !useKling && !anySeedance && !!googleApiKey && (model === "veo" || model === "veo-quality" || model === "auto");
       const useGooglePro   = !isVideoSlot && model === "google-pro";
       const useGoogle      = !isVideoSlot && (model === "google" || model === "google-pro" || (model === "auto" && hasGoogle));
       const isCloseUp      = ["emotional_close","closeup","portrait","close_up","face_detail","detail_face","beauty"].includes(media.shot_archetype ?? "");
-      const useBFL         = !useGoogle && !useVeo && !useKling && !useSeedanceRef && !useSeedanceI2V && (model === "bfl" || (model === "auto" && isCloseUp && hasBFL));
+      const useBFL         = !useGoogle && !useVeo && !useKling && !anySeedance && (model === "bfl" || (model === "auto" && isCloseUp && hasBFL));
       const useFluxPro     = model === "flux-pro";
 
       try {
         let mediaUrl: string;
         let provider = "falai";
 
-        if (useSeedanceRef || useSeedanceI2V) {
+        if (useSeedanceRef || useSeedanceI2V || useSeedanceFast) {
           // Seedance 2.0: look up start frame from same batch
           let startFrameUrl: string | null = null;
           const { data: startFrameMedia } = await supabase
@@ -778,14 +785,15 @@ export async function POST(req: Request) {
             .single();
           if (startFrameMedia?.media_url) startFrameUrl = startFrameMedia.media_url;
 
+          const seedanceMode = useSeedanceI2V ? "i2v" : useSeedanceFast ? "fast" : "reference";
           mediaUrl = await generateWithSeedance(
             effectivePrompt,
             referenceUrls,
             startFrameUrl,
             media.id,
-            useSeedanceI2V ? "i2v" : "reference"
+            seedanceMode
           );
-          provider = useSeedanceI2V ? "seedance-i2v" : "seedance-ref";
+          provider = `seedance-${seedanceMode}`;
         } else if (useKling) {
           // Kling i2v: find reel_start_frame from same batch
           let startFrameUrl: string | null = null;

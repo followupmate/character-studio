@@ -12,10 +12,11 @@ const IMAGE_GENERATORS = [
 ] as const;
 
 const VIDEO_GENERATORS = [
-  { id: "seedance-ref", label: "Seedance Ref", desc: "Seedance 2.0 · ref photos + audio · ~3 min",  model: "seedance-ref", loraScale: 0, steps: 0, guidance: 0 },
-  { id: "seedance-i2v", label: "Seedance i2v", desc: "Seedance 2.0 · start frame + audio · ~3 min", model: "seedance-i2v", loraScale: 0, steps: 0, guidance: 0 },
-  { id: "kling",        label: "Kling Pro",    desc: "fal.ai · Kling 2.1 Pro i2v · ~3 min",         model: "kling",        loraScale: 0, steps: 0, guidance: 0 },
-  { id: "veo",          label: "Veo 3.1 Fast", desc: "Google · Veo 3.1 Fast · ~2 min",              model: "veo",          loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-ref",  label: "Seedance Ref",  desc: "Seedance 2.0 standard · ref photos · audio · $0.30/s",  model: "seedance-ref",  loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-i2v",  label: "Seedance i2v",  desc: "Seedance 2.0 standard · start frame · audio · $0.30/s", model: "seedance-i2v",  loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-fast", label: "Seedance Fast",  desc: "Seedance 2.0 fast · start frame · audio · $0.24/s",    model: "seedance-fast", loraScale: 0, steps: 0, guidance: 0 },
+  { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 Pro i2v · ~3 min",                  model: "kling",         loraScale: 0, steps: 0, guidance: 0 },
+  { id: "veo",           label: "Veo 3.1 Fast",   desc: "Google · Veo 3.1 Fast · ~2 min",                       model: "veo",           loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];
