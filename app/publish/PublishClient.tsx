@@ -380,8 +380,10 @@ export default function PublishClient({
 
     if (totalCreated > 0) {
       showToast(true, `Naplánovaných ${totalCreated} postov pre ${log.filter(l => l.startsWith("✓")).length} dní`);
+    } else if (log.some(l => l.startsWith("✗"))) {
+      showToast(false, "Niektoré dni zlyhali — pozri log nižšie");
     } else {
-      showToast(false, "Žiadne pripravené posty nenájdené (skontroluj médium v /today)");
+      showToast(true, "Všetko už je v queue — nič nové na naplánovaním");
     }
     await refreshQueue();
     setSchedulingAll(false);
