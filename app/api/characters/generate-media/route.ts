@@ -552,7 +552,8 @@ async function generateWithSeedance(
   startFrameUrl: string | null,
   mediaId: string,
   mode: "reference" | "i2v" | "fast" = "reference",
-  audioStyle: "scene" | "ambient" | "dialogue" | "silent" = "scene"
+  audioStyle: "scene" | "ambient" | "dialogue" | "silent" = "scene",
+  characterSheetUrl: string | null = null
 ): Promise<string> {
   const audioHint = AUDIO_HINTS[audioStyle] ?? AUDIO_HINTS.scene;
   const cleanedPrompt = sanitizePrompt(
@@ -586,16 +587,24 @@ async function generateWithSeedance(
 
     videoUrl = result?.data?.video?.url ?? result?.video?.url ?? "";
   } else {
-    // ── Reference-to-Video: character ref photos + optional start frame ──
-    // Start frame = @Image1 (motion anchor); ref photos fill @Image2..@Image9
+    // ── Reference-to-Video ──────────────────────────────────────
+    // Image order strategy:
+    //   @Image1 = start frame (if exists) — scene/motion anchor
+    //   @Image2 = character sheet (small 70KB WebP) — identity reference
+    //   Fallback: use character sheet as @Image1 if no start frame
+    // We deliberately avoid large 4MB reference PNGs — they risk 422 from fal.ai payload limits.
     const images: string[] = [];
     if (startFrameUrl) images.push(startFrameUrl);
-    for (const u of referenceImageUrls) {
-      if (images.length >= 9) break;
-      images.push(u);
+    if (characterSheetUrl && images.length < 9) images.push(characterSheetUrl);
+    // Only add individual ref photos if we still have space and no sheet available
+    if (!characterSheetUrl) {
+      for (const u of referenceImageUrls.slice(0, 2)) {
+        if (images.length >= 9) break;
+        images.push(u);
+      }
     }
 
-    if (images.length === 0) throw new Error("Seedance ref: no reference images available");
+    if (images.length === 0) throw new Error("Seedance ref: no reference images available (set character_sheet_url or reference_image_urls in DB)");
 
     const prompt = `@Image1 ${cleanedPrompt}`;
 
@@ -805,7 +814,8 @@ export async function POST(req: Request) {
             startFrameUrl,
             media.id,
             seedanceMode,
-            audioStyle
+            audioStyle,
+            characterSheetUrl
           );
           provider = `seedance-${seedanceMode}`;
         } else if (useKling) {
