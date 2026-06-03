@@ -7,6 +7,7 @@ export const revalidate = 0;
 
 async function getData() {
   const today = new Date().toISOString().split("T")[0];
+  const in14Days = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const { data: characters } = await supabase
     .from("chs_characters")
@@ -19,8 +20,10 @@ async function getData() {
   const { data: plans } = await supabase
     .from("chs_daily_plans")
     .select("id, character_id, story_day_id, date, batch_status")
-    .eq("date", today)
-    .in("batch_status", ["ready", "partial_failed"]);
+    .gte("date", today)
+    .lte("date", in14Days)
+    .in("batch_status", ["ready", "partial_failed"])
+    .order("date", { ascending: true });
 
   if (!plans || plans.length === 0) return { batches: [], today };
 

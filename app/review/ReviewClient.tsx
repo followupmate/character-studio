@@ -188,12 +188,16 @@ function MediaSlot({ media, label, onZoom }: { media: Media | undefined; label: 
 }
 
 /* ─── ReviewBatchCard ────────────────────────────────────────── */
-function ReviewBatchCard({ batch, onApprove, onSkip }: {
+function ReviewBatchCard({ batch, today, onApprove, onSkip }: {
   batch: Batch;
+  today: string;
   onApprove: (storyDayId: string, characterId: string, date: string, caption: string, hashtags: string) => Promise<void>;
   onSkip: (storyDayId: string) => void;
 }) {
   const { character, storyDay, media, existingPosts, plan } = batch;
+  const tomorrow = new Date(today + "T12:00:00Z");
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
   const [caption, setCaption]       = useState(storyDay.ig_caption ?? "");
   const [hashtags, setHashtags]     = useState((storyDay.hashtags ?? []).join(" "));
@@ -251,7 +255,15 @@ function ReviewBatchCard({ batch, onApprove, onSkip }: {
             )}
           </div>
           <div className="flex items-center gap-3 mt-0.5">
-            <span className="font-mono text-[9px] text-muted">{plan.date}</span>
+            <span className={`font-mono text-[9px] px-1.5 py-0.5 border rounded ${
+              plan.date === today
+                ? "text-teal border-teal/30 bg-teal/10"
+                : plan.date === tomorrowStr
+                ? "text-accent border-accent/30 bg-accent/10"
+                : "text-muted border-border"
+            }`}>
+              {plan.date === today ? "DNES" : plan.date === tomorrowStr ? "ZAJTRA" : plan.date}
+            </span>
             <span className="font-mono text-[9px] text-muted">
               {readyCount}/{totalCount} slotov ready
             </span>
@@ -505,7 +517,7 @@ export default function ReviewClient({ batches: initialBatches, today }: {
             </span>
           )}
         </div>
-        <span className="font-mono text-[9px] text-muted">{today}</span>
+        <span className="font-mono text-[9px] text-muted">{today} → +14 dní</span>
       </div>
 
       {/* Content */}
@@ -521,7 +533,7 @@ export default function ReviewClient({ batches: initialBatches, today }: {
             <span className="material-symbols-outlined text-[48px] text-border2 block mb-4">done_all</span>
             <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted">Nič na review</p>
             <p className="font-mono text-[9px] text-muted/60 mt-1">
-              Batche sú buď naplánované, alebo dnes ešte nie sú ready.
+              Žiadne batche ready v najbližších 14 dňoch.
             </p>
           </motion.div>
         )}
@@ -531,6 +543,7 @@ export default function ReviewClient({ batches: initialBatches, today }: {
             <ReviewBatchCard
               key={batch.storyDay.id}
               batch={batch}
+              today={today}
               onApprove={handleApprove}
               onSkip={handleSkip}
             />
