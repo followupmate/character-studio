@@ -162,13 +162,23 @@ function sanitizePrompt(prompt: string): string {
 // Uses an AI-generated character reference sheet (not real person photos)
 // as the single reference image. AI-generated refs don't trigger Google's
 // anti-deepfake IMAGE_SAFETY classifier, unlike real person photographs.
+// Aspect ratio labels for Google Gemini image generation.
+// Google doesn't accept width/height params — ratio must be stated in the prompt.
+const GOOGLE_ASPECT_LABELS: Record<string, string> = {
+  "4:5":  "Portrait orientation. Final image must be TALLER than wide, 4:5 aspect ratio.",
+  "9:16": "Vertical portrait orientation. Final image must be 9:16 aspect ratio, very tall.",
+  "1:1":  "Square image, 1:1 aspect ratio.",
+};
+
 async function generateWithGoogle(
   scenePrompt: string,
   characterSheetUrl: string | null,
   googleKey: string,
   mediaId: string,
-  modelId = "gemini-3.1-flash-image"
+  modelId = "gemini-3.1-flash-image",
+  aspectRatio = "4:5"
 ): Promise<string> {
+  const aspectLabel = GOOGLE_ASPECT_LABELS[aspectRatio] ?? GOOGLE_ASPECT_LABELS["4:5"];
   const cleanPrompt = sanitizePrompt(
     scenePrompt
       .replace(/^Model:\s*Soul\s*\d+\s*[\u{1F000}-\u{1FFFF}☀-⟿]*\s*(Image\s*Prompt)?[\s:]*/imu, "")
@@ -205,7 +215,7 @@ async function generateWithGoogle(
     ? "Photorealistic lifestyle photo."
     : IPHONE_SIG;
 
-  const textInstruction = [referenceInstruction, styleHint, cleanPrompt]
+  const textInstruction = [referenceInstruction, aspectLabel, styleHint, cleanPrompt]
     .filter(Boolean)
     .join(" ");
 
@@ -854,12 +864,16 @@ export async function POST(req: Request) {
           provider = useVeoQuality ? "veo-quality" : "veo";
         } else if (useGoogle) {
           const googleModel = useGooglePro ? "gemini-3-pro-image" : "gemini-3.1-flash-image";
+          // Determine aspect ratio from slot — carousel = 4:5, reel/story = 9:16
+          const isVerticalSlot = ["reel_start_frame", "story_bts"].includes(media.slot ?? "");
+          const googleAspect = isVerticalSlot ? "9:16" : "4:5";
           mediaUrl = await generateWithGoogle(
             effectivePrompt,
             characterSheetUrl,
             googleApiKey!,
             media.id,
-            googleModel
+            googleModel,
+            googleAspect
           );
           provider = useGooglePro ? "google-pro" : "google";
         } else if (useBFL) {
