@@ -84,7 +84,7 @@ const SLOT_LABELS: Record<string, string> = {
 function formatHintFor(media: Media): string {
   if (media.channel === "reel") return "// 9:16 → Reels / TikTok / Shorts";
   if (media.channel === "story") return "// 9:16 → Instagram Story";
-  if (media.channel === "feed") return "// 9:16 → IG Feed carousel";
+  if (media.channel === "feed") return "// 4:5 → IG Feed carousel (9:16 nie je podporované)";
   return media.type === "photo"
     ? "// aspect_ratio 4:5 → IG Feed"
     : "// aspect_ratio 9:16 → Reels / TikTok / Shorts";

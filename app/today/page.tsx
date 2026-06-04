@@ -233,7 +233,7 @@ export default async function TodayPage({
                             {feed.length > 0 && (
                               <ProductionGroup
                                 title="Feed Carousel"
-                                hint={`${feed.length} / 5 framov · IG carousel (9:16)`}
+                                hint={`${feed.length} / 5 framov · IG carousel (4:5)`}
                                 items={feed}
                                 canAutoGenerate={canAutoGenerate}
                               />

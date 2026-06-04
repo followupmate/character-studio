@@ -5,13 +5,14 @@ import { supabase } from "@/lib/supabase";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// Instagram aspect ratio limits: feed/carousel min 4:5 (0.8), max 1.91:1 — 9:16 is NOT supported for carousel
 const SLOT_IMAGE_SIZE: Record<string, { width: number; height: number }> = {
-  carousel_1:       { width: 576, height: 1024 },
-  carousel_2:       { width: 576, height: 1024 },
-  carousel_3:       { width: 576, height: 1024 },
-  carousel_4:       { width: 576, height: 1024 },
-  carousel_5:       { width: 576, height: 1024 },
-  reel_start_frame: { width: 576, height: 1024 },
+  carousel_1:       { width: 864, height: 1080 },  // 4:5 — Instagram feed carousel
+  carousel_2:       { width: 864, height: 1080 },
+  carousel_3:       { width: 864, height: 1080 },
+  carousel_4:       { width: 864, height: 1080 },
+  carousel_5:       { width: 864, height: 1080 },
+  reel_start_frame: { width: 576, height: 1024 },  // 9:16 — Reels / Stories
   story_bts:        { width: 576, height: 1024 },
 };
 
