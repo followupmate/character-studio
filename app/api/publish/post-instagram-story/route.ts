@@ -27,7 +27,7 @@ async function createAndPublishStory(
   }
 
   const mediaRes = await fetch(
-    `https://graph.facebook.com/v19.0/${igAccountId}/media`,
+    `https://graph.instagram.com/v18.0/${igAccountId}/media`,
     {
       method: "POST",
       body: new URLSearchParams(params),
@@ -53,7 +53,7 @@ async function createAndPublishStory(
   }
 
   const publishRes = await fetch(
-    `https://graph.facebook.com/v19.0/${igAccountId}/media_publish`,
+    `https://graph.instagram.com/v18.0/${igAccountId}/media_publish`,
     {
       method: "POST",
       body: new URLSearchParams({
