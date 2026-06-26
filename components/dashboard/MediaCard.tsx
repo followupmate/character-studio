@@ -6,9 +6,10 @@ import { Media } from "@/types";
 
 /* ─── Generator options ──────────────────────────────────────── */
 const IMAGE_GENERATORS = [
-  { id: "google",    label: "Nano Banana", desc: "Google · Nano Banana 2",  model: "google",     loraScale: 0,    steps: 0,  guidance: 0   },
-  { id: "google-pro",label: "NB Pro",      desc: "Google · Nano Banana Pro", model: "google-pro", loraScale: 0,    steps: 0,  guidance: 0   },
-  { id: "flux-lora", label: "fal.ai",      desc: "LoRA · face consistency",  model: "flux-lora",  loraScale: 0.85, steps: 45, guidance: 3.2 },
+  { id: "google",    label: "Nano Banana", desc: "Google · Nano Banana 2 · rich environment", model: "google",     loraScale: 0,    steps: 0,  guidance: 0   },
+  { id: "google-pro",label: "NB Pro",      desc: "Google · Nano Banana Pro · best environment", model: "google-pro", loraScale: 0,    steps: 0,  guidance: 0   },
+  { id: "flux-lora", label: "fal.ai",      desc: "LoRA · faithful face · handles intimate",   model: "flux-lora",  loraScale: 0.85, steps: 45, guidance: 3.2 },
+  { id: "higgsfield",label: "Higgsfield",  desc: "Soul 2.0 via GitHub Actions · best face+env · ~1-3 min", model: "higgsfield", loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const VIDEO_GENERATORS = [
@@ -18,6 +19,7 @@ const VIDEO_GENERATORS = [
   { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 Pro i2v · ~3 min",                  model: "kling",         loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min",                        model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo-quality",   label: "Veo 3.1",         desc: "Google · Veo 3.1 Quality · vyššia kvalita · ~4 min",    model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
+  { id: "higgsfield",    label: "Higgsfield",      desc: "Cinematic 3.0 via GitHub Actions · ~2-4 min",          model: "higgsfield",  loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];
@@ -144,6 +146,19 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     setGenerateError(null);
     const g = GENERATORS.find((x) => x.id === generator) ?? GENERATORS[0];
     try {
+      // Higgsfield runs async via GitHub Actions — different endpoint, no synchronous URL returned.
+      if (g.model === "higgsfield") {
+        const res = await fetch("/api/characters/generate-higgsfield", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mediaId: media.id }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error ?? `Chyba ${res.status}`);
+        setGeneratedUrl("higgsfield-started");
+        setTimeout(() => window.location.reload(), 2500);
+        return;
+      }
       const res = await fetch("/api/characters/generate-media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -181,6 +196,17 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     setRegenError(null);
     const g = GENERATORS.find((x) => x.id === regenGenerator) ?? GENERATORS[0];
     try {
+      if (g.model === "higgsfield") {
+        const res = await fetch("/api/characters/generate-higgsfield", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mediaId: media.id, promptOverride: regenPrompt.trim() || undefined }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error ?? `Chyba ${res.status}`);
+        setTimeout(() => window.location.reload(), 2500);
+        return;
+      }
       const res = await fetch("/api/characters/generate-media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

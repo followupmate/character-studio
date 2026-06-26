@@ -698,6 +698,7 @@ export async function POST(req: Request) {
       guidance       = 3.5,
       promptOverride,
       audioStyle     = "scene",
+      imageOnly      = false,
     } = body as {
       mediaId?: string;
       batchId?: string;
@@ -707,6 +708,7 @@ export async function POST(req: Request) {
       steps?: number;
       guidance?: number;
       promptOverride?: string;
+      imageOnly?: boolean;
     };
 
     if (!mediaId && !batchId) {
@@ -731,9 +733,11 @@ export async function POST(req: Request) {
         .eq("batch_id", batchId!);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const hasVeo = !!googleApiKey;
-      mediaRecords = (data ?? []).filter(
-        (m) => (!VIDEO_SLOTS.has(m.slot) || hasVeo) && m.generation_status !== "completed"
-      );
+      mediaRecords = (data ?? []).filter((m) => {
+        if (m.generation_status === "completed") return false;
+        if (VIDEO_SLOTS.has(m.slot)) return imageOnly ? false : hasVeo; // one-click "whole day" = images only
+        return true;
+      });
     }
 
     if (mediaRecords.length === 0) {
@@ -803,12 +807,11 @@ export async function POST(req: Request) {
       const anySeedance    = useSeedanceRef || useSeedanceI2V || useSeedanceFast;
       const useVeo         = isVideoSlot && !useKling && !anySeedance && !!googleApiKey && (model === "veo" || model === "veo-quality" || model === "auto");
       const useGooglePro   = !isVideoSlot && model === "google-pro";
-      // Engine mix per slot (auto): wide/lifestyle establishing shots → Google NB (best
-      // environment realism); feed/portrait + story → fal LoRA (faithful Vivienne face,
-      // and not subject to Google's anti-deepfake input block). Explicit model overrides.
-      const WIDE_SLOTS     = new Set(["carousel_1", "reel_start_frame"]);
-      const isWideSlot     = WIDE_SLOTS.has(media.slot ?? "");
-      const useGoogle      = !isVideoSlot && (model === "google" || model === "google-pro" || (model === "auto" && hasGoogle && isWideSlot));
+      // Engine strategy (auto): Google Nano Banana FIRST for all image slots — it produces the
+      // richest, populated, real-world environments (user-confirmed: gym/café excellent; fal LoRA
+      // leaves her "alone" in empty scenes). On a Google safety block (intimate/suggestive) or
+      // failure, auto-fall back to fal LoRA (faithful face, handles intimate). Explicit model overrides.
+      const useGoogle      = !isVideoSlot && (model === "google" || model === "google-pro" || (model === "auto" && hasGoogle));
       const useBFL         = !useGoogle && !useVeo && !useKling && !anySeedance && (model === "bfl");
       const useFluxPro     = model === "flux-pro";
 
@@ -876,16 +879,27 @@ export async function POST(req: Request) {
           // Determine aspect ratio from slot — carousel = 4:5, reel/story = 9:16
           const isVerticalSlot = ["reel_start_frame", "story_bts"].includes(media.slot ?? "");
           const googleAspect = isVerticalSlot ? "9:16" : "4:5";
-          mediaUrl = await generateWithGoogle(
-            effectivePrompt,
-            characterSheetUrl,
-            googleApiKey!,
-            media.id,
-            googleModel,
-            googleAspect,
-            character.name ?? null
-          );
-          provider = useGooglePro ? "google-pro" : "google";
+          try {
+            mediaUrl = await generateWithGoogle(
+              effectivePrompt,
+              characterSheetUrl,
+              googleApiKey!,
+              media.id,
+              googleModel,
+              googleAspect,
+              character.name ?? null
+            );
+            provider = useGooglePro ? "google-pro" : "google";
+          } catch (gerr) {
+            // Auto mode: Google blocks intimate/suggestive content (and occasionally trips its
+            // safety filter) — fall back to faithful fal LoRA so the slot still generates.
+            if (model === "auto") {
+              mediaUrl = await generateWithFal(prompt, character.lora_model_id, loraScale, imageSize, steps, guidance);
+              provider = "falai-fallback";
+            } else {
+              throw gerr; // explicit Google request → surface the real error
+            }
+          }
         } else if (useBFL) {
           mediaUrl = await generateWithBFL(
             `The woman from the reference images. ${effectivePrompt}`,

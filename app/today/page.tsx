@@ -5,6 +5,7 @@ import MediaCard from "@/components/dashboard/MediaCard";
 import CharacterSelector from "@/components/today/CharacterSelector";
 import DateNav from "@/components/today/DateNav";
 import GenerateForwardButton from "@/components/today/GenerateForwardButton";
+import GenerateDayButton from "@/components/today/GenerateDayButton";
 
 type TodayStory = StoryDay & {
   chs_media: Media[];
@@ -214,6 +215,18 @@ export default async function TodayPage({
                           <span className="font-mono text-[10px] text-muted2 italic">{story.next_hint}</span>
                         </div>
                       )}
+
+                      {/* One-click whole-day generation */}
+                      {(() => {
+                        const batchId = story.chs_media.find((m) => m.batch_id)?.batch_id;
+                        if (!canAutoGenerate || !batchId) return null;
+                        return (
+                          <div className="bg-bg3 border border-border rounded px-4 py-3">
+                            <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-2">// Rýchle generovanie</p>
+                            <GenerateDayButton batchId={batchId} />
+                          </div>
+                        );
+                      })()}
 
                       {/* Production assets grouped by channel */}
                       {(() => {
