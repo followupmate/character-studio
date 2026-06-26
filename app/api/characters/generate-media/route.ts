@@ -176,7 +176,8 @@ async function generateWithGoogle(
   googleKey: string,
   mediaId: string,
   modelId = "gemini-3.1-flash-image",
-  aspectRatio = "4:5"
+  aspectRatio = "4:5",
+  characterName: string | null = null
 ): Promise<string> {
   const aspectLabel = GOOGLE_ASPECT_LABELS[aspectRatio] ?? GOOGLE_ASPECT_LABELS["4:5"];
   const cleanPrompt = sanitizePrompt(
@@ -198,13 +199,16 @@ async function generateWithGoogle(
       const rawMime = res.headers.get("content-type") ?? "";
       const mime = rawMime.startsWith("image/") && !rawMime.includes("octet-stream")
         ? rawMime.split(";")[0]
+        : characterSheetUrl?.toLowerCase().endsWith(".webp") ? "image/webp"
+        : characterSheetUrl?.toLowerCase().endsWith(".png")  ? "image/png"
         : "image/jpeg";
       parts.push({ inlineData: { mimeType: mime, data: b64 } });
     } catch { /* proceed text-only if sheet fetch fails */ }
   }
 
+  const subjectName = characterName ? `${characterName} ` : "";
   const referenceInstruction = parts.length > 0
-    ? "ONE single photograph. Do NOT generate a reference sheet, collage, or multi-panel layout. The character in the reference sheet is the subject — match their face, hair, skin tone."
+    ? `Generate ONE single photograph. ${subjectName}from the reference image is the main subject — preserve her exact facial structure, eye shape, nose, lips, skin tone, and hair with zero deviation. Do NOT generate a collage or multi-panel layout.`
     : "";
 
   // Short caption-style prompts (< 60 words) proved to work better WITHOUT the iPhone
@@ -215,7 +219,9 @@ async function generateWithGoogle(
     ? "Photorealistic lifestyle photo."
     : IPHONE_SIG;
 
-  const textInstruction = [referenceInstruction, aspectLabel, styleHint, cleanPrompt]
+  // Order: identity anchor → scene → aspect → style
+  // Character identity FIRST so Nano treats her as the primary subject, not a scene prop.
+  const textInstruction = [referenceInstruction, cleanPrompt, aspectLabel, styleHint]
     .filter(Boolean)
     .join(" ");
 
@@ -758,7 +764,6 @@ export async function POST(req: Request) {
     const referenceUrls      = (character.reference_image_urls as string[] | null) ?? [];
     const characterSheetUrl  = (character as Record<string, unknown>).character_sheet_url as string | null ?? null;
     const hasGoogle          = !!googleApiKey;
-    const hasBFL        = !!bflApiKey && referenceUrls.length > 0;
 
     // ── Generate each slot ─────────────────────────────────────
     const results: GenerateResult[] = [];
@@ -798,9 +803,13 @@ export async function POST(req: Request) {
       const anySeedance    = useSeedanceRef || useSeedanceI2V || useSeedanceFast;
       const useVeo         = isVideoSlot && !useKling && !anySeedance && !!googleApiKey && (model === "veo" || model === "veo-quality" || model === "auto");
       const useGooglePro   = !isVideoSlot && model === "google-pro";
-      const useGoogle      = !isVideoSlot && (model === "google" || model === "google-pro" || (model === "auto" && hasGoogle));
-      const isCloseUp      = ["emotional_close","closeup","portrait","close_up","face_detail","detail_face","beauty"].includes(media.shot_archetype ?? "");
-      const useBFL         = !useGoogle && !useVeo && !useKling && !anySeedance && (model === "bfl" || (model === "auto" && isCloseUp && hasBFL));
+      // Engine mix per slot (auto): wide/lifestyle establishing shots → Google NB (best
+      // environment realism); feed/portrait + story → fal LoRA (faithful Vivienne face,
+      // and not subject to Google's anti-deepfake input block). Explicit model overrides.
+      const WIDE_SLOTS     = new Set(["carousel_1", "reel_start_frame"]);
+      const isWideSlot     = WIDE_SLOTS.has(media.slot ?? "");
+      const useGoogle      = !isVideoSlot && (model === "google" || model === "google-pro" || (model === "auto" && hasGoogle && isWideSlot));
+      const useBFL         = !useGoogle && !useVeo && !useKling && !anySeedance && (model === "bfl");
       const useFluxPro     = model === "flux-pro";
 
       try {
@@ -873,7 +882,8 @@ export async function POST(req: Request) {
             googleApiKey!,
             media.id,
             googleModel,
-            googleAspect
+            googleAspect,
+            character.name ?? null
           );
           provider = useGooglePro ? "google-pro" : "google";
         } else if (useBFL) {

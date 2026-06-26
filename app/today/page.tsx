@@ -22,8 +22,10 @@ const arcColors: Record<string, string> = {
 };
 
 const tierColors: Record<string, string> = {
-  lifestyle_travel: "text-teal border-teal/20 bg-teal/10",
+  everyday_life: "text-teal border-teal/20 bg-teal/10",
+  wellness_fitness: "text-accent border-accent/20 bg-accent/10",
   intimate_aesthetic: "text-pink-400 border-pink-400/20 bg-pink-400/10",
+  lifestyle_travel: "text-amber border-amber/20 bg-amber/10",
 };
 
 function ProductionGroup({ title, hint, items, canAutoGenerate }: { title: string; hint: string; items: Media[]; canAutoGenerate?: boolean }) {

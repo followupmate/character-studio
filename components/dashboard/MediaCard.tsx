@@ -16,7 +16,8 @@ const VIDEO_GENERATORS = [
   { id: "seedance-i2v",  label: "Seedance i2v",  desc: "Seedance 2.0 standard · start frame · audio · $0.30/s", model: "seedance-i2v",  loraScale: 0, steps: 0, guidance: 0 },
   { id: "seedance-fast", label: "Seedance Fast",  desc: "Seedance 2.0 fast · start frame · audio · $0.24/s",    model: "seedance-fast", loraScale: 0, steps: 0, guidance: 0 },
   { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 Pro i2v · ~3 min",                  model: "kling",         loraScale: 0, steps: 0, guidance: 0 },
-  { id: "veo",           label: "Veo 3.1 Fast",   desc: "Google · Veo 3.1 Fast · ~2 min",                       model: "veo",           loraScale: 0, steps: 0, guidance: 0 },
+  { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min",                        model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
+  { id: "veo-quality",   label: "Veo 3.1",         desc: "Google · Veo 3.1 Quality · vyššia kvalita · ~4 min",    model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];
@@ -77,7 +78,7 @@ const SLOT_LABELS: Record<string, string> = {
   carousel_4: "CAROUSEL 4 · REVERSE",
   carousel_5: "CAROUSEL 5 · EMOTIONAL",
   reel_start_frame: "REEL · START FRAME",
-  reel_video: "REEL · VIDEO (VEO 3.1)",
+  reel_video: "REEL · VIDEO",
   story_bts: "STORY · BTS",
 };
 
@@ -106,6 +107,9 @@ function cleanPrompt(raw: string): string {
 export default function MediaCard({ media, canAutoGenerate = false }: { media: Media; canAutoGenerate?: boolean }) {
   const isPhoto     = media.type === "photo";
   const isVideoSlot = media.slot === "reel_video";
+  // Engine mix per slot: wide/lifestyle establishing → Google NB; feed/portrait + story → fal LoRA.
+  const isWideSlot  = media.slot === "carousel_1" || media.slot === "reel_start_frame";
+  const defaultImageGen: GeneratorId = isWideSlot ? "google" : "flux-lora";
   const isCarousel  = media.channel === "feed";
   const baseLabel = isPhoto ? "FOTO" : "VIDEO";
   const slotLabel = media.slot ? SLOT_LABELS[media.slot] ?? media.slot.toUpperCase() : null;
@@ -126,11 +130,11 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [generator, setGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : "google");
+  const [generator, setGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : defaultImageGen);
   const [audioStyle, setAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
   const [showRegen, setShowRegen] = useState(false);
   const [regenPrompt, setRegenPrompt] = useState(cleanPrompt(media.higgsfield_prompt));
-  const [regenGenerator, setRegenGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : "google");
+  const [regenGenerator, setRegenGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : defaultImageGen);
   const [regenAudioStyle, setRegenAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);

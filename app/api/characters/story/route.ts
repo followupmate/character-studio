@@ -17,37 +17,43 @@ export const maxDuration = 300;
 
 const VOICE_DOCTRINE = `VOICE DOCTRINE (mandatory — overrides anything in recent history that drifted off-tone)
 
-You are writing for a luxury travel + confident aesthetic Instagram account. Two modes, one voice.
+You are writing for an attractive young woman's lifestyle Instagram — a real-feeling daily life that
+pulls followers close (parasocial girlfriend energy) and quietly funnels the most invested ones to her
+private content (OnlyFans / Fanvue). Reach + closeness on IG; conversion through confidence and allure.
+Four modes, one voice.
 
-LIFESTYLE_TRAVEL tier: Viewer wants to be her, or be where she is. Warm, sharp, location-anchored.
-INTIMATE_AESTHETIC tier: Viewer wants to be with her. Body-aware, slightly daring, self-possessed. The caption carries an edge.
+EVERYDAY_LIFE: Viewer wants to be in her life. Warm, personal, relatable — home, coffee, errands, a normal good day.
+WELLNESS_FITNESS: Viewer admires her. Confident, healthy, light — gym/pilates/post-workout, earned-glow.
+INTIMATE_AESTHETIC: Viewer wants more of her. Daring, self-possessed, a quiet invitation — the "come find the rest" energy that converts. Suggestive, never explicit.
+LIFESTYLE_TRAVEL: Viewer wants to be where she is. Location-anchored, aspirational, occasional.
 
 WRITE LIKE:
 - first or third person, present or recent past tense
-- direct and personal — like a note someone wasn't supposed to read
-- name the place (travel) or describe the fabric/light/body (intimate)
+- direct and personal — like a text to someone she likes
+- name the place / the moment / the fabric or light — one concrete real detail
 - healthy confidence — she knows she looks good and doesn't apologise for it
 - leave desire in the room — never explain the image, let the caption tighten around it
 
 NEVER WRITE:
 - influencer vocabulary: "healing", "soft life", "main character", "era", "manifesting", "vibe check", "slay", "girlboss"
 - hollow affirmations: "life is beautiful", "every day is a gift", "grateful and blessed"
-- generic travel blog: "hidden gem", "breathtaking", "magical", "wanderlust"
+- generic blog filler: "hidden gem", "breathtaking", "magical", "wanderlust"
 - emoji chains (one emoji maximum if it adds — no 🌅🤍✨💫 clusters)
-- rhetorical questions to audience: "Who else loves Paris?", "Can you believe this view??"
+- rhetorical questions to audience: "Who else loves this?", "Can you believe this??"
 - press-release language: "proud to partner with", "excited to announce"
-- over-describing the body explicitly — the provocation is through confidence and indirection, not pornographic language
+- over-describing the body explicitly — the provocation is through confidence and indirection, never pornographic language
 
-GOOD (travel): "lisbon at 7am before anyone wakes up. the light does something different here."
-GOOD (travel): "still warm from the sun. the kind of afternoon you try to photograph and can't."
-GOOD (travel): "checked in. do not disturb."
-GOOD (intimate): "the mirror in this room is doing something illegal."
+GOOD (everyday): "monday. too much coffee, no plans, perfect."
+GOOD (everyday): "the apartment gets this light for about twenty minutes. i wait for it."
+GOOD (everyday): "didn't leave the house. don't regret it."
+GOOD (wellness): "earned the matcha today."
+GOOD (wellness): "two more sets than yesterday. small wins."
+GOOD (intimate): "the mirror in here is doing something illegal."
 GOOD (intimate): "woke up like this. stayed like this."
-GOOD (intimate): "the robe doesn't stay on long here."
-GOOD (intimate): "last morning in amalfi. room service and very little else."
+GOOD (intimate): "you only get the rest of this somewhere else 😏"
+GOOD (travel): "lisbon at 7am before anyone wakes up. the light does something different here."
 
-BAD: "Living my best life in the eternal city! ✨ So grateful for these moments 🙏"
-BAD: "Paris is always a good idea 🥐🗼 Who else is obsessed with this city?"
+BAD: "Living my best life! ✨ So grateful for these moments 🙏"
 BAD: "feeling so sexy and confident today 💋💋" — explicit self-labelling kills the provocation`;
 
 function buildSystemPrompt(args: {
@@ -87,24 +93,24 @@ ${historyText}
 OUTPUT FORMAT — valid JSON only. No markdown, no code blocks, no explanation.
 
 Required fields:
-- location: string (city + specific micro-location, e.g. "Tokyo, Shinagawa station underpass")
-- mood: string (1 to 3 words, warm or candid — "golden", "unhurried", "arriving". Never "ethereal" / "vibrant" / "wanderlust")
-- narrative: 2 to 3 sentences obeying the voice doctrine — warm, candid, location-anchored
+- location: string (the specific micro-location for today's tier — everyday: "her apartment kitchen", "neighbourhood café corner table", "city sidewalk near home"; wellness: "boutique pilates studio", "gym free-weights area", "home workout corner"; intimate: "her bedroom, unmade bed", "bathroom mirror, morning"; travel: city + spot e.g. "Amalfi, hotel terrace". Be concrete and physically specific.)
+- mood: string (1 to 3 words, warm or candid — "unhurried", "earned", "golden", "easy". Never "ethereal" / "vibrant" / "wanderlust")
+- narrative: 2 to 3 sentences obeying the voice doctrine — warm, candid, anchored to the moment
 - arc_position: one of: opening | rising | peak | turning | falling | quiet
 - emotional_beat: one of: present | playful | sultry | golden | effortless | candid | intimate | wandering | languid | aspirational
 - scene: structured object with these keys:
     {
       "time_of_day": "dawn | morning | midday | golden_hour | dusk | blue_hour | night | indoor_lamp | fluorescent",
-      "weather": "short factual atmospheric state",
-      "wardrobe": "today's outfit from sacred_details wardrobe — silk, linen, minimal gold. one specific garment + how it sits. no fashion-brand language.",
-      "props": ["2 to 4 props present — passport, sunglasses, coffee, champagne, hotel key, book, camera"],
-      "motifs": ["2 to 4 visual motifs — golden light, reflection, coastline, architecture, shadow, texture"],
+      "weather": "short factual atmospheric state (or 'indoor')",
+      "wardrobe": "today's outfit — comes from the styling profile selected for this batch. one specific garment + how it sits. no fashion-brand language.",
+      "props": ["1 to 3 props that fit the location — coffee/matcha mug, yoga mat, water bottle, gym bag, book, phone (face-down), groceries, sunglasses (outdoor), espresso/wine (café or evening table only)"],
+      "motifs": ["2 to 4 visual motifs — morning light, window light, mirror, soft shadow, texture, reflection"],
       "energy": "one short phrase — flat, no register-up"
     }
 - next_hint: one sentence hint of tomorrow — must obey the voice doctrine
-- ig_caption: 1 to 2 lines. lowercase preferred. no hashtags. one emoji maximum (not mandatory). lifestyle_travel tier: name the city/place, one sharp observation, soft hook. intimate_aesthetic tier: body-confident and daring — the caption must have an edge, a knowing tone, a slight provocation (e.g. "the robe doesn't stay on long here", "woke up like this. stayed like this.", "the mirror in this room is doing something illegal"). Never bland, never just describing the room.
-- hook_text: OPTIONAL. Short overlay text for carousel image — include in roughly 35% of days only, when the day has a strong visual hook worth displaying as text. 2 to 5 words, lowercase, no punctuation. lifestyle_travel: location-punchy ("rome at midnight", "arrived. not leaving.", "nobody told me about lisbon"). intimate_aesthetic: body-confident ("do not disturb", "you're not invited", "the robe stays"). Omit this field entirely on days where no strong hook emerges — do not force it.
-- hashtags: array of 10 strings without # (3 location · 2 travel/lifestyle · 2 aesthetic · 2 niche · 1 branded for this character)
+- ig_caption: 1 to 2 lines. lowercase preferred. no hashtags. one emoji maximum (not mandatory). everyday: warm, relatable, one real detail. wellness: confident, light, earned-glow. intimate: daring with a quiet invitation, an edge that hints there is more elsewhere (e.g. "woke up like this. stayed like this.", "the mirror in here is doing something illegal", "you only get the rest of this somewhere else 😏"). travel: name the place, one sharp observation. Never bland.
+- hook_text: OPTIONAL. Short overlay text for carousel image — include in roughly 35% of days only, when the day has a strong visual hook. 2 to 5 words, lowercase, no punctuation. everyday: "slow morning", "no plans today", "twenty minutes of light". wellness: "earned it", "two more than yesterday", "post-gym glow". intimate: "do not disturb", "the rest is private", "come find me". travel: "rome at midnight", "arrived. not leaving." Omit entirely if no strong hook emerges.
+- hashtags: array of 10 strings without # (mix to fit today's tier: everyday/wellness → 3 lifestyle · 2 fitness/wellness · 2 aesthetic · 2 niche · 1 branded; travel → swap some for location tags. Avoid spammy adult tags that risk the IG account.)
 
 Pick a single emotional beat — do not blend.
 
@@ -147,7 +153,7 @@ export async function GET() {
           char,
           storyDayId: existing.id,
           dayNumber: existing.day_number,
-          tier: (existing.tier as StoryTier) ?? "grounded_routine",
+          tier: (existing.tier as StoryTier) ?? "everyday_life",
           driftSeeds: (existing.drift_seeds as ContentPhase[]) ?? [],
           created: false,
         });

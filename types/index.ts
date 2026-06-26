@@ -11,7 +11,7 @@ export type EmotionalBeat =
 export type SlotChannel = "feed" | "reel" | "story";
 export type GenerationStatus = "pending" | "generating" | "completed" | "failed" | "retrying";
 export type BatchStatus = "planned" | "generating" | "ready" | "partial_failed" | "published" | "failed";
-export type StoryTier = "grounded_routine" | "cinematic_melancholy" | "incidental_wrongness" | "entropy" | "lifestyle_travel" | "intimate_aesthetic";
+export type StoryTier = "grounded_routine" | "cinematic_melancholy" | "incidental_wrongness" | "entropy" | "lifestyle_travel" | "intimate_aesthetic" | "everyday_life" | "wellness_fitness";
 export type DriftSeedKind = "recurring_stranger" | "timestamp_mismatch" | "impossible_weather_memory" | "location_drop" | "golden_hour_moment" | "hotel_morning";
 export interface DriftSeed { kind: DriftSeedKind; detail?: string }
 

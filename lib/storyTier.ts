@@ -1,22 +1,48 @@
 import { supabase } from "@/lib/supabase";
 
+// Content direction (2026-06-25 overhaul): everyday-life dominant, OnlyFans/Fanvue funnel.
+// IG = top of funnel (reach + followers via relatable, attractive, realistic everyday content)
+// → conversion to OF/Fanvue via the suggestive intimate tier. All IG-public content stays
+// within IG rules (suggestive, never explicit/nude — that gets the account banned).
 export type StoryTier =
-  | "lifestyle_travel"
-  | "intimate_aesthetic";
+  | "everyday_life"
+  | "wellness_fitness"
+  | "intimate_aesthetic"
+  | "lifestyle_travel";
 
 export type ContentPhaseKind =
-  | "location_drop"
+  | "morning_light"
+  | "post_workout"
+  | "home_evening"
   | "golden_hour_moment"
-  | "hotel_morning";
+  | "location_drop";
 
 export interface ContentPhase {
   kind: ContentPhaseKind;
   detail?: string;
 }
 
-const AUTO_TIER_RATIO = { lifestyle_travel: 0.7, intimate_aesthetic: 0.3 };
+// Target mix — everyday relatable + wellness reach-drivers + intimate conversion + occasional travel.
+const TIER_WEIGHTS: Record<StoryTier, number> = {
+  everyday_life: 0.3,
+  wellness_fitness: 0.3,
+  intimate_aesthetic: 0.3,
+  lifestyle_travel: 0.1,
+};
 
-export async function pickTier(characterId: string, lookbackDays = 10): Promise<StoryTier> {
+const ALL_TIERS = Object.keys(TIER_WEIGHTS) as StoryTier[];
+
+function weightedPick(): StoryTier {
+  const r = Math.random();
+  let acc = 0;
+  for (const t of ALL_TIERS) {
+    acc += TIER_WEIGHTS[t];
+    if (r <= acc) return t;
+  }
+  return "everyday_life";
+}
+
+export async function pickTier(characterId: string, lookbackDays = 6): Promise<StoryTier> {
   const { data } = await supabase
     .from("chs_story_days")
     .select("tier")
@@ -24,25 +50,15 @@ export async function pickTier(characterId: string, lookbackDays = 10): Promise<
     .order("date", { ascending: false })
     .limit(lookbackDays);
 
-  const autoTiers = (data ?? []).filter(
-    (d) => d.tier === "lifestyle_travel" || d.tier === "intimate_aesthetic"
-  );
+  const recent = (data ?? []).map((d) => d.tier as StoryTier).filter((t) => ALL_TIERS.includes(t));
 
-  if (autoTiers.length < lookbackDays / 2) {
-    return Math.random() < AUTO_TIER_RATIO.lifestyle_travel
-      ? "lifestyle_travel"
-      : "intimate_aesthetic";
+  // Weighted random, but avoid the same tier 3 days in a row (visible variety).
+  for (let i = 0; i < 5; i++) {
+    const pick = weightedPick();
+    const sameStreak = recent[0] === pick && recent[1] === pick;
+    if (!sameStreak) return pick;
   }
-
-  const travelCount = autoTiers.filter((d) => d.tier === "lifestyle_travel").length;
-  const travelRatio = travelCount / autoTiers.length;
-
-  if (travelRatio < AUTO_TIER_RATIO.lifestyle_travel - 0.05) return "lifestyle_travel";
-  if (travelRatio > AUTO_TIER_RATIO.lifestyle_travel + 0.1) return "intimate_aesthetic";
-
-  return Math.random() < AUTO_TIER_RATIO.lifestyle_travel
-    ? "lifestyle_travel"
-    : "intimate_aesthetic";
+  return weightedPick();
 }
 
 export async function pickDriftSeeds(characterId: string, _dayNumber: number, lookbackDays = 14): Promise<ContentPhase[]> {
@@ -60,54 +76,85 @@ export async function pickDriftSeeds(characterId: string, _dayNumber: number, lo
 
   const phases: ContentPhase[] = [];
 
-  if (countOf("location_drop") === 0 && Math.random() < 0.15) {
-    phases.push({ kind: "location_drop" });
-  }
-
-  if (countOf("golden_hour_moment") === 0 && Math.random() < 0.12) {
-    phases.push({ kind: "golden_hour_moment" });
-  }
-
-  if (countOf("hotel_morning") === 0 && Math.random() < 0.10) {
-    phases.push({ kind: "hotel_morning" });
-  }
+  if (countOf("morning_light") === 0 && Math.random() < 0.18) phases.push({ kind: "morning_light" });
+  if (countOf("post_workout") === 0 && Math.random() < 0.14) phases.push({ kind: "post_workout" });
+  if (countOf("home_evening") === 0 && Math.random() < 0.14) phases.push({ kind: "home_evening" });
+  if (countOf("golden_hour_moment") === 0 && Math.random() < 0.10) phases.push({ kind: "golden_hour_moment" });
+  if (countOf("location_drop") === 0 && Math.random() < 0.06) phases.push({ kind: "location_drop" });
 
   return phases;
 }
 
-export function tierGuidance(tier: StoryTier): string {
-  if (tier === "lifestyle_travel") {
-    return `TIER: lifestyle_travel (location-led, aspirational, golden-hour energy)
+// Shared realism note appended to every tier — drives the "real photo, not AI" look that
+// makes the avatar believable and attractive (this is what converts viewers).
+const REALISM_NOTE = `
+REALISM (mandatory for every scene): this must read like a real photo a friend took on a phone,
+not a studio render. Candid framing, slightly imperfect, natural light, real skin (visible pores,
+no airbrush). Off-duty energy — caught mid-moment, not posed for a catalogue.`;
 
-This is a travel day. The location is the story. She is passing through somewhere beautiful.
+export function tierGuidance(tier: StoryTier): string {
+  if (tier === "everyday_life") {
+    return `TIER: everyday_life (relatable daily life, girlfriend energy, the life a follower wants to step into)
+
+This is an ordinary day in her real life — the kind of content that builds parasocial closeness and pulls followers.
+
+Scene must be:
+- a normal everyday setting: her apartment (kitchen, living room, bedroom, by the window), a neighbourhood café, a casual city street, running errands, a park bench
+- natural everyday light: morning kitchen light, soft afternoon through a window, overcast street
+- one relatable anchor: coffee/matcha in hand, an unmade bed behind her, groceries on the counter, sneakers on, hair still a little undone
+- her posture: easy, off-duty, mid-moment — leaning on the counter, curled on the couch, glancing back mid-walk
+
+Wardrobe: casual and flattering — oversized knit over bare legs, fitted everyday tee + denim, loungewear set, a soft slip top. Comfortable but quietly attractive. She looks good without trying.
+
+Narrative tone: warm, personal, like a text to someone she likes. A small real detail. A soft hook that makes you want the next day.${REALISM_NOTE}`;
+  }
+
+  if (tier === "wellness_fitness") {
+    return `TIER: wellness_fitness (body-confident, healthy, high-engagement — the strongest reach driver)
+
+She is moving — gym, pilates, yoga, a wellness studio, a post-workout moment. This content is the top reach driver: athletic, body-flattering, aspirational-but-attainable.
+
+Scene must be:
+- gym / pilates studio / yoga space / home workout corner / wellness studio / post-workout at home
+- bright natural or clean studio light — mirrors, light wood, big windows
+- one anchor: a reformer, a yoga mat, a water bottle, a post-workout matcha, a mirror selfie
+- her posture: mid-movement or relaxed after — stretching, sitting on the mat, a gym mirror selfie, leaning on a machine
+
+Wardrobe: figure-flattering athleisure — fitted sports bra + high-waisted leggings, bike shorts + crop, a tank slipping off one shoulder, matching set. Confident, sporty, attractive. Show the body the way fitness creators do — strong and healthy, never crude.
+
+Narrative tone: confident, light, a little playful. Earned-glow energy.${REALISM_NOTE}`;
+  }
+
+  if (tier === "intimate_aesthetic") {
+    return `TIER: intimate_aesthetic (the conversion tier — girlfriend fantasy that funnels to OnlyFans / Fanvue)
+
+This is the most suggestive tier and the one that converts followers into paying subscribers. Maximally alluring WITHIN Instagram's rules — provocation through confidence, skin, fabric and gaze, never through explicit content.
+
+Scene must be:
+- interior: her bedroom or bathroom — unmade bed, soft window or warm lamp light, mirror, morning or late-night
+- light: soft directional side light that traces the body — never flat
+- wardrobe (push to the IG-allowed edge): lingerie styled as fashion, a silk robe falling open at the shoulder, an oversized shirt and little else, a bralette + shorts, swimwear indoors, a thin strap slipping. Tasteful but deliberately sexy.
+- her posture: confident, aware of the camera — lying back on the bed, kneeling on the bed edge, mirror selfie adjusting a strap, looking back over the shoulder, stretching awake
+
+Narrative tone: direct, daring, self-possessed. The caption has an edge and a quiet invitation — the "come find the rest of this" energy that drives subscriptions, implied never stated.
+
+SAFE RULES (account survival): suggestive yes — explicit NO. No nudity, no exposed nipples/genitals, no sexual acts, no pornographic framing. Lingerie/swimwear/implied-topless-from-behind are the ceiling. Anything past that gets the account banned and is generated nowhere in this pipeline.${REALISM_NOTE}`;
+  }
+
+  if (tier === "lifestyle_travel") {
+    return `TIER: lifestyle_travel (occasional aspirational accent — she travels sometimes)
+
+An occasional travel day. The location is the story. She is passing through somewhere beautiful.
 
 Scene must be:
 - exterior or hotel terrace / balcony / rooftop — city or coast visible
 - natural light: golden hour, blue hour, Mediterranean afternoon, morning haze
-- one clear travel anchor: a city view, a coastline, cobblestones, a hotel pool edge, a café terrace
+- one travel anchor: a city view, a coastline, cobblestones, a hotel pool edge, a café terrace
 - her posture: relaxed, off-duty, mid-moment — not posed for camera
 
-Narrative tone: present, warm, slightly candid. Name the city. One sharp observation. End with a soft hook.
+Wardrobe: light and effortless — slip dress, linen, swimwear at the pool, minimal gold jewelry.
 
-Wardrobe: silk slip dress, linen blazer, minimal gold jewelry. Light, effortless.`;
-  }
-
-  if (tier === "intimate_aesthetic") {
-    return `TIER: intimate_aesthetic (body-confident, sensual, editorial provocation)
-
-She is in the room. The city is outside. She is the subject.
-
-Scene must be:
-- interior: hotel suite or bedroom — window light, warm lamp, mirror, unmade bed as background texture
-- light: soft directional side light that traces the body — window or single lamp, never flat
-- wardrobe: silk robe open at the shoulder, lingerie as editorial fashion, thin strap falling, fabric against skin
-- her posture: confident, aware of the frame — mid-stretch, one knee on the bed edge, standing at the mirror adjusting a strap, looking back over her shoulder
-
-Narrative tone: direct, slightly daring, body-aware. She knows she looks good. The caption says it without saying it. Provocative but never crude — the provocation is in confidence, not in description.
-
-ig_caption for this tier MUST have an edge: a knowing reference to the body, the room, the morning, the fabric. Not "the robe had nice light" — more like "the mirror in this room is doing something illegal" or "woke up like this. stayed like this." or "the robe doesn't stay on long here."
-
-SAFE EDITORIAL RULES: Sensuality through posture, light, and fabric. Lingerie and partial exposure are acceptable. No explicit sexual acts, no pornographic framing.`;
+Narrative tone: present, warm, slightly candid. Name the place. One sharp observation. Soft hook.${REALISM_NOTE}`;
   }
 
   return "";
@@ -118,22 +165,19 @@ export function driftSeedGuidance(seeds: ContentPhase[]): string {
 
   const lines: string[] = [];
   for (const seed of seeds) {
-    if (seed.kind === "location_drop") {
-      lines.push(
-        "- location_drop: Today is the first day in a new city. Narrative must name the city explicitly once. Tone is arrival energy — fresh, slightly disoriented in a good way."
-      );
+    if (seed.kind === "morning_light") {
+      lines.push("- morning_light: this is an early-morning scene — soft first light, just-woke energy, slow start. Coffee or stretching, hair undone. Caption is quiet and personal.");
+    } else if (seed.kind === "post_workout") {
+      lines.push("- post_workout: just finished training — light natural glow/sweat sheen, relaxed-after-effort posture, water or matcha. Confident, earned-glow tone.");
+    } else if (seed.kind === "home_evening") {
+      lines.push("- home_evening: cozy night in — warm lamp light, loungewear or oversized knit, couch or bed, unhurried. Caption is intimate and warm, a little inviting.");
     } else if (seed.kind === "golden_hour_moment") {
-      lines.push(
-        "- golden_hour_moment: The scene peaks at golden hour. Mention the light quality once — warm, low, hitting the wall or her face — without using the phrase 'golden hour'."
-      );
-    } else if (seed.kind === "hotel_morning") {
-      lines.push(
-        "- hotel_morning: The scene is a suite morning — room service tray, light through curtains, silk robe, unhurried. ig_caption must be intimate and slightly provocative (e.g. \"do not disturb\", \"the robe doesn't stay on long here\", \"room 214 had the best light and the worst checkout time\")."
-      );
+      lines.push("- golden_hour_moment: the scene peaks at golden hour. Mention the warm low light once without using the phrase 'golden hour'.");
+    } else if (seed.kind === "location_drop") {
+      lines.push("- location_drop: a travel day — first day in a new place. Name the place once. Arrival energy.");
     }
   }
 
   return `CONTENT PHASE SIGNALS ACTIVE TODAY:
 ${lines.join("\n")}`;
 }
-

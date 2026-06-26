@@ -367,6 +367,9 @@ Cover in this order:
 CLOTHING COLOR RULE: Replace any "nude [garment]" with "sand-colored [garment]" or "beige [garment]".
 BODY RULE: Describe clothing and posture only. No anatomical details.
 
+REALISM TAIL (always include near the end — makes it read like a real phone photo, not an AI render):
+"Shot on an iPhone 16 Pro, candid, natural light, visible skin texture, no beauty filter, slightly imperfect framing, real photo."
+
 End on its own line: "Signature: [palette] / [lens] / [motion]."
 OUTPUT: Start with "Model: Soul 2 🖼️ Image Prompt" then the prompt.`;
 
@@ -404,11 +407,14 @@ GOOGLE SAFETY RULES:
 const CAPTION_PHOTO_OUTPUT = `OUTPUT RULES:
 Write EXACTLY ONE caption. Do not write multiple alternatives or examples.
 
-Format: [Shot type + angle]. [Outfit — 1-2 items from wardrobe_lock]. [Expression or pose]. [Lighting].
+Format: [Shot type + angle]. [Outfit — 1-2 items from wardrobe_lock]. [Expression or pose]. [Setting — 1-2 concrete real details]. [Lighting]. [Realism tail].
+
+REALISM TAIL (always end with this — it makes the output read like a real phone photo, not an AI render):
+"Shot on an iPhone 16 Pro, candid, natural light, visible skin texture, no beauty filter, slightly imperfect framing, real photo."
 
 WARDROBE: Use items from scene brief wardrobe_lock verbatim. Nothing added or paraphrased.
-BODY: Posture and expression only. Zero anatomy or skin descriptions.
-LENGTH: 15–40 words total. One sentence or two short sentences maximum.
+BODY: Posture and expression only. No anatomy or skin-smoothing descriptions (Google safety) — but the realism tail above ("visible skin texture, no beauty filter") is required and safe.
+LENGTH: 30–55 words total including the realism tail.
 
 OUTPUT: "Model: Soul 2 🖼️ Image Prompt" then ONE caption on the same line. Stop immediately after. No alternatives, no signature line.`;
 
@@ -619,19 +625,12 @@ Hook: [2 to 5 words, lowercase, no punctuation]
 
 The hook is a short text overlay the photographer places on the finished photo. Match the slot's framing and today's tier:
 
-lifestyle_travel tier:
-- carousel_1 (wide/establishing): location or arrival energy — "rome at noon", "last light here", "nobody's arrived yet", "still in lisbon"
-- carousel_2 (mid, subject): presence — "she stays longer", "still moving", "in transit"
-- carousel_3 (texture/detail): material or sensory — "silk season", "this texture", "linen and light", "the weight of it"
-- carousel_4 (reverse/over-shoulder): perspective — "from here", "what she sees", "the other side", "looking back"
-- carousel_5 (emotional close): most impactful — "don't look away", "she knows", "impossible not to", "stay"
+everyday_life: relatable, warm — "slow morning", "no plans today", "twenty minutes of light", "didn't leave the house"
+wellness_fitness: confident, earned — "earned it", "two more than yesterday", "post-gym glow", "five am club"
+intimate_aesthetic: daring with a quiet invitation — "do not disturb", "the rest is private", "come find me", "you wouldn't"
+lifestyle_travel: location-punchy — "rome at noon", "arrived. not leaving.", "last light here"
 
-intimate_aesthetic tier:
-- carousel_1: arrival/setting the scene — "checked in", "do not disturb", "south-facing room"
-- carousel_2: slow morning — "unhurried", "still here", "room service"
-- carousel_3 (fabric/skin detail): material and body — "the silk stays", "skin first", "this texture"
-- carousel_4: perspective shift — "from behind", "what you'd see", "if you were here"
-- carousel_5 (emotional close): most daring — "you wouldn't", "don't pretend", "she always wins", "stay longer"
+By slot: carousel_1 (wide/establishing) sets the scene; carousel_3 (texture/detail) is sensory/material; carousel_5 (emotional close) is the most impactful line.
 
 Omit the Hook line entirely if no strong one-liner emerges naturally from this frame. Never force it.`;
 

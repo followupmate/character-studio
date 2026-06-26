@@ -172,6 +172,8 @@ Cover, in 4 short paragraphs of plain prose:
 3. The light: one source (e.g. "overhead fluorescent in convenience store"), direction, time of day, color temperature
 4. A short NO list for this day: 3 specific things prompts must avoid (e.g. "no mirrors", "no direct eye contact", "no smiling")
 
+REALISM (state once, plainly): this is a real photo taken on a phone — shot on an iPhone 16 Pro, candid, natural light, visible skin texture, no beauty filter, slightly imperfect framing. Not a studio render, not retouched.
+
 BANNED words in doctrine (image models reject them): ethereal, dreamy, moody, atmospheric, evocative, soulful, magical, poetic, gorgeous, stunning, beautiful, breathtaking, perfect, ineffable, otherworldly. Also banned: physiology terms (breathing rate, gaze drift, EMG, capillary), optical jargon (chromatic aberration, subsurface scattering, lens breathing), abstract measurements.
 
 Write the way a real photographer writes a one-paragraph location note before a shoot.
