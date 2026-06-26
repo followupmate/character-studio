@@ -729,12 +729,15 @@ export async function POST(req: Request) {
     } else {
       const { data, error } = await supabase
         .from("chs_media")
-        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status")
+        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status, media_url")
         .eq("batch_id", batchId!);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const hasVeo = !!googleApiKey;
+      // Generate any slot that has no image yet. NOTE: generation_status="completed" is set by the
+      // prompt-builder (dailyBatch) to mean "prompt ready", NOT "image ready" — so we must filter on
+      // the presence of media_url, not generation_status, or one-click batch would generate nothing.
       mediaRecords = (data ?? []).filter((m) => {
-        if (m.generation_status === "completed") return false;
+        if (m.media_url) return false; // already has an image
         if (VIDEO_SLOTS.has(m.slot)) return imageOnly ? false : hasVeo; // one-click "whole day" = images only
         return true;
       });
@@ -968,6 +971,7 @@ interface MediaRecord {
   higgsfield_prompt: string;
   batch_id: string;
   generation_status: string | null;
+  media_url?: string | null;
 }
 
 interface FalResult {

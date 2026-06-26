@@ -7,6 +7,10 @@ import DateNav from "@/components/today/DateNav";
 import GenerateForwardButton from "@/components/today/GenerateForwardButton";
 import GenerateDayButton from "@/components/today/GenerateDayButton";
 
+// Always render fresh — otherwise generated images don't appear after reload (page was cached).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type TodayStory = StoryDay & {
   chs_media: Media[];
   chs_characters: Character;
