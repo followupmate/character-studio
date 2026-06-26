@@ -9,7 +9,6 @@ const IMAGE_GENERATORS = [
   { id: "google",    label: "Nano Banana", desc: "Google · Nano Banana 2 · rich environment", model: "google",     loraScale: 0,    steps: 0,  guidance: 0   },
   { id: "google-pro",label: "NB Pro",      desc: "Google · Nano Banana Pro · best environment", model: "google-pro", loraScale: 0,    steps: 0,  guidance: 0   },
   { id: "flux-lora", label: "fal.ai",      desc: "LoRA · faithful face · handles intimate",   model: "flux-lora",  loraScale: 0.85, steps: 45, guidance: 3.2 },
-  { id: "higgsfield",label: "Higgsfield",  desc: "Soul 2.0 via GitHub Actions · best face+env · ~1-3 min", model: "higgsfield", loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const VIDEO_GENERATORS = [
@@ -19,7 +18,6 @@ const VIDEO_GENERATORS = [
   { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 Pro i2v · ~3 min",                  model: "kling",         loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min",                        model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo-quality",   label: "Veo 3.1",         desc: "Google · Veo 3.1 Quality · vyššia kvalita · ~4 min",    model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
-  { id: "higgsfield",    label: "Higgsfield",      desc: "Cinematic 3.0 via GitHub Actions · ~2-4 min",          model: "higgsfield",  loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];
@@ -132,11 +130,11 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [generator, setGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : defaultImageGen);
+  const [generator, setGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-fast" : defaultImageGen);
   const [audioStyle, setAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
   const [showRegen, setShowRegen] = useState(false);
   const [regenPrompt, setRegenPrompt] = useState(cleanPrompt(media.higgsfield_prompt));
-  const [regenGenerator, setRegenGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-ref" : defaultImageGen);
+  const [regenGenerator, setRegenGenerator] = useState<GeneratorId>(isVideoSlot ? "seedance-fast" : defaultImageGen);
   const [regenAudioStyle, setRegenAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
