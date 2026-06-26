@@ -493,7 +493,8 @@ interface KlingResult {
 async function generateWithKling(
   prompt: string,
   startFrameUrl: string | null,
-  mediaId: string
+  mediaId: string,
+  audioStyle: "scene" | "ambient" | "dialogue" | "silent" = "scene"
 ): Promise<string> {
   const cleanedPrompt = sanitizePrompt(
     prompt
@@ -516,8 +517,21 @@ async function generateWithKling(
 
   const result = await fal.subscribe(model, { input }) as KlingResult;
 
-  const videoUrl = result?.data?.video?.url ?? result?.video?.url;
+  let videoUrl = result?.data?.video?.url ?? result?.video?.url;
   if (!videoUrl) throw new Error(`Kling: no video URL in response`);
+
+  // Kling has no native audio. Add scene-matched diegetic audio via mmaudio (unless silent).
+  if (audioStyle !== "silent") {
+    try {
+      const audioRes = await fal.subscribe("fal-ai/mmaudio-v2", {
+        input: { video_url: videoUrl, prompt: AUDIO_HINTS[audioStyle] ?? AUDIO_HINTS.scene, num_steps: 25 },
+      }) as KlingResult;
+      const withAudio = audioRes?.data?.video?.url ?? audioRes?.video?.url;
+      if (withAudio) videoUrl = withAudio;
+    } catch (e) {
+      console.warn("[kling] mmaudio failed, keeping silent video:", e instanceof Error ? e.message : e);
+    }
+  }
 
   // Download video → upload to Supabase Storage
   const videoRes = await fetch(videoUrl);
@@ -855,7 +869,7 @@ export async function POST(req: Request) {
             .single();
           if (startFrameMedia?.media_url) startFrameUrl = startFrameMedia.media_url;
 
-          mediaUrl = await generateWithKling(effectivePrompt, startFrameUrl, media.id);
+          mediaUrl = await generateWithKling(effectivePrompt, startFrameUrl, media.id, audioStyle);
           provider = "kling";
         } else if (useVeo) {
           // Find reel_start_frame URL from same batch for image-to-video

@@ -15,7 +15,7 @@ const VIDEO_GENERATORS = [
   { id: "seedance-ref",  label: "Seedance Ref",  desc: "Seedance 2.0 standard · ref photos · audio · $0.30/s",  model: "seedance-ref",  loraScale: 0, steps: 0, guidance: 0 },
   { id: "seedance-i2v",  label: "Seedance i2v",  desc: "Seedance 2.0 standard · start frame · audio · $0.30/s", model: "seedance-i2v",  loraScale: 0, steps: 0, guidance: 0 },
   { id: "seedance-fast", label: "Seedance Fast",  desc: "Seedance 2.0 fast · start frame · audio · $0.24/s",    model: "seedance-fast", loraScale: 0, steps: 0, guidance: 0 },
-  { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 Pro i2v · ~3 min",                  model: "kling",         loraScale: 0, steps: 0, guidance: 0 },
+  { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 i2v · faithful face + scene audio (mmaudio) · ~4 min", model: "kling", loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min",                        model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo-quality",   label: "Veo 3.1",         desc: "Google · Veo 3.1 Quality · vyššia kvalita · ~4 min",    model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
@@ -414,7 +414,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
                       </button>
                     ))}
                   </div>
-                  {isVideoSlot && regenGenerator.startsWith("seedance") && (
+                  {isVideoSlot && (regenGenerator.startsWith("seedance") || regenGenerator === "kling") && (
                     <div className="flex gap-1 flex-wrap">
                       {(["scene","ambient","dialogue","silent"] as const).map((a) => (
                         <button
@@ -528,7 +528,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
             <p className="font-mono text-[8px] text-muted/60">
               {activeGenerators.find((g) => g.id === generator)?.desc}
             </p>
-            {isVideoSlot && generator.startsWith("seedance") && (
+            {isVideoSlot && (generator.startsWith("seedance") || generator === "kling") && (
               <div className="flex gap-1 flex-wrap">
                 {(["scene","ambient","dialogue","silent"] as const).map((a) => (
                   <button
