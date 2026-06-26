@@ -139,11 +139,42 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
 
+  // Async reel-video flow: submit a fal.queue job, then poll until ready (no serverless timeout).
+  // The job state persists on the media row, so if you reload mid-generation, clicking again resumes it.
+  async function runAsyncVideo(model: string, aStyle: string, promptOverride?: string): Promise<string> {
+    const call = () =>
+      fetch("/api/characters/video-async", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId: media.id, model, audioStyle: aStyle, promptOverride }),
+      }).then((r) => r.json());
+    const sub = await call();
+    if (sub.status === "error") throw new Error(sub.error ?? "Video submit zlyhal");
+    if (sub.status === "ready") return sub.url;
+    for (let i = 0; i < 44; i++) {
+      await new Promise((r) => setTimeout(r, 15000));
+      const pd = await call();
+      if (pd.status === "ready") return pd.url;
+      if (pd.status === "error") throw new Error(pd.error ?? "Video zlyhalo");
+    }
+    throw new Error("Video beží dlhšie — beží na pozadí, obnov stránku a klikni znova pre dokončenie");
+  }
+
+  function isAsyncVideo(m: string) {
+    return isVideoSlot && (m === "kling" || m.startsWith("seedance"));
+  }
+
   async function generateWithFal() {
     setGenerating(true);
     setGenerateError(null);
     const g = GENERATORS.find((x) => x.id === generator) ?? GENERATORS[0];
     try {
+      if (isAsyncVideo(g.model)) {
+        const url = await runAsyncVideo(g.model, audioStyle);
+        setGeneratedUrl(url);
+        setTimeout(() => window.location.reload(), 1200);
+        return;
+      }
       const res = await fetch("/api/characters/generate-media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -181,6 +212,11 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     setRegenError(null);
     const g = GENERATORS.find((x) => x.id === regenGenerator) ?? GENERATORS[0];
     try {
+      if (isAsyncVideo(g.model)) {
+        await runAsyncVideo(g.model, regenAudioStyle, regenPrompt.trim() || undefined);
+        setTimeout(() => window.location.reload(), 800);
+        return;
+      }
       const res = await fetch("/api/characters/generate-media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
