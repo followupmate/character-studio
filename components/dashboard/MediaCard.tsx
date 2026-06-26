@@ -144,19 +144,6 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     setGenerateError(null);
     const g = GENERATORS.find((x) => x.id === generator) ?? GENERATORS[0];
     try {
-      // Higgsfield runs async via GitHub Actions — different endpoint, no synchronous URL returned.
-      if (g.model === "higgsfield") {
-        const res = await fetch("/api/characters/generate-higgsfield", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mediaId: media.id }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error ?? `Chyba ${res.status}`);
-        setGeneratedUrl("higgsfield-started");
-        setTimeout(() => window.location.reload(), 2500);
-        return;
-      }
       const res = await fetch("/api/characters/generate-media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -194,17 +181,6 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     setRegenError(null);
     const g = GENERATORS.find((x) => x.id === regenGenerator) ?? GENERATORS[0];
     try {
-      if (g.model === "higgsfield") {
-        const res = await fetch("/api/characters/generate-higgsfield", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mediaId: media.id, promptOverride: regenPrompt.trim() || undefined }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error ?? `Chyba ${res.status}`);
-        setTimeout(() => window.location.reload(), 2500);
-        return;
-      }
       const res = await fetch("/api/characters/generate-media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
