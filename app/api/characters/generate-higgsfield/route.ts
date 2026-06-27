@@ -20,7 +20,10 @@ export const maxDuration = 120;
 // soul (fb42bf59...) is NOT usable here — the Cloud API has a separate scope; we trained 44d9ecae via it.
 
 const BASE = "https://platform.higgsfield.ai";
-const SOUL_MODEL = "higgsfield-ai/soul/standard";
+// `character` mode locks the trained-character identity hardest (we always pass a trained soul);
+// `standard` is more prompt-flexible. Both give realistic Soul-V2 skin. Resolution caps at 1080p on the
+// Cloud API (no native 2K / no upscale endpoint).
+const SOUL_MODEL = "higgsfield-ai/soul/character";
 // Vivienne's Cloud-API-scoped Soul ID (trained via /v1/custom-references) — fallback when the
 // character row has no soul_id.
 const FALLBACK_SOUL_ID = "44d9ecae-4be5-4fc4-8ad2-ca7f91244108";

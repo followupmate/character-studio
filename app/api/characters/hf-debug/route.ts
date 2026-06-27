@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -45,6 +46,15 @@ export async function POST(req: Request) {
         out[m] = { status: r.status, body: (await r.text()).slice(0, 200) };
       }
       return NextResponse.json(out);
+    }
+
+    if (body.action === "upload") {
+      const buf = Buffer.from(body.b64 as string, "base64");
+      const obj = `souls/training/viv_${String(body.idx).padStart(2, "0")}.jpg`;
+      const { error } = await supabase.storage.from("character-media").upload(obj, buf, { contentType: "image/jpeg", upsert: true });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      const { data: pub } = supabase.storage.from("character-media").getPublicUrl(obj);
+      return NextResponse.json({ url: pub.publicUrl });
     }
 
     if (body.action === "gen") {
