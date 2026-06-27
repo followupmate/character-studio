@@ -24,9 +24,9 @@ const BASE = "https://platform.higgsfield.ai";
 // `standard` is more prompt-flexible. Both give realistic Soul-V2 skin. Resolution caps at 1080p on the
 // Cloud API (no native 2K / no upscale endpoint).
 const SOUL_MODEL = "higgsfield-ai/soul/character";
-// Vivienne's Cloud-API-scoped Soul ID (trained via /v1/custom-references) — fallback when the
-// character row has no soul_id.
-const FALLBACK_SOUL_ID = "44d9ecae-4be5-4fc4-8ad2-ca7f91244108";
+// Vivienne's Cloud-API-scoped Soul ID (v2, trained on 20 images via /v1/custom-references) — fallback
+// when the character row has no soul_id.
+const FALLBACK_SOUL_ID = "43d6e73e-f0ac-4f22-a82b-f5819f15367f";
 
 // Soul supports 9:16, 3:4, 1:1 etc. (not 4:5). Map our slots to the closest supported ratio.
 function aspectFor(channel: string | null | undefined): string {
