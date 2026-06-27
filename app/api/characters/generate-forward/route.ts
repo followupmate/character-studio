@@ -118,7 +118,9 @@ function addDays(dateStr: string, n: number): string {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const days = Math.min(Math.max(1, Number(body.days) || 7), 14);
+    // Optional `date` backfills a single specific date (fills gaps that the forward loop can't reach).
+    const specificDate = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : undefined;
+    const days = specificDate ? 1 : Math.min(Math.max(1, Number(body.days) || 7), 14);
     const characterIdFilter = body.character_id as string | undefined;
 
     let charQuery = supabase
@@ -152,7 +154,8 @@ export async function POST(req: Request) {
       const latestRow = (latestData as StoryDay[])?.[0];
       const todayStr = new Date().toISOString().split("T")[0];
       let nextDayNumber = (latestRow?.day_number ?? 0) + 1;
-      let nextDate = latestRow?.date ? addDays(latestRow.date, 1) : addDays(todayStr, 0);
+      // specificDate backfills exactly that day; otherwise continue forward from the latest day.
+      let nextDate = specificDate ?? (latestRow?.date ? addDays(latestRow.date, 1) : addDays(todayStr, 0));
 
       for (let i = 0; i < days; i++) {
         const targetDate = nextDate;
