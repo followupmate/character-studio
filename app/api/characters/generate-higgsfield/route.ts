@@ -1,32 +1,34 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { HiggsfieldClient } from "@higgsfield/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 // In-app Higgsfield Soul image generation — calls the official Higgsfield Cloud API
-// (platform.higgsfield.ai) directly from the server via the official SDK. Used for max-intimate
-// scenes where Soul 2.0 gives the most faithful face. The trained Vivienne Soul is referenced by
-// `custom_reference_id` (= the soul_id). The result is downloaded into Supabase Storage so the asset
-// lives on our CDN like everything else.
+// (platform.higgsfield.ai) directly from the server. Used for max-intimate scenes where Soul gives the
+// most faithful, realistic face. The trained Vivienne Soul is referenced by `custom_reference_id`.
+// The result is downloaded into Supabase Storage so the asset lives on our CDN like everything else.
 //
 // Required env: HIGGSFIELD_API_KEY in "KEY_ID:KEY_SECRET" format (from cloud.higgsfield.ai → API keys).
 //
+// MODEL CHOICE: we use the v2 gateway model `higgsfield-ai/soul/standard` (direct JSON body, polled via
+// status_url). The legacy `/v1/text2image/soul` endpoint produced plasticky skin; the v2 gateway model
+// gives realistic skin texture (visible pores/freckles) matching the consumer app's Soul 2.0 quality.
+//
 // NOTE: the previous GitHub-Actions + CLI path was abandoned — the Higgsfield CLI only supports
-// interactive browser device-login, so it cannot authenticate in CI (it hangs).
+// interactive browser device-login, so it cannot authenticate in CI (it hangs). And the consumer-app
+// soul (fb42bf59...) is NOT usable here — the Cloud API has a separate scope; we trained 44d9ecae via it.
 
-const SOUL_ENDPOINT = "/v1/text2image/soul";
+const BASE = "https://platform.higgsfield.ai";
+const SOUL_MODEL = "higgsfield-ai/soul/standard";
 // Vivienne's Cloud-API-scoped Soul ID (trained via /v1/custom-references) — fallback when the
-// character row has no soul_id. NOTE: the consumer-app soul (fb42bf59...) is NOT usable here — the
-// Cloud API has a separate scope and only sees souls trained through it.
+// character row has no soul_id.
 const FALLBACK_SOUL_ID = "44d9ecae-4be5-4fc4-8ad2-ca7f91244108";
 
-// Soul 2.0 supports 9:16, 3:4, 1:1 etc. (not 4:5). Map our slots to the closest portrait size.
-// 9:16 = 1152x2048 is confirmed (the value the backend produces for aspect_ratio 9:16).
-function dimsFor(channel: string | null | undefined): string {
-  if (channel === "feed") return "1536x2048"; // 3:4 — closest portrait to the 4:5 feed carousel
-  return "1152x2048"; // 9:16 — reel / story / default
+// Soul supports 9:16, 3:4, 1:1 etc. (not 4:5). Map our slots to the closest supported ratio.
+function aspectFor(channel: string | null | undefined): string {
+  if (channel === "feed") return "3:4"; // closest to the 4:5 feed carousel
+  return "9:16"; // reel / story / default
 }
 
 function cleanPrompt(raw: string): string {
@@ -35,22 +37,6 @@ function cleanPrompt(raw: string): string {
     .replace(/^Image\s*Prompt[\s:]*/i, "")
     .replace(/^[\s🖤🖼️]+/, "")
     .trim();
-}
-
-// Pull the result image URL out of whatever shape the SDK returns (v2 JobSet or V2Response).
-function extractUrl(jobSet: unknown): string | null {
-  const j = jobSet as {
-    jobs?: Array<{ results?: { raw?: { url?: string }; min?: { url?: string } } }>;
-    images?: Array<{ url?: string }>;
-    results?: { rawUrl?: string; raw?: { url?: string } };
-  };
-  return (
-    j?.jobs?.[0]?.results?.raw?.url ??
-    j?.images?.[0]?.url ??
-    j?.results?.raw?.url ??
-    j?.results?.rawUrl ??
-    null
-  );
 }
 
 // Lightweight poll for the (older) async flow / status checks.
@@ -121,36 +107,39 @@ export async function POST(req: Request) {
     }
     await supabase.from("chs_media").update(update).eq("id", mediaId);
 
-    // Generate via the official SDK v1 client (blocks until the job completes, ~30-40s).
-    // The soul endpoint expects the body wrapped as { params: {...} } — the v1 `generate()` does exactly
-    // that (v2 `subscribe()` sends input un-wrapped, which the soul endpoint rejects with "body.params required").
-    const colon = credentials.indexOf(":");
-    const apiKey = credentials.slice(0, colon);
-    const apiSecret = credentials.slice(colon + 1);
-    // v1 client wraps the body as { params: {...} } (which /v1/text2image/soul requires) via hf-api-key/
-    // hf-secret headers; we also pass the documented `Authorization: Key id:secret` header (confirmed
-    // accepted by the endpoint) so whichever the platform expects is present.
-    const client = new HiggsfieldClient({
-      apiKey,
-      apiSecret,
-      headers: { Authorization: `Key ${apiKey}:${apiSecret}` },
-    });
-    const jobSet = await client.generate(
-      SOUL_ENDPOINT,
-      {
+    // Generate via the v2 gateway Soul model (direct JSON body, Authorization: Key, poll status_url).
+    const auth = `Key ${credentials}`;
+    const submit = await fetch(`${BASE}/${SOUL_MODEL}`, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
         prompt,
-        width_and_height: dimsFor(media.channel),
-        quality: "1080p",
-        batch_size: 1,
+        aspect_ratio: aspectFor(media.channel),
+        resolution: "1080p",
         custom_reference_id: soulId,
-      },
-      { withPolling: true }
-    );
-
-    const srcUrl = extractUrl(jobSet);
-    if (!srcUrl) {
-      throw new Error(`Higgsfield returned no image (status: ${(jobSet as { status?: string })?.status ?? "unknown"})`);
+      }),
+    });
+    let job = (await submit.json().catch(() => ({}))) as {
+      status?: string;
+      status_url?: string;
+      images?: Array<{ url?: string }>;
+      detail?: string;
+    };
+    if (!submit.ok) {
+      throw new Error(`Higgsfield submit ${submit.status}: ${job.detail ?? JSON.stringify(job).slice(0, 200)}`);
     }
+
+    // Poll status_url until the job finishes.
+    for (let i = 0; i < 45 && job.status !== "completed" && job.status !== "failed" && job.status !== "nsfw"; i++) {
+      if (!job.status_url) break;
+      await new Promise((r) => setTimeout(r, 2500));
+      const pr = await fetch(job.status_url, { headers: { Authorization: auth } });
+      job = await pr.json();
+    }
+
+    if (job.status === "nsfw") throw new Error("Higgsfield flagged the prompt as NSFW — soften the wording.");
+    const srcUrl = job.images?.[0]?.url;
+    if (!srcUrl) throw new Error(`Higgsfield returned no image (status: ${job.status ?? "unknown"})`);
 
     // Download + upload to Supabase Storage so the asset lives on our CDN.
     const img = await fetch(srcUrl);
