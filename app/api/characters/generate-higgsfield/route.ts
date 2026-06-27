@@ -17,8 +17,10 @@ export const maxDuration = 120;
 // interactive browser device-login, so it cannot authenticate in CI (it hangs).
 
 const SOUL_ENDPOINT = "/v1/text2image/soul";
-// Validated Vivienne Higgsfield Soul ID — fallback when the character row has no soul_id.
-const FALLBACK_SOUL_ID = "fb42bf59-4397-4ac9-bf60-37af3e55a308";
+// Vivienne's Cloud-API-scoped Soul ID (trained via /v1/custom-references) — fallback when the
+// character row has no soul_id. NOTE: the consumer-app soul (fb42bf59...) is NOT usable here — the
+// Cloud API has a separate scope and only sees souls trained through it.
+const FALLBACK_SOUL_ID = "44d9ecae-4be5-4fc4-8ad2-ca7f91244108";
 
 // Soul 2.0 supports 9:16, 3:4, 1:1 etc. (not 4:5). Map our slots to the closest portrait size.
 // 9:16 = 1152x2048 is confirmed (the value the backend produces for aspect_ratio 9:16).
@@ -53,27 +55,7 @@ function extractUrl(jobSet: unknown): string | null {
 
 // Lightweight poll for the (older) async flow / status checks.
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-
-  // Debug: list the Soul IDs visible to the Cloud API key (to diagnose soul scope/account mismatch).
-  if (url.searchParams.get("souls") === "1") {
-    const credentials = process.env.HIGGSFIELD_API_KEY;
-    if (!credentials || !credentials.includes(":")) {
-      return NextResponse.json({ error: "HIGGSFIELD_API_KEY not configured" }, { status: 500 });
-    }
-    const colon = credentials.indexOf(":");
-    const apiKey = credentials.slice(0, colon);
-    const apiSecret = credentials.slice(colon + 1);
-    try {
-      const client = new HiggsfieldClient({ apiKey, apiSecret, headers: { Authorization: `Key ${apiKey}:${apiSecret}` } });
-      const list = await client.listSoulIds(1, 50);
-      return NextResponse.json(list);
-    } catch (e) {
-      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
-    }
-  }
-
-  const id = url.searchParams.get("id");
+  const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
   const { data, error } = await supabase
     .from("chs_media")
