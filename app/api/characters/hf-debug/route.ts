@@ -4,48 +4,60 @@ import { HiggsfieldClient } from "@higgsfield/client";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-// TEMPORARY debug route to probe Cloud API models + test Soul model_ids/params for realism.
+// TEMPORARY debug route to test Soul model_ids/params for realism (v1 params-wrapped vs v2 direct body).
 // Delete once the best Soul model + params are locked in.
 
-function client() {
+const BASE = "https://platform.higgsfield.ai";
+
+function creds() {
   const c = process.env.HIGGSFIELD_API_KEY!;
   const i = c.indexOf(":");
-  const apiKey = c.slice(0, i);
-  const apiSecret = c.slice(i + 1);
-  return new HiggsfieldClient({ apiKey, apiSecret, headers: { Authorization: `Key ${apiKey}:${apiSecret}` } });
+  return { key: c.slice(0, i), secret: c.slice(i + 1), full: `${c.slice(0, i)}:${c.slice(i + 1)}` };
 }
 
-function extractUrl(j: unknown): string | null {
-  const o = j as { jobs?: Array<{ results?: { raw?: { url?: string } } }>; images?: Array<{ url?: string }> };
+function v1client() {
+  const { key, secret } = creds();
+  return new HiggsfieldClient({ apiKey: key, apiSecret: secret, headers: { Authorization: `Key ${key}:${secret}` } });
+}
+
+function urlFrom(j: unknown): string | null {
+  const o = j as {
+    jobs?: Array<{ results?: { raw?: { url?: string } } }>;
+    images?: Array<{ url?: string }>;
+  };
   return o?.jobs?.[0]?.results?.raw?.url ?? o?.images?.[0]?.url ?? null;
 }
 
-// GET ?models — probe candidate model-catalog endpoints with the Cloud key.
-export async function GET() {
-  const c = process.env.HIGGSFIELD_API_KEY!;
-  const i = c.indexOf(":");
-  const auth = `Key ${c.slice(0, i)}:${c.slice(i + 1)}`;
-  const base = "https://platform.higgsfield.ai";
-  const candidates = ["/v1/models", "/models", "/v1/job-types", "/v1/job_sets/job_set_types", "/v1/job_set_types", "/v1/text2image"];
-  const out: Record<string, unknown> = {};
-  for (const path of candidates) {
-    try {
-      const r = await fetch(base + path, { headers: { Authorization: auth, "hf-api-key": c.slice(0, i), "hf-secret": c.slice(i + 1) } });
-      const t = await r.text();
-      out[path] = { status: r.status, body: t.slice(0, 1500) };
-    } catch (e) {
-      out[path] = { error: e instanceof Error ? e.message : String(e) };
-    }
-  }
-  return NextResponse.json(out);
-}
-
-// POST { endpoint, params } — raw generate, returns the source image URL (not saved to media).
+// POST { mode:"v1"|"v2", endpoint, params }
 export async function POST(req: Request) {
   try {
-    const { endpoint, params } = (await req.json()) as { endpoint: string; params: Record<string, unknown> };
-    const jobSet = await client().generate(endpoint, params, { withPolling: true });
-    return NextResponse.json({ status: (jobSet as { status?: string }).status ?? "ok", url: extractUrl(jobSet) });
+    const { mode = "v2", endpoint, params } = (await req.json()) as {
+      mode?: "v1" | "v2";
+      endpoint: string;
+      params: Record<string, unknown>;
+    };
+
+    if (mode === "v1") {
+      const jobSet = await v1client().generate(endpoint, params, { withPolling: true });
+      return NextResponse.json({ status: (jobSet as { status?: string }).status ?? "ok", url: urlFrom(jobSet) });
+    }
+
+    // v2 style: direct body to /{endpoint}, Authorization: Key, then poll status_url.
+    const { full } = creds();
+    const headers = { Authorization: `Key ${full}`, "Content-Type": "application/json" };
+    const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    const r = await fetch(BASE + path, { method: "POST", headers, body: JSON.stringify(params) });
+    const first = await r.json().catch(() => ({}));
+    if (!r.ok) return NextResponse.json({ submit_status: r.status, body: first }, { status: 200 });
+
+    let cur = first as { status?: string; status_url?: string; images?: Array<{ url?: string }> };
+    for (let i = 0; i < 40 && cur.status !== "completed" && cur.status !== "failed" && cur.status !== "nsfw"; i++) {
+      if (!cur.status_url) break;
+      await new Promise((res) => setTimeout(res, 2500));
+      const pr = await fetch(cur.status_url, { headers: { Authorization: `Key ${full}` } });
+      cur = await pr.json();
+    }
+    return NextResponse.json({ status: cur.status, url: cur.images?.[0]?.url ?? null, raw: cur });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
