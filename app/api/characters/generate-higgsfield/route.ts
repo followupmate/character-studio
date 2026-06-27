@@ -1,21 +1,57 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { createHiggsfieldClient } from "@higgsfield/client/v2";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
-// Triggers the existing GitHub Actions workflow (.github/workflows/higgsfield.yml) which runs the
-// Higgsfield CLI (soul_2 + soul_id for photo / cinematic_studio_3_0 for video) using HIGGSFIELD_TOKEN,
-// downloads the result to Supabase Storage, then PATCHes chs_media (media_url + status) when done.
-// This is the in-app "Higgsfield Soul" button — best face fidelity for max-intimate scenes, async.
+// In-app Higgsfield Soul image generation — calls the official Higgsfield Cloud API
+// (platform.higgsfield.ai) directly from the server via the official SDK. Used for max-intimate
+// scenes where Soul 2.0 gives the most faithful face. The trained Vivienne Soul is referenced by
+// `custom_reference_id` (= the soul_id). The result is downloaded into Supabase Storage so the asset
+// lives on our CDN like everything else.
 //
-// Required env: GITHUB_OWNER, GITHUB_REPO, GH_TOKEN (all already configured on the project).
+// Required env: HIGGSFIELD_API_KEY in "KEY_ID:KEY_SECRET" format (from cloud.higgsfield.ai → API keys).
+//
+// NOTE: the previous GitHub-Actions + CLI path was abandoned — the Higgsfield CLI only supports
+// interactive browser device-login, so it cannot authenticate in CI (it hangs).
 
-const WORKFLOW_FILE = "higgsfield.yml";
+const SOUL_ENDPOINT = "/v1/text2image/soul";
 // Validated Vivienne Higgsfield Soul ID — fallback when the character row has no soul_id.
 const FALLBACK_SOUL_ID = "fb42bf59-4397-4ac9-bf60-37af3e55a308";
 
-// Lightweight poll for the async GH-Actions flow: the client dispatches via POST, then polls GET
-// until the workflow flips the row to ready (media_url set) or failed.
+// Soul 2.0 supports 9:16, 3:4, 1:1 etc. (not 4:5). Map our slots to the closest portrait size.
+// 9:16 = 1152x2048 is confirmed (the value the backend produces for aspect_ratio 9:16).
+function dimsFor(channel: string | null | undefined): string {
+  if (channel === "feed") return "1536x2048"; // 3:4 — closest portrait to the 4:5 feed carousel
+  return "1152x2048"; // 9:16 — reel / story / default
+}
+
+function cleanPrompt(raw: string): string {
+  return raw
+    .replace(/^Model:\s*Soul\s*\d+\s*[^\n]*?(Image\s*Prompt)?[\s:]*/i, "")
+    .replace(/^Image\s*Prompt[\s:]*/i, "")
+    .replace(/^[\s🖤🖼️]+/, "")
+    .trim();
+}
+
+// Pull the result image URL out of whatever shape the SDK returns (v2 JobSet or V2Response).
+function extractUrl(jobSet: unknown): string | null {
+  const j = jobSet as {
+    jobs?: Array<{ results?: { raw?: { url?: string }; min?: { url?: string } } }>;
+    images?: Array<{ url?: string }>;
+    results?: { rawUrl?: string; raw?: { url?: string } };
+  };
+  return (
+    j?.jobs?.[0]?.results?.raw?.url ??
+    j?.images?.[0]?.url ??
+    j?.results?.raw?.url ??
+    j?.results?.rawUrl ??
+    null
+  );
+}
+
+// Lightweight poll for the (older) async flow / status checks.
 export async function GET(req: Request) {
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -29,28 +65,26 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  let mediaId: string | undefined;
   try {
-    const { mediaId, promptOverride } = (await req.json()) as {
-      mediaId?: string;
-      promptOverride?: string;
-    };
+    const body = (await req.json()) as { mediaId?: string; promptOverride?: string };
+    mediaId = body.mediaId;
+    const promptOverride = body.promptOverride;
     if (!mediaId) {
       return NextResponse.json({ error: "mediaId is required" }, { status: 400 });
     }
 
-    const owner = process.env.GITHUB_OWNER;
-    const repo = process.env.GITHUB_REPO;
-    const token = process.env.GH_TOKEN;
-    if (!owner || !repo || !token) {
+    const credentials = process.env.HIGGSFIELD_API_KEY;
+    if (!credentials || !credentials.includes(":")) {
       return NextResponse.json(
-        { error: "Higgsfield not configured (missing GITHUB_OWNER / GITHUB_REPO / GH_TOKEN)" },
+        { error: "Higgsfield not configured — set HIGGSFIELD_API_KEY env to \"KEY_ID:KEY_SECRET\" (from cloud.higgsfield.ai)" },
         { status: 500 }
       );
     }
 
     const { data: media, error: mErr } = await supabase
       .from("chs_media")
-      .select("id, type, higgsfield_prompt, batch_id")
+      .select("id, type, channel, higgsfield_prompt, batch_id")
       .eq("id", mediaId)
       .single();
     if (mErr || !media) {
@@ -73,62 +107,63 @@ export async function POST(req: Request) {
       if (character?.soul_id) soulId = character.soul_id;
     }
 
-    const prompt = (promptOverride?.trim() || media.higgsfield_prompt || "").trim();
+    const prompt = cleanPrompt((promptOverride?.trim() || media.higgsfield_prompt || "").trim());
     if (!prompt) {
       return NextResponse.json({ error: "No prompt available for this media" }, { status: 422 });
     }
 
-    // Persist override + mark generating (workflow will flip to ready/failed when done).
-    const update: Record<string, string> = { generation_status: "generating" };
+    // Persist override + mark generating.
+    const update: Record<string, string> = { generation_status: "generating", last_error: "" };
     if (promptOverride?.trim() && promptOverride.trim() !== media.higgsfield_prompt) {
       update.higgsfield_prompt = promptOverride.trim();
     }
     await supabase.from("chs_media").update(update).eq("id", mediaId);
 
-    // Dispatch the workflow.
-    const ghRes = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${WORKFLOW_FILE}/dispatches`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-          "User-Agent": "character-studio",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ref: "main",
-          inputs: {
-            media_id: mediaId,
-            prompt,
-            type: media.type === "video" ? "video" : "photo",
-            soul_id: soulId,
-          },
-        }),
-      }
-    );
+    // Generate via the official SDK (blocks until the job completes, ~30-40s).
+    const client = createHiggsfieldClient({ credentials });
+    const jobSet = await client.subscribe(SOUL_ENDPOINT, {
+      input: {
+        prompt,
+        width_and_height: dimsFor(media.channel),
+        quality: "1080p",
+        batch_size: 1,
+        custom_reference_id: soulId,
+      },
+      withPolling: true,
+    });
 
-    if (ghRes.status !== 204) {
-      const detail = await ghRes.text();
-      await supabase
-        .from("chs_media")
-        .update({ generation_status: "failed", last_error: `GitHub dispatch ${ghRes.status}: ${detail.slice(0, 300)}` })
-        .eq("id", mediaId);
-      return NextResponse.json(
-        { success: false, error: `GitHub workflow dispatch failed (${ghRes.status})`, detail: detail.slice(0, 300) },
-        { status: 502 }
-      );
+    const srcUrl = extractUrl(jobSet);
+    if (!srcUrl) {
+      throw new Error(`Higgsfield returned no image (status: ${(jobSet as { status?: string })?.status ?? "unknown"})`);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Higgsfield generation started via GitHub Actions — media will update to ready when done (~1-3 min).",
-      mediaId,
-      soulId,
-    });
+    // Download + upload to Supabase Storage so the asset lives on our CDN.
+    const img = await fetch(srcUrl);
+    if (!img.ok) throw new Error(`download failed ${img.status}`);
+    const buf = Buffer.from(await img.arrayBuffer());
+    const storagePath = `media/${mediaId}.png`;
+    const { error: upErr } = await supabase.storage
+      .from("character-media")
+      .upload(storagePath, buf, { contentType: "image/png", upsert: true });
+    if (upErr) throw new Error(`storage upload failed: ${upErr.message}`);
+    const { data: pub } = supabase.storage.from("character-media").getPublicUrl(storagePath);
+    const finalUrl = `${pub.publicUrl}?t=${Date.now()}`;
+
+    await supabase
+      .from("chs_media")
+      .update({ media_url: finalUrl, source_url: finalUrl, generation_status: "completed", status: "ready", last_error: null })
+      .eq("id", mediaId);
+
+    return NextResponse.json({ success: true, mediaId, media_url: finalUrl, soulId });
   } catch (error) {
-    console.error("[generate-higgsfield]", error);
-    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[generate-higgsfield]", msg);
+    if (mediaId) {
+      await supabase
+        .from("chs_media")
+        .update({ generation_status: "failed", status: "failed", last_error: msg.slice(0, 400) })
+        .eq("id", mediaId);
+    }
+    return NextResponse.json({ success: false, error: msg.slice(0, 400) }, { status: 500 });
   }
 }

@@ -165,25 +165,31 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     return isVideoSlot && (m === "kling" || m.startsWith("seedance"));
   }
 
-  // Higgsfield Soul image flow: dispatch the GitHub Actions workflow, then poll the media row
-  // until the workflow downloads the result to Supabase and flips it to ready (~1-3 min).
+  // Higgsfield Soul image flow: the server route generates via the official SDK (~30-40s) and returns
+  // the final Supabase URL directly. If the request drops/times out, fall back to polling the row.
   async function runHiggsfield(promptOverride?: string): Promise<string> {
-    const res = await fetch("/api/characters/generate-higgsfield", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mediaId: media.id, promptOverride }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.error ?? "Higgsfield dispatch zlyhal");
-    for (let i = 0; i < 45; i++) {
+    let lastErr: string | null = null;
+    try {
+      const res = await fetch("/api/characters/generate-higgsfield", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId: media.id, promptOverride }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.media_url) return data.media_url;
+      lastErr = data?.error ?? `Chyba ${res.status}`;
+    } catch {
+      // network error / serverless timeout — fall through to polling in case it still finished
+    }
+    for (let i = 0; i < 12; i++) {
       await new Promise((r) => setTimeout(r, 8000));
       const s = await fetch(`/api/characters/generate-higgsfield?id=${media.id}`).then((r) => r.json());
       if (s.status === "ready" && s.media_url) return s.media_url;
       if (s.generation_status === "failed" || s.status === "failed") {
-        throw new Error(s.last_error ?? "Higgsfield generovanie zlyhalo (pozri GitHub Actions)");
+        throw new Error(s.last_error ?? lastErr ?? "Higgsfield generovanie zlyhalo");
       }
     }
-    throw new Error("Higgsfield beží dlhšie — beží na pozadí, obnov stránku o chvíľu");
+    throw new Error(lastErr ?? "Higgsfield beží dlhšie — obnov stránku o chvíľu");
   }
 
   async function generateWithFal() {
