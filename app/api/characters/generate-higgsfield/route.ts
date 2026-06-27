@@ -20,10 +20,12 @@ export const maxDuration = 120;
 // soul (fb42bf59...) is NOT usable here — the Cloud API has a separate scope; we trained 44d9ecae via it.
 
 const BASE = "https://platform.higgsfield.ai";
-// `character` mode locks the trained-character identity hardest (we always pass a trained soul);
-// `standard` is more prompt-flexible. Both give realistic Soul-V2 skin. Resolution caps at 1080p on the
-// Cloud API (no native 2K / no upscale endpoint).
-const SOUL_MODEL = "higgsfield-ai/soul/character";
+// Soul V2 Standard — best skin realism on the platform. We pass the trained soul via custom_reference_id
+// and MUST keep enhance_prompt:false — enhance_prompt rewrites the prompt and dilutes the trained identity
+// (drifts to a generic lighter-haired face). With enhance off + the reference, identity stays faithful.
+// (The older higgsfield-ai/soul/character holds identity too but with slightly more plasticky skin.)
+// Resolution caps at 1080p on the Cloud API (no native 2K / no upscale endpoint).
+const SOUL_MODEL = "higgsfield-ai/soul/v2/standard";
 // Vivienne's Cloud-API-scoped Soul ID (v2, trained on 20 images via /v1/custom-references) — fallback
 // when the character row has no soul_id.
 const FALLBACK_SOUL_ID = "43d6e73e-f0ac-4f22-a82b-f5819f15367f";
@@ -145,6 +147,7 @@ export async function POST(req: Request) {
         prompt,
         aspect_ratio: aspectFor(media.channel),
         resolution: "1080p",
+        enhance_prompt: false, // keep OFF — enhance dilutes the trained identity
         custom_reference_id: soulId,
       }),
     });
