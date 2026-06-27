@@ -9,6 +9,7 @@ const IMAGE_GENERATORS = [
   { id: "google",    label: "Nano Banana", desc: "Google · Nano Banana 2 · rich environment", model: "google",     loraScale: 0,    steps: 0,  guidance: 0   },
   { id: "google-pro",label: "NB Pro",      desc: "Google · Nano Banana Pro · best environment", model: "google-pro", loraScale: 0,    steps: 0,  guidance: 0   },
   { id: "flux-lora", label: "fal.ai",      desc: "LoRA · faithful face · handles intimate",   model: "flux-lora",  loraScale: 0.85, steps: 45, guidance: 3.2 },
+  { id: "higgsfield",label: "Higgsfield",  desc: "Soul 2.0 · najvernejšia tvár · max-intimate · ~2 min", model: "higgsfield", loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const VIDEO_GENERATORS = [
@@ -164,6 +165,27 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     return isVideoSlot && (m === "kling" || m.startsWith("seedance"));
   }
 
+  // Higgsfield Soul image flow: dispatch the GitHub Actions workflow, then poll the media row
+  // until the workflow downloads the result to Supabase and flips it to ready (~1-3 min).
+  async function runHiggsfield(promptOverride?: string): Promise<string> {
+    const res = await fetch("/api/characters/generate-higgsfield", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaId: media.id, promptOverride }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error ?? "Higgsfield dispatch zlyhal");
+    for (let i = 0; i < 45; i++) {
+      await new Promise((r) => setTimeout(r, 8000));
+      const s = await fetch(`/api/characters/generate-higgsfield?id=${media.id}`).then((r) => r.json());
+      if (s.status === "ready" && s.media_url) return s.media_url;
+      if (s.generation_status === "failed" || s.status === "failed") {
+        throw new Error(s.last_error ?? "Higgsfield generovanie zlyhalo (pozri GitHub Actions)");
+      }
+    }
+    throw new Error("Higgsfield beží dlhšie — beží na pozadí, obnov stránku o chvíľu");
+  }
+
   async function generateWithFal() {
     setGenerating(true);
     setGenerateError(null);
@@ -171,6 +193,12 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     try {
       if (isAsyncVideo(g.model)) {
         const url = await runAsyncVideo(g.model, audioStyle);
+        setGeneratedUrl(url);
+        setTimeout(() => window.location.reload(), 1200);
+        return;
+      }
+      if (g.model === "higgsfield") {
+        const url = await runHiggsfield();
         setGeneratedUrl(url);
         setTimeout(() => window.location.reload(), 1200);
         return;
@@ -214,6 +242,11 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     try {
       if (isAsyncVideo(g.model)) {
         await runAsyncVideo(g.model, regenAudioStyle, regenPrompt.trim() || undefined);
+        setTimeout(() => window.location.reload(), 800);
+        return;
+      }
+      if (g.model === "higgsfield") {
+        await runHiggsfield(regenPrompt.trim() || undefined);
         setTimeout(() => window.location.reload(), 800);
         return;
       }
@@ -593,7 +626,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
                     animate={{ rotate: 360 }}
                     transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                   />
-                  {isVideoSlot ? "Generujem video (~2 min)…" : "Generujem…"}
+                  {isVideoSlot ? "Generujem video (~2 min)…" : generator === "higgsfield" ? "Higgsfield Soul (~2 min)…" : "Generujem…"}
                 </>
               ) : generatedUrl ? (
                 <>

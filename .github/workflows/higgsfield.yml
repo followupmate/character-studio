@@ -35,33 +35,63 @@ jobs:
       - name: Generate media
         id: generate
         run: |
+          set -e
+          # NOTE: CLI job_set_type uses the catalog id `soul_2` (the MCP/internal name
+          # text2image_soul_v2 is NOT accepted by the CLI). Soul ref is the `soul_id` param.
           if [ "${{ inputs.type }}" = "photo" ]; then
-            RESULT=$(higgsfield generate create text2image_soul_v2 \
+            RESULT=$(higgsfield generate create soul_2 \
               --prompt "${{ inputs.prompt }}" \
-              --soul-id "${{ inputs.soul_id }}" \
-              --wait --json)
+              --soul_id "${{ inputs.soul_id }}" \
+              --aspect_ratio 9:16 \
+              --wait --wait-timeout 10m --json)
           else
             RESULT=$(higgsfield generate create cinematic_studio_3_0 \
               --prompt "${{ inputs.prompt }}" \
               --aspect_ratio 9:16 \
-              --wait --json)
+              --wait --wait-timeout 20m --json)
           fi
-          echo "result=$RESULT" >> $GITHUB_OUTPUT
+          echo "$RESULT" > result.json
+          echo "--- higgsfield raw result ---"
+          cat result.json
 
-      - name: Save result to Supabase
+      - name: Download + upload to Supabase + mark ready
         run: |
-          MEDIA_URL=$(echo '${{ steps.generate.outputs.result }}' | jq -r '.result_url')
-          curl -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/chs_media?id=eq.${{ inputs.media_id }}" \
+          set -e
+          # The completed-job JSON puts the image at results.rawUrl; fall back through other shapes.
+          URL=$(jq -r '
+            .results.rawUrl
+            // .generation.results.rawUrl
+            // (.. | objects | .rawUrl? // empty)
+            // (.. | objects | .url? // empty)
+            // .result_url
+            // empty' result.json | head -1)
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "No result URL found in CLI output"; exit 1
+          fi
+          echo "Downloading $URL"
+          curl -sSL "$URL" -o out.bin
+          # Pick extension/content-type from the type (photo=png, video=mp4)
+          if [ "${{ inputs.type }}" = "photo" ]; then EXT=png; CT=image/png; FOLDER=media; else EXT=mp4; CT=video/mp4; FOLDER=videos; fi
+          OBJ="$FOLDER/${{ inputs.media_id }}.$EXT"
+          # Upload to Supabase Storage (upsert) so the asset lives on our CDN like everything else.
+          curl -sS -X POST "${{ secrets.SUPABASE_URL }}/storage/v1/object/character-media/$OBJ" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "x-upsert: true" \
+            -H "Content-Type: $CT" \
+            --data-binary @out.bin
+          PUB="${{ secrets.SUPABASE_URL }}/storage/v1/object/public/character-media/$OBJ?t=$(date +%s)"
+          curl -sS -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/chs_media?id=eq.${{ inputs.media_id }}" \
             -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
             -H "Content-Type: application/json" \
-            -d "{\"media_url\": \"${MEDIA_URL}\", \"status\": \"ready\"}"
+            -d "{\"media_url\": \"${PUB}\", \"source_url\": \"${PUB}\", \"generation_status\": \"completed\", \"status\": \"ready\", \"last_error\": null}"
 
       - name: Mark failed on error
         if: failure()
         run: |
-          curl -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/chs_media?id=eq.${{ inputs.media_id }}" \
+          curl -sS -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/chs_media?id=eq.${{ inputs.media_id }}" \
             -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{"status": "failed"}'
+            -d '{"generation_status": "failed", "status": "failed", "last_error": "higgsfield workflow failed — see GitHub Actions logs"}'

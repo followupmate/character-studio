@@ -4,15 +4,29 @@ import { supabase } from "@/lib/supabase";
 export const runtime = "nodejs";
 
 // Triggers the existing GitHub Actions workflow (.github/workflows/higgsfield.yml) which runs the
-// Higgsfield CLI (text2image_soul_v2 for photo / cinematic_studio_3_0 for video) using HIGGSFIELD_TOKEN,
-// then PATCHes chs_media (media_url + status) when done. This is the in-app "Higgsfield Soul" button —
-// best face + environment fidelity, generated async via GitHub Actions.
+// Higgsfield CLI (soul_2 + soul_id for photo / cinematic_studio_3_0 for video) using HIGGSFIELD_TOKEN,
+// downloads the result to Supabase Storage, then PATCHes chs_media (media_url + status) when done.
+// This is the in-app "Higgsfield Soul" button — best face fidelity for max-intimate scenes, async.
 //
 // Required env: GITHUB_OWNER, GITHUB_REPO, GH_TOKEN (all already configured on the project).
 
 const WORKFLOW_FILE = "higgsfield.yml";
 // Validated Vivienne Higgsfield Soul ID — fallback when the character row has no soul_id.
 const FALLBACK_SOUL_ID = "fb42bf59-4397-4ac9-bf60-37af3e55a308";
+
+// Lightweight poll for the async GH-Actions flow: the client dispatches via POST, then polls GET
+// until the workflow flips the row to ready (media_url set) or failed.
+export async function GET(req: Request) {
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  const { data, error } = await supabase
+    .from("chs_media")
+    .select("generation_status, status, media_url, last_error")
+    .eq("id", id)
+    .single();
+  if (error || !data) return NextResponse.json({ error: "Media not found" }, { status: 404 });
+  return NextResponse.json(data);
+}
 
 export async function POST(req: Request) {
   try {
