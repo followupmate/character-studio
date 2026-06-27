@@ -53,7 +53,27 @@ function extractUrl(jobSet: unknown): string | null {
 
 // Lightweight poll for the (older) async flow / status checks.
 export async function GET(req: Request) {
-  const id = new URL(req.url).searchParams.get("id");
+  const url = new URL(req.url);
+
+  // Debug: list the Soul IDs visible to the Cloud API key (to diagnose soul scope/account mismatch).
+  if (url.searchParams.get("souls") === "1") {
+    const credentials = process.env.HIGGSFIELD_API_KEY;
+    if (!credentials || !credentials.includes(":")) {
+      return NextResponse.json({ error: "HIGGSFIELD_API_KEY not configured" }, { status: 500 });
+    }
+    const colon = credentials.indexOf(":");
+    const apiKey = credentials.slice(0, colon);
+    const apiSecret = credentials.slice(colon + 1);
+    try {
+      const client = new HiggsfieldClient({ apiKey, apiSecret, headers: { Authorization: `Key ${apiKey}:${apiSecret}` } });
+      const list = await client.listSoulIds(1, 50);
+      return NextResponse.json(list);
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    }
+  }
+
+  const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
   const { data, error } = await supabase
     .from("chs_media")
