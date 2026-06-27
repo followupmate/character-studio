@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { createHiggsfieldClient } from "@higgsfield/client/v2";
+import { HiggsfieldClient } from "@higgsfield/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -119,18 +119,31 @@ export async function POST(req: Request) {
     }
     await supabase.from("chs_media").update(update).eq("id", mediaId);
 
-    // Generate via the official SDK (blocks until the job completes, ~30-40s).
-    const client = createHiggsfieldClient({ credentials });
-    const jobSet = await client.subscribe(SOUL_ENDPOINT, {
-      input: {
+    // Generate via the official SDK v1 client (blocks until the job completes, ~30-40s).
+    // The soul endpoint expects the body wrapped as { params: {...} } — the v1 `generate()` does exactly
+    // that (v2 `subscribe()` sends input un-wrapped, which the soul endpoint rejects with "body.params required").
+    const colon = credentials.indexOf(":");
+    const apiKey = credentials.slice(0, colon);
+    const apiSecret = credentials.slice(colon + 1);
+    // v1 client wraps the body as { params: {...} } (which /v1/text2image/soul requires) via hf-api-key/
+    // hf-secret headers; we also pass the documented `Authorization: Key id:secret` header (confirmed
+    // accepted by the endpoint) so whichever the platform expects is present.
+    const client = new HiggsfieldClient({
+      apiKey,
+      apiSecret,
+      headers: { Authorization: `Key ${apiKey}:${apiSecret}` },
+    });
+    const jobSet = await client.generate(
+      SOUL_ENDPOINT,
+      {
         prompt,
         width_and_height: dimsFor(media.channel),
         quality: "1080p",
         batch_size: 1,
         custom_reference_id: soulId,
       },
-      withPolling: true,
-    });
+      { withPolling: true }
+    );
 
     const srcUrl = extractUrl(jobSet);
     if (!srcUrl) {
