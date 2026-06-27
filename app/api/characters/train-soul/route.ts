@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { HiggsfieldClient } from "@higgsfield/client";
+import { HiggsfieldClient, InputImageType } from "@higgsfield/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     }
 
     if (body.action === "create") {
-      const image_urls = (body.image_urls as string[]).map((u) => ({ type: "image_url" as const, image_url: u }));
+      const image_urls = (body.image_urls as string[]).map((u) => ({ type: InputImageType.IMAGE_URL, image_url: u }));
       const soul = await client().createSoulId(
         { name: (body.name as string) || "Vivienne", input_images: image_urls },
         false // don't block — poll separately via GET
