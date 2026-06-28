@@ -140,13 +140,16 @@ export async function POST(req: Request) {
       input = { prompt: cinematic, duration: "10", aspect_ratio: "9:16", ...(startFrameUrl ? { image_url: startFrameUrl } : {}) };
       needsAudio = audioStyle !== "silent"; // Kling has no native audio → mmaudio after
     } else if (model === "seedance-fast" || model === "seedance-i2v") {
+      // Identity holds ONLY if the start frame clearly shows her face (see archetypeDeck reel_start_frame).
+      // Explicit 9:16 (not "auto", which can reframe/crop the face) + highest resolution the tier allows.
       if (!startFrameUrl) return NextResponse.json({ error: "Seedance i2v needs a start frame" }, { status: 422 });
-      falModel = model === "seedance-fast" ? "bytedance/seedance-2.0/fast/image-to-video" : "bytedance/seedance-2.0/image-to-video";
-      input = { prompt: cinematic, image_url: startFrameUrl, resolution: "720p", duration: "10", aspect_ratio: "auto", generate_audio: audioStyle !== "silent" };
+      const fast = model === "seedance-fast";
+      falModel = fast ? "bytedance/seedance-2.0/fast/image-to-video" : "bytedance/seedance-2.0/image-to-video";
+      input = { prompt: cinematic, image_url: startFrameUrl, resolution: fast ? "720p" : "1080p", duration: "5", aspect_ratio: "9:16", generate_audio: audioStyle !== "silent" };
     } else if (model === "seedance-ref") {
       falModel = "bytedance/seedance-2.0/reference-to-video";
       const images = startFrameUrl ? [startFrameUrl] : [];
-      input = { prompt: `@Image1 ${prompt}`, image_urls: images, resolution: "720p", duration: "10", aspect_ratio: "9:16", generate_audio: audioStyle !== "silent" };
+      input = { prompt: `@Image1 ${prompt}`, image_urls: images, resolution: "1080p", duration: "5", aspect_ratio: "9:16", generate_audio: audioStyle !== "silent" };
     } else {
       return NextResponse.json({ error: `Unsupported async video model: ${model}` }, { status: 400 });
     }

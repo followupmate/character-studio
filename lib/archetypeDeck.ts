@@ -85,7 +85,7 @@ export const DAILY_SLOTS: SlotSpec[] = [
     type: "photo",
     sequence_index: null,
     family: "subject",
-    framing: "First frame of the 9:16 vertical reel — this image will be fed to Kling 3.0 (image-to-video). Same scene, light, wardrobe as carousel. Subject anchored in the exact pose the motion will continue from — caught mid-action, mid-pose (not at start, not at end). Camera framing must leave room for the motion described in reel_video. Vertical 9:16.",
+    framing: "First frame of the 9:16 vertical reel — fed to image-to-video (Kling / Seedance). Same scene, light, wardrobe as carousel. Subject anchored in the pose the motion continues from — caught mid-action, mid-pose. CRITICAL: her FACE MUST be clearly visible and turned toward camera (at least head-and-shoulders in frame, eyes visible) — this frame is the identity anchor the video animates from; a cropped, headless, profile or face-away frame forces the video model to invent a different face (loses Vivienne). Leave room for the reel_video motion. Vertical 9:16.",
   },
   {
     slot: "reel_video",
@@ -93,7 +93,7 @@ export const DAILY_SLOTS: SlotSpec[] = [
     type: "video",
     sequence_index: null,
     family: "motion",
-    framing: "5–9 seconds, 9:16. Motion prompt for Kling 3.0 image-to-video. Motion CONTINUES from the reel_start_frame pose — describe what changes from that frame onward (camera move, subject motion, environmental element). First 0–3s = strongest motion. Loop logic explicit at end.",
+    framing: "5–9 seconds, 9:16. Motion prompt for image-to-video (Kling / Seedance). Motion CONTINUES from the reel_start_frame pose — describe what changes from that frame onward (subject motion, camera move, environmental element). Keep her FACE toward camera throughout — avoid motions that turn her head away, pan off her face, or push to a wide shot (the model then invents a new face and loses Vivienne). Prefer gentle, subtle motion. First 0–3s = strongest motion. Loop logic explicit at end.",
   },
   {
     slot: "story_bts",
