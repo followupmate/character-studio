@@ -39,6 +39,7 @@ interface GenerateArgs {
   };
   recentBriefs?: Array<{ wardrobe_lock: string; allowed_props: string[] }>;
   stylingProfile?: StylingProfile;
+  lifeNote?: string; // life_layer: short mood/energy continuity note (optional, never overrides tier)
 }
 
 function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | null, sacred: Record<string, unknown> | null): string[] {
@@ -79,7 +80,7 @@ function safeJsonExtract(raw: string): SceneBriefJson {
   }
 }
 
-export async function generateSceneBrief({ storyScene, character, recentBriefs, stylingProfile }: GenerateArgs): Promise<SceneBriefResult> {
+export async function generateSceneBrief({ storyScene, character, recentBriefs, stylingProfile, lifeNote }: GenerateArgs): Promise<SceneBriefResult> {
   const sacredText = character.sacred_details
     ? `SACRED DETAILS (invariant across all 7 assets — never change):\n${JSON.stringify(character.sacred_details, null, 2)}`
     : "";
@@ -143,6 +144,7 @@ Mood: ${storyScene.mood}
 Arc position: ${storyScene.arc_position}
 Emotional beat: ${storyScene.emotional_beat ?? storyScene.mood}
 Narrative: ${storyScene.narrative}
+${lifeNote ? `Life continuity (let it subtly color mood/energy, not the tier): ${lifeNote}` : ""}
 ${sceneJsonText}
 ${driftText}
 

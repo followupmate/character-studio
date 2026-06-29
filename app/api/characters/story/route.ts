@@ -11,6 +11,9 @@ import {
   ContentPhase,
 } from "@/lib/storyTier";
 import { Character, StoryDay } from "@/types";
+import { isFlagOn } from "@/lib/featureFlags";
+import { getLatestLifeState, getActiveLifeEvents, lifeContextBlock, LIFE_OUTPUT_SPEC, maybeCreateLifeEvent } from "@/lib/lifeState";
+import { getGrowthBias } from "@/lib/growthScore";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -62,8 +65,10 @@ function buildSystemPrompt(args: {
   driftSeeds: ContentPhase[];
   dayNumber: number;
   historyText: string;
+  lifeContext?: string; // life_layer: continuity guidance from yesterday's life_state + active events
 }): string {
-  const { character, tier, driftSeeds, historyText } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext } = args;
+  const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
 
@@ -84,7 +89,7 @@ ${VOICE_DOCTRINE}
 ${tierGuidance(tier)}
 
 ${driftSeedGuidance(driftSeeds)}
-
+${lifeContext ? `\n${lifeContext}\n` : ""}
 VOICE ANCHOR — read recent history ONLY to avoid repeating the same city or scene two days in a row. If recent history drifted toward influencer fluff or hollow affirmations, IGNORE THE DRIFT and reset to the voice doctrine above.
 
 RECENT HISTORY (last 7 days, oldest first):
@@ -111,7 +116,7 @@ Required fields:
 - ig_caption: 1 to 2 lines. lowercase preferred. no hashtags. one emoji maximum (not mandatory). everyday: warm, relatable, one real detail. wellness: confident, light, earned-glow. intimate: daring with a quiet invitation, an edge that hints there is more elsewhere (e.g. "woke up like this. stayed like this.", "the mirror in here is doing something illegal", "you only get the rest of this somewhere else 😏"). travel: name the place, one sharp observation. Never bland.
 - hook_text: OPTIONAL. Short overlay text for carousel image — include in roughly 35% of days only, when the day has a strong visual hook. 2 to 5 words, lowercase, no punctuation. everyday: "slow morning", "no plans today", "twenty minutes of light". wellness: "earned it", "two more than yesterday", "post-gym glow". intimate: "do not disturb", "the rest is private", "come find me". travel: "rome at midnight", "arrived. not leaving." Omit entirely if no strong hook emerges.
 - hashtags: array of 10 strings without # (mix to fit today's tier: everyday/wellness → 3 lifestyle · 2 fitness/wellness · 2 aesthetic · 2 niche · 1 branded; travel → swap some for location tags. Avoid spammy adult tags that risk the IG account.)
-
+${lifeOn ? LIFE_OUTPUT_SPEC + "\n" : ""}
 Pick a single emotional beat — do not blend.
 
 ALL text fields in English.`;
@@ -174,10 +179,24 @@ export async function GET() {
           ? reversed.map((d) => `Day ${d.day_number}: ${d.location} — ${d.mood} — ${d.narrative}`).join("\n")
           : "First day. No history yet.";
 
-      const tier = await pickTier(char.id);
+      // GROWTH LAYER (flag-gated): gentle, capped tier bias (no-op until ≥10 reels w/ metrics).
+      const growthOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "growth_layer");
+      const tierBias = growthOn ? (await getGrowthBias(char.id))?.modifier : undefined;
+      const tier = await pickTier(char.id, 6, tierBias);
       const driftSeeds = await pickDriftSeeds(char.id, dayNumber);
 
-      const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText });
+      // LIFE LAYER (flag-gated): inject yesterday's life_state + active events as continuity guidance.
+      const lifeOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "life_layer");
+      let lifeContext: string | undefined;
+      if (lifeOn) {
+        const [prevLife, activeEvents] = await Promise.all([
+          getLatestLifeState(char.id, today),
+          getActiveLifeEvents(char.id, today),
+        ]);
+        lifeContext = lifeContextBlock(prevLife, activeEvents);
+      }
+
+      const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext });
 
       const msg = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
@@ -210,11 +229,17 @@ export async function GET() {
           ig_caption: story.ig_caption,
           hashtags: story.hashtags,
           ...(story.hook_text ? { hook_text: story.hook_text } : {}),
+          ...(lifeOn && story.life_state ? { life_state: story.life_state } : {}),
         })
         .select("id, day_number")
         .single();
 
       if (storyError) throw storyError;
+
+      // LIFE LAYER: occasionally spawn a small everyday event for upcoming days (never daily).
+      if (lifeOn) {
+        try { await maybeCreateLifeEvent({ characterId: char.id, date: today }); } catch { /* non-fatal */ }
+      }
       storyResults.push({
         char,
         storyDayId: storyDay.id,

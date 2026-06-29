@@ -11,6 +11,7 @@ const nav = [
   { label: "Dnešný deň",      href: "/today",       icon: "today" },
   { label: "Review Queue",    href: "/review",      icon: "rate_review",  highlight: true },
   { label: "Growth",          href: "/growth",      icon: "trending_up" },
+  { label: "Metriky",         href: "/metrics",     icon: "bar_chart" },
   { label: "Publish Queue",   href: "/publish",     icon: "send" },
   { label: "História",        href: "/history",     icon: "history" },
 ];
@@ -20,6 +21,7 @@ const referenceNav = [
   { label: "Playbook",        href: "/playbook",      icon: "menu_book" },
   { label: "Prompt Knižnica", href: "/prompts",       icon: "library_books" },
   { label: "Monetizácia",     href: "/monetization",  icon: "payments" },
+  { label: "Fanvue",          href: "/fanvue",        icon: "lock_open" },
 ];
 
 const createSteps = [

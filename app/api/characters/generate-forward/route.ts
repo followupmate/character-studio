@@ -11,6 +11,9 @@ import {
   ContentPhase,
 } from "@/lib/storyTier";
 import { Character, StoryDay } from "@/types";
+import { isFlagOn } from "@/lib/featureFlags";
+import { getLatestLifeState, getActiveLifeEvents, lifeContextBlock, LIFE_OUTPUT_SPEC, maybeCreateLifeEvent } from "@/lib/lifeState";
+import { getGrowthBias } from "@/lib/growthScore";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -53,8 +56,10 @@ function buildSystemPrompt(args: {
   driftSeeds: ContentPhase[];
   dayNumber: number;
   historyText: string;
+  lifeContext?: string; // life_layer: continuity guidance from yesterday's life_state + active events
 }): string {
-  const { character, tier, driftSeeds, historyText } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext } = args;
+  const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
 
@@ -75,7 +80,7 @@ ${VOICE_DOCTRINE}
 ${tierGuidance(tier)}
 
 ${driftSeedGuidance(driftSeeds)}
-
+${lifeContext ? `\n${lifeContext}\n` : ""}
 VOICE ANCHOR — read recent history ONLY to avoid repeating the same city or scene two days in a row.
 
 RECENT HISTORY (last 7 days, oldest first):
@@ -94,7 +99,7 @@ Required fields:
 - ig_caption: 1 to 2 lines. lowercase. no hashtags. everyday: warm, one real detail. wellness: confident, earned-glow. intimate: daring with a quiet invitation ("woke up like this. stayed like this.", "you only get the rest of this somewhere else 😏"). travel: name place + observation.
 - hook_text: OPTIONAL 2-5 word overlay text for carousel (~35% of days only). everyday: "slow morning". wellness: "earned it". intimate: "do not disturb", "come find me". travel: location-punchy. Omit entirely if no strong hook.
 - hashtags: array of 10 strings without # (tier-appropriate lifestyle/wellness/aesthetic/niche/branded mix; avoid spammy adult tags that risk the account)
-
+${lifeOn ? LIFE_OUTPUT_SPEC + "\n" : ""}
 ALL text fields in English.`;
 }
 
@@ -190,10 +195,24 @@ export async function POST(req: Request) {
               ? reversed.map((d) => `Day ${d.day_number}: ${d.location} — ${d.mood} — ${d.narrative}`).join("\n")
               : "First day. No history yet.";
 
-          const tier = await pickTier(char.id);
+          // GROWTH LAYER (flag-gated): gentle, capped tier bias (no-op until ≥10 reels w/ metrics).
+          const growthOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "growth_layer");
+          const tierBias = growthOn ? (await getGrowthBias(char.id))?.modifier : undefined;
+          const tier = await pickTier(char.id, 6, tierBias);
           const driftSeeds = await pickDriftSeeds(char.id, dayNumber);
 
-          const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText });
+          // LIFE LAYER (flag-gated): yesterday's life_state + active events as continuity guidance.
+          const lifeOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "life_layer");
+          let lifeContext: string | undefined;
+          if (lifeOn) {
+            const [prevLife, activeEvents] = await Promise.all([
+              getLatestLifeState(char.id, targetDate),
+              getActiveLifeEvents(char.id, targetDate),
+            ]);
+            lifeContext = lifeContextBlock(prevLife, activeEvents);
+          }
+
+          const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext });
 
           const msg = await claudeWithRetry({
             model: "claude-sonnet-4-6",
@@ -230,6 +249,7 @@ export async function POST(req: Request) {
             hashtags: story.hashtags,
           };
           if (story.hook_text) insertPayload.hook_text = story.hook_text;
+          if (lifeOn && story.life_state) insertPayload.life_state = story.life_state;
 
           const { data: storyDay, error: storyError } = await supabase
             .from("chs_story_days")
@@ -238,6 +258,11 @@ export async function POST(req: Request) {
             .single();
 
           if (storyError) throw storyError;
+
+          // LIFE LAYER: occasionally spawn a small everyday event (never daily).
+          if (lifeOn) {
+            try { await maybeCreateLifeEvent({ characterId: char.id, date: targetDate }); } catch { /* non-fatal */ }
+          }
 
           const batch = await generateDailyBatch({ characterId: char.id, storyDayId: storyDay.id });
 

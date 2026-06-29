@@ -10,6 +10,9 @@ import { generateSceneBrief } from "@/lib/sceneBrief";
 import { generateSlotPrompt, DoctrineKey } from "@/lib/slotPrompts";
 import { generateCarouselScript, CarouselSlide } from "@/lib/carouselScript";
 import { pickStylingProfile, StylingProfile } from "@/lib/stylingDeck";
+import { isFlagOn } from "@/lib/featureFlags";
+import type { LifeState } from "@/lib/lifeState";
+import { maybeCreateFanvueUnlock } from "@/lib/fanvueUnlock";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek", "nano_banana", "caption"];
 
@@ -119,6 +122,17 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       // Persist after scene brief is saved (update below)
     }
 
+    // LIFE LAYER (flag-gated): a short continuity note from today's persisted life_state.
+    let lifeNote: string | undefined;
+    if (isFlagOn(character.feature_flags, "life_layer") && storyDay.life_state) {
+      const ls = storyDay.life_state as LifeState;
+      lifeNote = [
+        ls.mood_state ? `mood ${ls.mood_state}` : null,
+        ls.energy_level != null ? `energy ${ls.energy_level}/10` : null,
+        ls.recent_event ? `recently: ${ls.recent_event}` : null,
+      ].filter(Boolean).join(", ") || undefined;
+    }
+
     const brief = await generateSceneBrief({
       storyScene: {
         location: storyDay.location,
@@ -139,6 +153,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       },
       recentBriefs,
       stylingProfile,
+      lifeNote,
     });
 
     sceneBriefJson = brief.json as unknown as Record<string, unknown>;
@@ -323,6 +338,28 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     .from("chs_daily_plans")
     .update({ batch_status: status })
     .eq("id", batchId);
+
+  // FANVUE LAYER (flag-gated): post-batch, create a monetization DRAFT from today's scene.
+  // Pure DB write — never publishes, never calls the Fanvue MCP. Non-fatal.
+  if (status === "ready" && isFlagOn(character.feature_flags, "fanvue_drafts")) {
+    try {
+      await maybeCreateFanvueUnlock({
+        characterId,
+        storyDayId,
+        dailyPlanId: batchId,
+        storyDay: {
+          tier: storyDay.tier ?? null,
+          location: storyDay.location ?? null,
+          mood: storyDay.mood ?? null,
+          ig_caption: storyDay.ig_caption ?? null,
+          hook_text: storyDay.hook_text ?? null,
+        },
+        sceneBriefJson: sceneBriefJson ?? null,
+      });
+    } catch (err) {
+      console.error("[fanvue-unlock]", err);
+    }
+  }
 
   return { batchId, status, generated };
 }
