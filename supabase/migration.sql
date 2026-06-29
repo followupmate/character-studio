@@ -480,3 +480,36 @@ UPDATE chs_characters SET
     ]'::jsonb
   )
 WHERE slug = 'vivienne';
+
+-- ── v1.1 Life + Growth + Fanvue layers (2026-06-29) — additive, all gated by chs_characters.feature_flags ──
+ALTER TABLE chs_characters ADD COLUMN IF NOT EXISTS feature_flags jsonb
+  DEFAULT '{"life_layer":false,"growth_layer":false,"fanvue_drafts":false,"mcp_audit":false}'::jsonb;
+ALTER TABLE chs_characters ADD COLUMN IF NOT EXISTS fanvue_snapshot jsonb;
+ALTER TABLE chs_story_days ADD COLUMN IF NOT EXISTS life_state jsonb;
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS growth_score numeric DEFAULT 0;
+ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS growth_winner boolean DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS chs_life_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  character_id uuid REFERENCES chs_characters(id) ON DELETE CASCADE,
+  event_type text NOT NULL, title text NOT NULL, description text,
+  emotional_weight int DEFAULT 5 CHECK (emotional_weight BETWEEN 1 AND 10),
+  starts_at date NOT NULL DEFAULT current_date, ends_at date,
+  status text DEFAULT 'active' CHECK (status IN ('planned','active','resolved','archived')),
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_life_events_char_active ON chs_life_events(character_id, status);
+
+CREATE TABLE IF NOT EXISTS chs_fanvue_unlocks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  character_id uuid REFERENCES chs_characters(id) ON DELETE CASCADE,
+  story_day_id uuid REFERENCES chs_story_days(id) ON DELETE CASCADE,
+  daily_plan_id uuid REFERENCES chs_daily_plans(id) ON DELETE SET NULL,
+  unlock_type text NOT NULL CHECK (unlock_type IN ('subscription','ppv','bundle')),
+  series_name text NOT NULL, title text NOT NULL, teaser_text text, sales_copy text,
+  suggested_price numeric, intensity text DEFAULT 'medium' CHECK (intensity IN ('soft','medium','strong')),
+  ig_cta text, fanvue_prompt text,
+  status text DEFAULT 'draft' CHECK (status IN ('draft','ready','posted','archived')),
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_fanvue_unlocks_char_status ON chs_fanvue_unlocks(character_id, status, created_at DESC);

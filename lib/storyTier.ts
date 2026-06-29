@@ -32,17 +32,31 @@ const TIER_WEIGHTS: Record<StoryTier, number> = {
 
 const ALL_TIERS = Object.keys(TIER_WEIGHTS) as StoryTier[];
 
-function weightedPick(): StoryTier {
-  const r = Math.random();
+// growth_layer: optional per-tier additive weight delta. Each delta is clamped to ±0.10 and every tier
+// keeps a floor of 0.05 (exploration reserve), so a "winning" tier can never starve the others.
+export type TierBias = Partial<Record<StoryTier, number>>;
+const BIAS_CAP = 0.10;
+const TIER_FLOOR = 0.05;
+
+function weightedPick(bias?: TierBias): StoryTier {
+  const adjusted: Record<StoryTier, number> = { ...TIER_WEIGHTS };
+  if (bias) {
+    for (const t of ALL_TIERS) {
+      const m = Math.max(-BIAS_CAP, Math.min(BIAS_CAP, bias[t] ?? 0));
+      adjusted[t] = Math.max(TIER_FLOOR, TIER_WEIGHTS[t] + m);
+    }
+  }
+  const total = ALL_TIERS.reduce((s, t) => s + adjusted[t], 0);
+  const r = Math.random() * total;
   let acc = 0;
   for (const t of ALL_TIERS) {
-    acc += TIER_WEIGHTS[t];
+    acc += adjusted[t];
     if (r <= acc) return t;
   }
   return "everyday_life";
 }
 
-export async function pickTier(characterId: string, lookbackDays = 6): Promise<StoryTier> {
+export async function pickTier(characterId: string, lookbackDays = 6, bias?: TierBias): Promise<StoryTier> {
   const { data } = await supabase
     .from("chs_story_days")
     .select("tier")
@@ -54,11 +68,11 @@ export async function pickTier(characterId: string, lookbackDays = 6): Promise<S
 
   // Weighted random, but avoid the same tier 3 days in a row (visible variety).
   for (let i = 0; i < 5; i++) {
-    const pick = weightedPick();
+    const pick = weightedPick(bias);
     const sameStreak = recent[0] === pick && recent[1] === pick;
     if (!sameStreak) return pick;
   }
-  return weightedPick();
+  return weightedPick(bias);
 }
 
 export async function pickDriftSeeds(characterId: string, _dayNumber: number, lookbackDays = 14): Promise<ContentPhase[]> {
