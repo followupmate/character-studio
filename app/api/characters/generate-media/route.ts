@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
+import { generateSoulImage, soulConfigured, FALLBACK_SOUL_ID } from "@/lib/higgsfieldSoul";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -773,7 +774,7 @@ export async function POST(req: Request) {
 
     const { data: character } = await supabase
       .from("chs_characters")
-      .select("id, name, lora_model_id, lora_trigger_word, reference_image_urls, character_sheet_url")
+      .select("id, name, lora_model_id, lora_trigger_word, reference_image_urls, character_sheet_url, soul_id")
       .eq("id", plan.character_id)
       .single();
 
@@ -908,11 +909,21 @@ export async function POST(req: Request) {
             );
             provider = useGooglePro ? "google-pro" : "google";
           } catch (gerr) {
-            // Auto mode: Google blocks intimate/suggestive content (and occasionally trips its
-            // safety filter) — fall back to faithful fal LoRA so the slot still generates.
+            // Auto mode fallback chain: Google blocks intimate/suggestive content. Prefer Higgsfield
+            // Soul V2 (faithful trained identity + realistic skin) FIRST; only if that also fails do we
+            // drop to fal LoRA. Explicit Google request → surface the real error.
             if (model === "auto") {
-              mediaUrl = await generateWithFal(prompt, character.lora_model_id, loraScale, imageSize, steps, guidance);
-              provider = "falai-fallback";
+              const soulId = (character.soul_id as string | null) ?? FALLBACK_SOUL_ID;
+              const soulAspect = isVerticalSlot ? "9:16" : "3:4"; // feed 4:5 → closest Soul ratio 3:4
+              try {
+                if (!soulConfigured()) throw new Error("Higgsfield not configured");
+                mediaUrl = await generateSoulImage({ prompt: effectivePrompt, soulId, aspect: soulAspect, mediaId: media.id });
+                provider = "higgsfield-soul-fallback";
+              } catch (herr) {
+                console.warn("[generate-media] Higgsfield fallback failed, dropping to fal LoRA:", herr instanceof Error ? herr.message : herr);
+                mediaUrl = await generateWithFal(prompt, character.lora_model_id, loraScale, imageSize, steps, guidance);
+                provider = "falai-fallback";
+              }
             } else {
               throw gerr; // explicit Google request → surface the real error
             }

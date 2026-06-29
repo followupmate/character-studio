@@ -4,6 +4,20 @@ import { supabase } from "@/lib/supabase";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+// Wait until the IG media container finishes processing before publishing. Skipping this is what
+// causes error 2207027 "Media ID is not available" — the carousel route already does this; stories must too.
+async function pollContainerReady(containerId: string, accessToken: string) {
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 4000));
+    const res = await fetch(
+      `https://graph.instagram.com/v18.0/${containerId}?fields=status_code&access_token=${accessToken}`
+    ).then((r) => r.json());
+    if (res.status_code === "FINISHED") return;
+    if (res.status_code === "ERROR") throw new Error(`IG container ${containerId} processing error`);
+  }
+  throw new Error(`IG container ${containerId} timed out`);
+}
+
 async function createAndPublishStory(
   igAccountId: string,
   accessToken: string,
@@ -50,6 +64,13 @@ async function createAndPublishStory(
   const creationId = mediaData.id;
   if (!creationId) {
     return { error: "No creation ID returned from IG media endpoint" };
+  }
+
+  // Wait for the container to finish processing (fixes 2207027 "Media ID is not available").
+  try {
+    await pollContainerReady(creationId, accessToken);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
 
   const publishRes = await fetch(

@@ -53,10 +53,10 @@ async function postToInstagram(
   for (let i = 0; i < pollMax; i++) {
     await new Promise((r) => setTimeout(r, pollInterval));
     const statusRes = await fetch(
-      `https://graph.instagram.com/v18.0/${containerRes.id}?fields=status_code&access_token=${accessToken}`
+      `https://graph.instagram.com/v18.0/${containerRes.id}?fields=status_code,status&access_token=${accessToken}`
     ).then((r) => r.json());
     if (statusRes.status_code === "FINISHED") { finished = true; break; }
-    if (statusRes.status_code === "ERROR") throw new Error("IG container processing failed");
+    if (statusRes.status_code === "ERROR") throw new Error(`IG container processing failed: ${statusRes.status ?? "no detail"}`);
   }
   if (!finished) throw new Error(isVideo ? "IG video processing timed out (5 min)" : "IG photo processing timed out (60s)");
 
