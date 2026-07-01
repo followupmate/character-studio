@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA } from "@/lib/archetypes";
+import { syncDraft, WizardStep } from "@/lib/wizardDraft";
 
 const PLATFORMS = ["TikTok", "Instagram", "X/Twitter", "YouTube"];
 
@@ -248,8 +249,9 @@ export default function DnaPage() {
     });
   }
 
-  function saveDna() {
+  function saveDna(step: WizardStep = "dna") {
     localStorage.setItem("character_dna", JSON.stringify(dna));
+    syncDraft(dna, step); // mirror to Supabase so the draft survives closing the browser
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -276,14 +278,14 @@ export default function DnaPage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={saveDna}
+              onClick={() => saveDna()}
               className="font-mono text-[10px] uppercase tracking-[0.05em] bg-teal/10 border border-teal/30 text-teal px-4 py-1.5 hover:bg-teal/20 transition-colors"
             >
               {saved ? "✓ Uložené" : "Uložiť DNA"}
             </button>
             <button
               type="button"
-              onClick={() => { saveDna(); router.push("/create/midjourney"); }}
+              onClick={() => { saveDna("midjourney"); router.push("/create/midjourney"); }}
               disabled={!canContinue}
               title={canContinue ? undefined : "Najprv vyplň meno charakteru"}
               className="font-mono text-[10px] uppercase tracking-[0.05em] bg-accent text-white px-4 py-1.5 hover:bg-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -603,7 +605,7 @@ export default function DnaPage() {
             </button>
             <button
               type="button"
-              onClick={() => { saveDna(); router.push("/create/midjourney"); }}
+              onClick={() => { saveDna("midjourney"); router.push("/create/midjourney"); }}
               disabled={!canContinue}
               title={canContinue ? undefined : "Najprv vyplň meno charakteru"}
               className="font-mono text-[11px] uppercase tracking-[0.05em] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA } from "@/lib/archetypes";
+import { syncDraft } from "@/lib/wizardDraft";
 
 const STUDIO_PROMPTS = [
   "A professional medium format studio portrait, headshot frame, of the woman from the reference image looking directly into the camera lens with a serious, composed expression, chin slightly lowered, eyes slightly upward toward camera. Seamless pure white cyclorama background. Professional butterfly studio lighting revealing ultra-realistic skin texture. Razor-sharp focus on the eyes. 8k resolution, raw photograph quality, extreme detail.",
@@ -312,7 +313,7 @@ export default function HiggsfieldPage() {
               ← Späť
             </button>
             <button
-              onClick={() => router.push("/create/soul")}
+              onClick={() => { if (dna) syncDraft(dna, "soul"); router.push("/create/soul"); }}
               className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors"
             >
               Mám 20+ fotiek, pokračujem →

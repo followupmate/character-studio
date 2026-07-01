@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA } from "@/lib/archetypes";
+import { deleteDraft } from "@/lib/wizardDraft";
 
 const POSTING_TIMES = [
   "06:00", "07:00", "08:00", "09:00", "10:00",
@@ -104,6 +105,9 @@ export default function LaunchPage() {
       localStorage.removeItem("character_dna");
       localStorage.removeItem("selected_archetype");
       localStorage.removeItem("create_method");
+      // Character launched — the server draft is no longer needed
+      const draftId = localStorage.getItem("wizard_draft_id");
+      if (draftId) deleteDraft(draftId);
       setTimeout(() => router.push("/characters"), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Neznáma chyba");

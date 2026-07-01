@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA, VIKA_VOID, LUNA, MARA } from "@/lib/archetypes";
+import {
+  syncDraft, listDrafts, loadDraft, deleteDraft, clearDraftId, setDraftId,
+  DraftSummary, STEP_ROUTES, WizardStep,
+} from "@/lib/wizardDraft";
 
 const MINI_CARDS = [
   { preset: VIKA_VOID, tags: ["Cyberpunk", "Eastern European"], color: "#4a9eff" },
@@ -17,17 +21,38 @@ export default function CreatePage() {
   const [concept, setConcept] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [resumingId, setResumingId] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.removeItem("character_dna");
     localStorage.removeItem("selected_archetype");
     localStorage.removeItem("create_method");
+    clearDraftId(); // a fresh run creates a new server draft; old ones stay resumable below
+    listDrafts().then(setDrafts);
   }, []);
+
+  async function resumeDraft(draft: DraftSummary) {
+    setResumingId(draft.id);
+    const full = await loadDraft(draft.id);
+    setResumingId(null);
+    if (!full?.dna) return;
+    localStorage.setItem("character_dna", JSON.stringify(full.dna));
+    setDraftId(draft.id);
+    const route = STEP_ROUTES[(full.step as WizardStep)] ?? "/create/dna";
+    router.push(route);
+  }
+
+  async function removeDraft(id: string) {
+    await deleteDraft(id);
+    setDrafts((d) => d.filter((x) => x.id !== id));
+  }
 
   function selectPreset(preset: CharacterDNA) {
     localStorage.setItem("selected_archetype", JSON.stringify(preset));
     localStorage.setItem("character_dna", JSON.stringify(preset));
     localStorage.setItem("create_method", "preset");
+    syncDraft(preset, "dna");
     router.push("/create/dna");
   }
 
@@ -52,6 +77,7 @@ export default function CreatePage() {
       localStorage.setItem("character_dna", JSON.stringify(data.dna));
       localStorage.removeItem("selected_archetype");
       localStorage.setItem("create_method", "ai");
+      syncDraft(data.dna, "dna");
       router.push("/create/dna");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Neznáma chyba");
@@ -80,6 +106,51 @@ export default function CreatePage() {
           <p className="font-mono text-[11px] text-muted2 mb-10 max-w-xl">
             Vyber predpripravený archetype alebo opíš vlastný koncept a AI vygeneruje celý profil.
           </p>
+
+          {/* Resumable drafts */}
+          {drafts.length > 0 && (
+            <div className="bg-surface border border-amber/20 p-5 mb-8">
+              <p className="font-mono text-[9px] text-amber uppercase tracking-[0.15em] mb-3">
+                // Rozpracované charaktery
+              </p>
+              <div className="space-y-px">
+                {drafts.map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex items-center justify-between gap-3 bg-surface-low border border-border px-4 py-2.5"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="font-mono text-[11px] text-ink font-medium truncate">
+                        {d.name || "Bez mena"}
+                      </span>
+                      <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 uppercase tracking-[0.1em] flex-shrink-0">
+                        {String(d.step).toUpperCase()}
+                      </span>
+                      <span className="font-mono text-[9px] text-muted flex-shrink-0 hidden sm:inline">
+                        {new Date(d.updated_at).toLocaleString("sk-SK", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => resumeDraft(d)}
+                        disabled={resumingId === d.id}
+                        className="font-mono text-[9px] uppercase tracking-[0.05em] bg-teal/10 border border-teal/30 text-teal px-3 py-1 hover:bg-teal/20 transition-colors disabled:opacity-50"
+                      >
+                        {resumingId === d.id ? "Načítavam…" : "Pokračovať →"}
+                      </button>
+                      <button
+                        onClick={() => removeDraft(d.id)}
+                        title="Zmazať draft"
+                        className="font-mono text-[9px] border border-border text-muted px-2 py-1 hover:text-red-400 hover:border-red-500/40 transition-colors"
+                      >
+                        ✗
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Two paths */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6 lg:gap-0">

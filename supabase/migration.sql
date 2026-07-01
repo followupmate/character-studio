@@ -513,3 +513,17 @@ CREATE TABLE IF NOT EXISTS chs_fanvue_unlocks (
   created_at timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_fanvue_unlocks_char_status ON chs_fanvue_unlocks(character_id, status, created_at DESC);
+
+-- ── Wizard drafts ─────────────────────────────────────────────
+-- Rozpracovaný charakter z /create wizardu prežije zatvorenie prehliadača.
+-- Prístup len cez service-role key (server API routes) — RLS zapnuté bez policies.
+CREATE TABLE IF NOT EXISTS chs_wizard_drafts (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       text,
+  step       text NOT NULL DEFAULT 'dna',
+  dna        jsonb NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE chs_wizard_drafts ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_wizard_drafts_updated ON chs_wizard_drafts(updated_at DESC);
