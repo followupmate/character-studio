@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Media } from "@/types";
 
@@ -139,6 +139,17 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const [regenAudioStyle, setRegenAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
+
+  // Elapsed-seconds counter while any generation runs — image gen takes 15–60s,
+  // video up to ~4 min; a static spinner alone reads as frozen.
+  const busy = generating || regenerating;
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!busy) return;
+    setElapsed(0);
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [busy]);
 
   // Async reel-video flow: submit a fal.queue job, then poll until ready (no serverless timeout).
   // The job state persists on the media row, so if you reload mid-generation, clicking again resumes it.
@@ -518,7 +529,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
                           animate={{ rotate: 360 }}
                           transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                         />
-                        {isVideoSlot ? "Regenerujem video…" : "Regenerujem…"}
+                        {isVideoSlot ? "Regenerujem video" : "Regenerujem"} · {elapsed}s
                       </span>
                     ) : "Generovať znova"}
                   </motion.button>
@@ -572,8 +583,37 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
             <span className="ml-2 text-muted normal-case font-normal text-[9px]">{model}</span>
           </div>
         </div>
-        <Badge status={media.status} />
+        <Badge status={busy ? "generating" : media.status} />
       </div>
+
+      {/* Live generation skeleton */}
+      <AnimatePresence>
+        {busy && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="relative overflow-hidden bg-surface-low border border-border h-28 flex items-center justify-center">
+              <div className="absolute inset-0 shimmer" />
+              <div className="relative flex flex-col items-center gap-1.5">
+                <motion.span
+                  className="material-symbols-outlined text-[20px] text-muted"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "linear" }}
+                >
+                  progress_activity
+                </motion.span>
+                <span className="font-mono text-[9px] text-muted2 tracking-[0.08em]">
+                  {isVideoSlot ? "VIDEO SA GENERUJE" : "OBRÁZOK SA GENERUJE"} · {elapsed}s
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Generate */}
       <div className="flex flex-col gap-1.5">
@@ -632,7 +672,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
                     animate={{ rotate: 360 }}
                     transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                   />
-                  {isVideoSlot ? "Generujem video (~2 min)…" : generator === "higgsfield" ? "Higgsfield Soul (~2 min)…" : "Generujem…"}
+                  {isVideoSlot ? "Generujem video (~2 min)" : generator === "higgsfield" ? "Higgsfield Soul (~2 min)" : "Generujem"} · {elapsed}s
                 </>
               ) : generatedUrl ? (
                 <>

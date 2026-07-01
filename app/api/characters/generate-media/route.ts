@@ -675,6 +675,25 @@ async function generateWithSeedance(
   return publicData.publicUrl;
 }
 
+// ── Transient-failure detection ────────────────────────────────
+// Errors matching this pattern (rate limits, 5xx, network drops) get ONE retry
+// with a short backoff. Safety blocks and validation errors are NOT retried —
+// the Google → Higgsfield → fal fallback chain handles those. Retry applies to
+// image slots only; video generations run minutes-long and would blow the
+// serverless time budget.
+const TRANSIENT_ERROR = /(\b(429|500|502|503|504)\b|timed?\s?out|ECONNRESET|ETIMEDOUT|fetch failed|socket|network|UNAVAILABLE|overloaded|rate.?limit)/i;
+
+// Start frame (reel_start_frame) from the same batch — needed by every video provider.
+async function findStartFrame(batchId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("chs_media")
+    .select("media_url")
+    .eq("batch_id", batchId)
+    .eq("slot", "reel_start_frame")
+    .single();
+  return data?.media_url ?? null;
+}
+
 function isAuthorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return true;
@@ -781,16 +800,16 @@ export async function POST(req: Request) {
     if (!character?.lora_model_id) {
       return NextResponse.json({ error: "No lora_model_id configured" }, { status: 422 });
     }
+    // Non-null alias — TS doesn't carry the narrowing above into processSlot below.
+    const char = character;
 
     const triggerWord        = character.lora_trigger_word ?? "SUBJECT";
     const referenceUrls      = (character.reference_image_urls as string[] | null) ?? [];
     const characterSheetUrl  = (character as Record<string, unknown>).character_sheet_url as string | null ?? null;
     const hasGoogle          = !!googleApiKey;
 
-    // ── Generate each slot ─────────────────────────────────────
-    const results: GenerateResult[] = [];
-
-    for (const media of mediaRecords) {
+    // ── Generate one slot ──────────────────────────────────────
+    async function processSlot(media: MediaRecord): Promise<GenerateResult> {
       await supabase
         .from("chs_media")
         .update({ generation_status: "generating" })
@@ -838,16 +857,7 @@ export async function POST(req: Request) {
         let provider = "falai";
 
         if (useSeedanceRef || useSeedanceI2V || useSeedanceFast) {
-          // Seedance 2.0: look up start frame from same batch
-          let startFrameUrl: string | null = null;
-          const { data: startFrameMedia } = await supabase
-            .from("chs_media")
-            .select("media_url")
-            .eq("batch_id", media.batch_id)
-            .eq("slot", "reel_start_frame")
-            .single();
-          if (startFrameMedia?.media_url) startFrameUrl = startFrameMedia.media_url;
-
+          const startFrameUrl = await findStartFrame(media.batch_id);
           const seedanceMode = useSeedanceI2V ? "i2v" : useSeedanceFast ? "fast" : "reference";
           mediaUrl = await generateWithSeedance(
             effectivePrompt,
@@ -860,29 +870,11 @@ export async function POST(req: Request) {
           );
           provider = `seedance-${seedanceMode}`;
         } else if (useKling) {
-          // Kling i2v: find reel_start_frame from same batch
-          let startFrameUrl: string | null = null;
-          const { data: startFrameMedia } = await supabase
-            .from("chs_media")
-            .select("media_url")
-            .eq("batch_id", media.batch_id)
-            .eq("slot", "reel_start_frame")
-            .single();
-          if (startFrameMedia?.media_url) startFrameUrl = startFrameMedia.media_url;
-
+          const startFrameUrl = await findStartFrame(media.batch_id);
           mediaUrl = await generateWithKling(effectivePrompt, startFrameUrl, media.id, audioStyle);
           provider = "kling";
         } else if (useVeo) {
-          // Find reel_start_frame URL from same batch for image-to-video
-          let startFrameUrl: string | null = null;
-          const { data: startFrameMedia } = await supabase
-            .from("chs_media")
-            .select("media_url")
-            .eq("batch_id", media.batch_id)
-            .eq("slot", "reel_start_frame")
-            .single();
-          if (startFrameMedia?.media_url) startFrameUrl = startFrameMedia.media_url;
-
+          const startFrameUrl = await findStartFrame(media.batch_id);
           const veoModel = useVeoQuality ? "veo-3.1-generate-preview" : VEO_MODEL_DEFAULT;
           mediaUrl = await generateWithVeo(
             effectivePrompt,
@@ -905,7 +897,7 @@ export async function POST(req: Request) {
               media.id,
               googleModel,
               googleAspect,
-              character.name ?? null
+              char.name ?? null
             );
             provider = useGooglePro ? "google-pro" : "google";
           } catch (gerr) {
@@ -913,7 +905,7 @@ export async function POST(req: Request) {
             // Soul V2 (faithful trained identity + realistic skin) FIRST; only if that also fails do we
             // drop to fal LoRA. Explicit Google request → surface the real error.
             if (model === "auto") {
-              const soulId = (character.soul_id as string | null) ?? FALLBACK_SOUL_ID;
+              const soulId = (char.soul_id as string | null) ?? FALLBACK_SOUL_ID;
               const soulAspect = isVerticalSlot ? "9:16" : "3:4"; // feed 4:5 → closest Soul ratio 3:4
               try {
                 if (!soulConfigured()) throw new Error("Higgsfield not configured");
@@ -921,7 +913,7 @@ export async function POST(req: Request) {
                 provider = "higgsfield-soul-fallback";
               } catch (herr) {
                 console.warn("[generate-media] Higgsfield fallback failed, dropping to fal LoRA:", herr instanceof Error ? herr.message : herr);
-                mediaUrl = await generateWithFal(prompt, character.lora_model_id, loraScale, imageSize, steps, guidance);
+                mediaUrl = await generateWithFal(prompt, char.lora_model_id, loraScale, imageSize, steps, guidance);
                 provider = "falai-fallback";
               }
             } else {
@@ -948,7 +940,7 @@ export async function POST(req: Request) {
         } else {
           mediaUrl = await generateWithFal(
             prompt,
-            character.lora_model_id,
+            char.lora_model_id,
             loraScale,
             imageSize,
             steps,
@@ -967,16 +959,48 @@ export async function POST(req: Request) {
           .update({ media_url: urlToSave, source_url: urlToSave, generation_status: "completed", status: "ready" })
           .eq("id", media.id);
 
-        results.push({ mediaId: media.id, slot: media.slot, provider, success: true, url: urlToSave });
+        return { mediaId: media.id, slot: media.slot, provider, success: true, url: urlToSave };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         await supabase
           .from("chs_media")
           .update({ generation_status: "failed", last_error: msg.slice(0, 1000) })
           .eq("id", media.id);
-        results.push({ mediaId: media.id, slot: media.slot, provider: useBFL ? "bfl" : "falai", success: false, error: msg });
+        return { mediaId: media.id, slot: media.slot, provider: useBFL ? "bfl" : "falai", success: false, error: msg };
       }
     }
+
+    // ── Run slots in parallel (worker pool) ────────────────────
+    // Slots used to generate strictly one-after-another — a full 7-slot day took
+    // 3–7 minutes and flirted with the 300s serverless limit. A small pool keeps
+    // provider rate limits happy while cutting wall time ~3×. Image slots run
+    // first; video slots wait for them because they consume the freshly
+    // generated reel_start_frame.
+    const CONCURRENCY = 3;
+
+    async function runPool(items: MediaRecord[]): Promise<GenerateResult[]> {
+      const out: GenerateResult[] = [];
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
+          while (next < items.length) {
+            const item = items[next++];
+            let res = await processSlot(item);
+            if (!res.success && !VIDEO_SLOTS.has(item.slot) && TRANSIENT_ERROR.test(res.error ?? "")) {
+              await supabase.from("chs_media").update({ generation_status: "retrying" }).eq("id", item.id);
+              await new Promise((r) => setTimeout(r, 3000));
+              res = await processSlot(item);
+            }
+            out.push(res);
+          }
+        })
+      );
+      return out;
+    }
+
+    const imageRecords = mediaRecords.filter((m) => !VIDEO_SLOTS.has(m.slot));
+    const videoRecords = mediaRecords.filter((m) => VIDEO_SLOTS.has(m.slot));
+    const results = [...(await runPool(imageRecords)), ...(await runPool(videoRecords))];
 
     const succeeded = results.filter((r) => r.success).length;
     return NextResponse.json({ success: true, generated: succeeded, total: results.length, results });
