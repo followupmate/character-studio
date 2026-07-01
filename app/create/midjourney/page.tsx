@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import StepProgress from "@/components/ui/StepProgress";
 import { CharacterDNA } from "@/lib/archetypes";
+import { syncDraft } from "@/lib/wizardDraft";
 
 const SCENES = [
   {
@@ -185,7 +186,7 @@ export default function MidjourneyPage() {
               ← Späť
             </button>
             <button
-              onClick={() => router.push("/create/higgsfield")}
+              onClick={() => { if (dna) syncDraft(dna, "higgsfield"); router.push("/create/higgsfield"); }}
               className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors"
             >
               Pokračovať do Higgsfield →

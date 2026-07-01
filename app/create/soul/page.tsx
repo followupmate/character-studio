@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import StepProgress from "@/components/ui/StepProgress";
+import { syncDraft } from "@/lib/wizardDraft";
 
 const CLI_COMMANDS = "higgsfield auth login\nhiggsfield soul-id list";
 
@@ -41,6 +42,7 @@ export default function SoulPage() {
       const dna = raw ? JSON.parse(raw) : {};
       const updated = { ...dna, soul_id: trimmed };
       localStorage.setItem("character_dna", JSON.stringify(updated));
+      syncDraft(updated, "soul");
       setSoulId(trimmed);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -168,7 +170,13 @@ export default function SoulPage() {
               ← Späť
             </button>
             <button
-              onClick={() => router.push("/create/launch")}
+              onClick={() => {
+                try {
+                  const raw = localStorage.getItem("character_dna");
+                  if (raw) syncDraft(JSON.parse(raw), "launch");
+                } catch {}
+                router.push("/create/launch");
+              }}
               className="font-mono text-[11px] bg-accent text-white px-5 py-2.5 rounded hover:bg-blue-400 transition-colors"
             >
               Pokračovať →

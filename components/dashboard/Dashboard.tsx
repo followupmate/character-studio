@@ -59,6 +59,177 @@ function AnimatedCounter({ value, className }: { value: number; className?: stri
   return <span className={className}>{display}</span>;
 }
 
+const SLOT_SHORT: Record<string, string> = {
+  carousel_1: "C1",
+  carousel_2: "C2",
+  carousel_3: "C3",
+  carousel_4: "C4",
+  carousel_5: "C5",
+  reel_start_frame: "START",
+  reel_video: "VIDEO",
+  story_bts: "STORY",
+};
+
+// Border + dot colour per media status for the outputs gallery
+function outputStatusClasses(m: Media): { border: string; dot: string; pulse: boolean } {
+  if (m.status === "posted")  return { border: "border-accent/50", dot: "bg-accent", pulse: false };
+  if (m.media_url)            return { border: "border-teal/40",   dot: "bg-teal",   pulse: false };
+  if (m.generation_status === "generating" || m.generation_status === "retrying")
+    return { border: "border-amber/50", dot: "bg-amber", pulse: true };
+  if (m.generation_status === "failed")
+    return { border: "border-red-500/40", dot: "bg-red-400", pulse: false };
+  return { border: "border-border", dot: "bg-muted", pulse: false };
+}
+
+function OutputThumb({ media }: { media: Media }) {
+  const { border, dot, pulse } = outputStatusClasses(media);
+  const slotLabel = media.slot ? SLOT_SHORT[media.slot] ?? media.slot.toUpperCase() : media.type.toUpperCase();
+  const isVideo = media.type === "video";
+
+  const inner = media.media_url ? (
+    isVideo ? (
+      <>
+        <video
+          src={media.media_url}
+          muted
+          playsInline
+          preload="metadata"
+          className="w-full h-full object-cover"
+        />
+        <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-[26px] text-white/80 drop-shadow-lg pointer-events-none">
+          play_circle
+        </span>
+      </>
+    ) : (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={media.media_url} alt={slotLabel} className="w-full h-full object-cover" loading="lazy" />
+    )
+  ) : (
+    <span className="material-symbols-outlined text-[22px] text-muted/40">
+      {media.generation_status === "failed" ? "error" : isVideo ? "movie" : "image"}
+    </span>
+  );
+
+  const frame = (
+    <motion.div
+      className={`relative w-24 flex-shrink-0 overflow-hidden bg-surface-low border ${border} ${media.media_url ? "" : "border-dashed"} flex items-center justify-center group`}
+      style={{ aspectRatio: "4/5" }}
+      whileHover={media.media_url ? { scale: 1.03 } : {}}
+      transition={{ duration: 0.15 }}
+    >
+      {inner}
+      {/* Slot label + status dot */}
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 pb-1 pt-3 flex items-center justify-between">
+        <span className="font-mono text-[8px] tracking-[0.08em] text-white/90">{slotLabel}</span>
+        <motion.span
+          className={`w-1.5 h-1.5 rounded-full ${dot}`}
+          animate={pulse ? { opacity: [1, 0.25, 1] } : {}}
+          transition={pulse ? { duration: 1.2, repeat: Infinity } : {}}
+        />
+      </div>
+    </motion.div>
+  );
+
+  return media.media_url ? (
+    <a href={media.media_url} target="_blank" rel="noopener noreferrer" title={`${slotLabel} — otvoriť`}>
+      {frame}
+    </a>
+  ) : (
+    <div title={`${slotLabel} — ${media.generation_status ?? media.status}`}>{frame}</div>
+  );
+}
+
+function TodayOutputs({
+  todayStories,
+  characters,
+}: {
+  todayStories: (StoryDay & { chs_media: Media[] })[];
+  characters: Character[];
+}) {
+  const charById = new Map(characters.map((c) => [c.id, c]));
+
+  return (
+    <motion.div
+      className="mb-10"
+      variants={fadeUpVariants}
+      initial="hidden"
+      animate="visible"
+      transition={{ delay: 0.15 }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase">// Dnešné výstupy</p>
+        <motion.a
+          href="/today"
+          className="font-mono text-[9px] uppercase tracking-[0.1em] text-accent hover:text-white transition-colors"
+          whileHover={{ x: 2 }}
+        >
+          Otvoriť deň →
+        </motion.a>
+      </div>
+
+      {todayStories.length === 0 ? (
+        <div className="bg-surface border border-border border-dashed p-8 text-center">
+          <p className="font-mono text-[11px] text-muted2 mb-1">Dnes zatiaľ žiadne výstupy</p>
+          <p className="font-mono text-[9px] text-muted">
+            Cron generuje o 6:00 UTC — alebo použi „Generuj príbeh“ nižšie.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-px bg-border border border-border">
+          {todayStories.map((story) => {
+            const char = charById.get(story.character_id);
+            const sorted = [...story.chs_media].sort((a, b) => {
+              const ai = a.sequence_index ?? 99;
+              const bi = b.sequence_index ?? 99;
+              if (ai !== bi) return ai - bi;
+              return (a.slot ?? "").localeCompare(b.slot ?? "");
+            });
+            const done = sorted.filter((m) => m.media_url).length;
+
+            return (
+              <div key={story.id} className="bg-surface p-4">
+                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="font-display italic text-[16px] text-white leading-none">
+                      {char?.name ?? "Unknown"}
+                    </span>
+                    <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 tracking-[0.1em]">
+                      DAY {story.day_number}
+                    </span>
+                    <span className="font-mono text-[9px] text-muted truncate hidden sm:inline">
+                      📍 {story.location}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className={`font-mono text-[9px] ${done === sorted.length && sorted.length > 0 ? "text-teal" : "text-muted2"}`}>
+                      {done}/{sorted.length} hotových
+                    </span>
+                    <a
+                      href={`/today?char=${story.character_id}`}
+                      className="font-mono text-[9px] text-accent hover:text-white transition-colors"
+                    >
+                      Detail →
+                    </a>
+                  </div>
+                </div>
+                {sorted.length > 0 ? (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {sorted.map((m) => (
+                      <OutputThumb key={m.id} media={m} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="font-mono text-[9px] text-muted">Príbeh existuje, médiá ešte neboli naplánované.</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 const gridContainerVariants = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.07 } },
@@ -606,6 +777,9 @@ export default function Dashboard({ characters, todayStories, photoMap }: Props)
             </motion.div>
           ))}
         </motion.div>
+
+        {/* Today's outputs gallery */}
+        <TodayOutputs todayStories={todayStories} characters={characters} />
 
         {/* Quick Actions */}
         <motion.div
