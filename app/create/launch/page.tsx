@@ -29,6 +29,14 @@ export default function LaunchPage() {
   const [error, setError] = useState<string | null>(null);
   const [launched, setLaunched] = useState(false);
 
+  // Media-engine config — without it the character is created but /today can't
+  // auto-generate (needs lora_model_id) and Google gen has no identity reference.
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [loraUrl, setLoraUrl] = useState("");
+  const [loraTrigger, setLoraTrigger] = useState("");
+  const [refUrlsText, setRefUrlsText] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem("character_dna");
@@ -44,7 +52,17 @@ export default function LaunchPage() {
       const res = await fetch("/api/characters/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dna, posting_time: postingTime }),
+        body: JSON.stringify({
+          dna,
+          posting_time: postingTime,
+          media: {
+            character_sheet_url: sheetUrl.trim() || undefined,
+            lora_model_id: loraUrl.trim() || undefined,
+            lora_trigger_word: loraTrigger.trim() || undefined,
+            reference_image_urls: refUrlsText.split("\n").map((s) => s.trim()).filter(Boolean),
+            photo_url: photoUrl.trim() || undefined,
+          },
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Neznáma chyba");
@@ -84,16 +102,16 @@ export default function LaunchPage() {
       <Sidebar />
       <main className="flex-1 lg:ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center">
-          <h1 className="text-white font-medium text-sm tracking-wide">Spustiť charakter</h1>
+        <div className="sticky top-0 z-40 bg-surface border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center">
+          <h1 className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted2">Spustiť charakter</h1>
         </div>
 
         <div className="p-4 lg:p-8 max-w-2xl">
           <StepProgress current={6} total={6} label="Spustiť charakter" />
 
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Finálny krok</p>
-          <h2 className="text-2xl font-medium text-white mb-1">{dna.name}</h2>
-          <p className="text-sm text-muted2 mb-8">
+          <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-2">// Krok 6 z 6 — Finálny krok</p>
+          <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-2">{dna.name}</h2>
+          <p className="font-mono text-[11px] text-muted2 mb-8">
             Skontroluj súhrn a spusti charakter do produkcie.
           </p>
 
@@ -159,6 +177,92 @@ export default function LaunchPage() {
                 <p className="text-[11px] text-muted2 italic leading-relaxed line-clamp-1">{dna.lore.backstory}</p>
               </div>
             )}
+          </div>
+
+          {/* Media engine config */}
+          <div className="bg-bg2 border border-border rounded-md p-5 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-mono text-[9px] text-muted uppercase tracking-widest">// Generovanie médií</p>
+              <span className={`font-mono text-[8px] tracking-[0.1em] px-2 py-0.5 border ${
+                loraUrl.trim() || sheetUrl.trim()
+                  ? "bg-teal/10 border-teal/30 text-teal"
+                  : "bg-amber/10 border-amber/30 text-amber"
+              }`}>
+                {loraUrl.trim() || sheetUrl.trim() ? "PRIPRAVENÉ" : "VOLITEĽNÉ — DOPLŇ NESKÔR"}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted2 leading-relaxed mb-4">
+              Bez týchto polí sa charakter vytvorí, ale automatické generovanie obrázkov na <span className="text-ink">/today</span> nebude
+              fungovať — Google engine potrebuje character sheet ako referenciu identity a fal fallback potrebuje LoRA model.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block font-mono text-[9px] text-muted uppercase tracking-widest mb-1.5">
+                  Character sheet URL <span className="normal-case text-teal/70">(hlavná identity referencia — Nano Banana)</span>
+                </label>
+                <input
+                  type="url"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  placeholder="https://...supabase.co/storage/.../character-sheet.webp"
+                  className="w-full bg-bg3 border border-border2 rounded px-3 py-2 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-teal transition-colors"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-mono text-[9px] text-muted uppercase tracking-widest mb-1.5">
+                    fal LoRA model URL <span className="normal-case text-muted/60">(fallback engine)</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={loraUrl}
+                    onChange={(e) => setLoraUrl(e.target.value)}
+                    placeholder="https://v3.fal.media/files/.../lora.safetensors"
+                    className="w-full bg-bg3 border border-border2 rounded px-3 py-2 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-teal transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block font-mono text-[9px] text-muted uppercase tracking-widest mb-1.5">
+                    LoRA trigger word
+                  </label>
+                  <input
+                    type="text"
+                    value={loraTrigger}
+                    onChange={(e) => setLoraTrigger(e.target.value)}
+                    placeholder="VIKAVOID"
+                    className="w-full bg-bg3 border border-border2 rounded px-3 py-2 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-teal transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-mono text-[9px] text-muted uppercase tracking-widest mb-1.5">
+                  Referenčné fotky <span className="normal-case text-muted/60">(URL, jedna na riadok — video generovanie)</span>
+                </label>
+                <textarea
+                  value={refUrlsText}
+                  onChange={(e) => setRefUrlsText(e.target.value)}
+                  rows={3}
+                  placeholder={"https://...ref-1.png\nhttps://...ref-2.png"}
+                  className="w-full bg-bg3 border border-border2 rounded px-3 py-2 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-teal transition-colors resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-mono text-[9px] text-muted uppercase tracking-widest mb-1.5">
+                  Profilová fotka URL <span className="normal-case text-muted/60">(dashboard karta — inak sa použije character sheet)</span>
+                </label>
+                <input
+                  type="url"
+                  value={photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full bg-bg3 border border-border2 rounded px-3 py-2 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-teal transition-colors"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Posting time */}

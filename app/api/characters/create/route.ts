@@ -20,13 +20,34 @@ async function uniqueSlug(base: string): Promise<string> {
   }
 }
 
+// Media-engine config collected in the launch step. Without these the character
+// exists but can't auto-generate: /today gates generation on lora_model_id and
+// the Google engine needs character_sheet_url as its identity reference.
+interface MediaConfig {
+  character_sheet_url?: string;
+  lora_model_id?: string;
+  lora_trigger_word?: string;
+  reference_image_urls?: string[];
+  photo_url?: string;
+}
+
+const PLATFORM_MAP: Record<string, string> = {
+  "instagram": "instagram",
+  "tiktok":    "tiktok",
+  "youtube":   "youtube",
+  "x/twitter": "x",
+  "twitter":   "x",
+  "x":         "x",
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const dna: CharacterDNA = body.dna;
     const postingTime: string = body.posting_time ?? "10:00";
+    const media: MediaConfig = body.media ?? {};
 
-    if (!dna?.name) {
+    if (!dna?.name?.trim()) {
       return NextResponse.json({ error: "Missing character name" }, { status: 400 });
     }
 
@@ -44,13 +65,19 @@ export async function POST(req: NextRequest) {
       dna.visual.accessories.join(", "),
     ].filter(Boolean).join(". ");
 
-    const backstory = [dna.identity.origin, dna.personality.worldview]
+    // Prefer the AI-generated lore backstory (much richer) over the raw origin field.
+    const backstory = [dna.lore?.backstory || dna.identity.origin, dna.personality.worldview]
       .filter(Boolean)
       .join(" — ");
 
     const platforms = dna.content.platforms
-      .map((p) => p.toLowerCase().replace("/", "").replace("x", "x").trim())
-      .filter((p) => ["instagram", "tiktok", "youtube", "x"].includes(p));
+      .map((p) => PLATFORM_MAP[p.toLowerCase().trim()])
+      .filter((p): p is string => !!p);
+
+    const cleanUrl = (u?: string) => (u?.trim() ? u.trim() : null);
+    const refUrls = (media.reference_image_urls ?? [])
+      .map((u) => u.trim())
+      .filter((u) => /^https?:\/\//.test(u));
 
     const { data, error } = await supabase
       .from("chs_characters")
@@ -64,6 +91,11 @@ export async function POST(req: NextRequest) {
         platforms,
         posting_time: postingTime,
         is_active: true,
+        character_sheet_url:  cleanUrl(media.character_sheet_url),
+        lora_model_id:        cleanUrl(media.lora_model_id),
+        lora_trigger_word:    cleanUrl(media.lora_trigger_word),
+        reference_image_urls: refUrls.length > 0 ? refUrls : null,
+        photo_url:            cleanUrl(media.photo_url) ?? cleanUrl(media.character_sheet_url),
       })
       .select("id, name, slug")
       .single();

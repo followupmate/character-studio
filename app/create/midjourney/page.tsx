@@ -80,18 +80,18 @@ export default function MidjourneyPage() {
       <Sidebar />
       <main className="flex-1 lg:ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center">
-          <h1 className="text-white font-medium text-sm tracking-wide">Midjourney</h1>
+        <div className="sticky top-0 z-40 bg-surface border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center">
+          <h1 className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted2">Midjourney</h1>
         </div>
 
         <div className="p-4 lg:p-8 max-w-3xl">
           <StepProgress current={3} total={6} label="Midjourney" />
 
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Krok 3 z 5</p>
-          <h2 className="text-2xl font-medium text-white mb-1">
-            Vytvor vizuál <span className="italic text-muted2">charaktera</span>
+          <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-2">// Krok 3 z 6</p>
+          <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-2">
+            Vytvor vizuál charaktera
           </h2>
-          <p className="text-sm text-muted2 mb-8">
+          <p className="font-mono text-[11px] text-muted2 mb-8">
             Použi tento prompt na generovanie fotografií. Potrebuješ aspoň 15–20 záberov pre Soul tréning.
           </p>
 

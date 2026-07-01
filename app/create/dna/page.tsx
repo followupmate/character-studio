@@ -254,6 +254,9 @@ export default function DnaPage() {
     setTimeout(() => setSaved(false), 2000);
   }
 
+  // Without a name the final create API rejects the character — block early here.
+  const canContinue = dna.name.trim().length > 0;
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
@@ -281,7 +284,9 @@ export default function DnaPage() {
             <button
               type="button"
               onClick={() => { saveDna(); router.push("/create/midjourney"); }}
-              className="font-mono text-[10px] uppercase tracking-[0.05em] bg-accent text-white px-4 py-1.5 hover:bg-blue-400 transition-colors"
+              disabled={!canContinue}
+              title={canContinue ? undefined : "Najprv vyplň meno charakteru"}
+              className="font-mono text-[10px] uppercase tracking-[0.05em] bg-accent text-white px-4 py-1.5 hover:bg-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Uložiť a pokračovať →
             </button>
@@ -599,7 +604,9 @@ export default function DnaPage() {
             <button
               type="button"
               onClick={() => { saveDna(); router.push("/create/midjourney"); }}
-              className="font-mono text-[11px] uppercase tracking-[0.05em] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors"
+              disabled={!canContinue}
+              title={canContinue ? undefined : "Najprv vyplň meno charakteru"}
+              className="font-mono text-[11px] uppercase tracking-[0.05em] bg-accent text-white px-5 py-2.5 hover:bg-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Uložiť a pokračovať →
             </button>

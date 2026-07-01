@@ -52,18 +52,18 @@ export default function SoulPage() {
       <Sidebar />
       <main className="flex-1 lg:ml-56">
         {/* Topbar */}
-        <div className="sticky top-0 z-40 bg-bg2 border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center">
-          <h1 className="text-white font-medium text-sm tracking-wide">Soul ID Setup</h1>
+        <div className="sticky top-0 z-40 bg-surface border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center">
+          <h1 className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted2">Soul ID Setup</h1>
         </div>
 
         <div className="p-4 lg:p-8 max-w-4xl">
           <StepProgress current={5} total={6} label="Soul ID" />
 
-          <p className="font-mono text-[9px] tracking-widest text-muted uppercase mb-2">// Visual Identity</p>
-          <h2 className="text-2xl font-medium text-white mb-1">
-            Konzistentná <span className="italic text-muted2">tvár</span>
+          <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-2">// Krok 5 z 6 — Visual Identity</p>
+          <h2 className="font-display italic text-[48px] leading-[1.1] text-white mb-2">
+            Konzistentná tvár
           </h2>
-          <p className="text-sm text-muted2 mb-8 max-w-xl">
+          <p className="font-mono text-[11px] text-muted2 mb-8 max-w-xl">
             Soul ID zabezpečuje že tvoj charakter vyzerá rovnako naprieč všetkými generovaniami. Vytvor ho raz, používaj navždy.
           </p>
 
