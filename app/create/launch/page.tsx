@@ -37,6 +37,40 @@ export default function LaunchPage() {
   const [refUrlsText, setRefUrlsText] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
 
+  // One-click character sheet generation (Google Nano Banana → Higgsfield fallback)
+  const [genSheet, setGenSheet] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [sheetElapsed, setSheetElapsed] = useState(0);
+  useEffect(() => {
+    if (!genSheet) return;
+    setSheetElapsed(0);
+    const t = setInterval(() => setSheetElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [genSheet]);
+
+  async function generateSheet() {
+    if (!dna) return;
+    setGenSheet(true);
+    setSheetError(null);
+    try {
+      // First reference photo (if pasted below) anchors the face so the sheet
+      // matches the already-generated MJ/Higgsfield identity.
+      const firstRef = refUrlsText.split("\n").map((s) => s.trim()).filter(Boolean)[0];
+      const res = await fetch("/api/characters/generate-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dna, referenceImageUrl: firstRef }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Chyba ${res.status}`);
+      setSheetUrl(data.url);
+    } catch (e) {
+      setSheetError(e instanceof Error ? e.message : "Generovanie sheetu zlyhalo");
+    } finally {
+      setGenSheet(false);
+    }
+  }
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem("character_dna");
@@ -201,13 +235,47 @@ export default function LaunchPage() {
                 <label className="block font-mono text-[9px] text-muted uppercase tracking-widest mb-1.5">
                   Character sheet URL <span className="normal-case text-teal/70">(hlavná identity referencia — Nano Banana)</span>
                 </label>
-                <input
-                  type="url"
-                  value={sheetUrl}
-                  onChange={(e) => setSheetUrl(e.target.value)}
-                  placeholder="https://...supabase.co/storage/.../character-sheet.webp"
-                  className="w-full bg-bg3 border border-border2 rounded px-3 py-2 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-teal transition-colors"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={sheetUrl}
+                    onChange={(e) => setSheetUrl(e.target.value)}
+                    placeholder="https://...supabase.co/storage/.../character-sheet.webp"
+                    className="flex-1 min-w-0 bg-bg3 border border-border2 rounded px-3 py-2 font-mono text-[10px] text-ink placeholder:text-muted focus:outline-none focus:border-teal transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={generateSheet}
+                    disabled={genSheet}
+                    className="flex-shrink-0 font-mono text-[10px] bg-accent/10 border border-accent/30 text-accent px-3 py-2 rounded hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {genSheet ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 border border-accent/50 border-t-accent rounded-full animate-spin" />
+                        Generujem… {sheetElapsed}s
+                      </span>
+                    ) : (
+                      "✨ Vygenerovať"
+                    )}
+                  </button>
+                </div>
+                <p className="font-mono text-[9px] text-muted mt-1.5">
+                  AI vygeneruje 2×2 referenčný sheet z Visual DNA. Ak nižšie vložíš referenčnú fotku, tvár na sheete bude sedieť s ňou.
+                </p>
+                {sheetError && (
+                  <p className="font-mono text-[10px] text-red-400 mt-1.5">✗ {sheetError}</p>
+                )}
+                {sheetUrl.trim().startsWith("http") && (
+                  <div className="mt-2 flex items-start gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={sheetUrl}
+                      alt="Character sheet preview"
+                      className="h-32 w-32 object-cover border border-border rounded"
+                    />
+                    <span className="font-mono text-[9px] text-teal mt-1">✓ Sheet pripravený — uloží sa pri spustení charakteru</span>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
