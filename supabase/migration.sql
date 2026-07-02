@@ -527,3 +527,11 @@ CREATE TABLE IF NOT EXISTS chs_wizard_drafts (
 );
 ALTER TABLE chs_wizard_drafts ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idx_wizard_drafts_updated ON chs_wizard_drafts(updated_at DESC);
+
+-- ── Fanvue Autopilot ──────────────────────────────────────────
+-- Generated media set + publish tracking on unlock drafts.
+ALTER TABLE chs_fanvue_unlocks
+  ADD COLUMN IF NOT EXISTS media_urls        text[],
+  ADD COLUMN IF NOT EXISTS fanvue_media_uuids text[],
+  ADD COLUMN IF NOT EXISTS published_at      timestamptz,
+  ADD COLUMN IF NOT EXISTS publish_error     text;
