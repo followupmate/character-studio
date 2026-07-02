@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // to show whether the publish arm is armed before the user tries a real publish.
 export async function GET() {
   if (!fanvueConfigured()) {
-    return NextResponse.json({ configured: false, ok: false, detail: "FANVUE_API_KEY chýba vo Vercel env" });
+    return NextResponse.json({ configured: false, ok: false, detail: "FANVUE_CLIENT_ID / FANVUE_CLIENT_SECRET chýbajú vo Vercel env (Fanvue Builder area)" });
   }
   const h = await fanvueHealth();
   return NextResponse.json({ configured: true, ...h });

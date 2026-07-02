@@ -32,17 +32,46 @@ const INTENSITY_STYLES: Record<string, string> = {
   soft: "text-teal", medium: "text-amber", strong: "text-red-400",
 };
 
-export default function FanvueClient({ drafts, dayById }: { drafts: Draft[]; dayById: Record<string, Day> }) {
+interface FunnelChar { id: string; name: string; fanvue_link: string | null }
+
+export default function FanvueClient({
+  drafts,
+  dayById,
+  funnelChars = [],
+}: {
+  drafts: Draft[];
+  dayById: Record<string, Day>;
+  funnelChars?: FunnelChar[];
+}) {
   const [items, setItems] = useState(drafts);
   const [busy, setBusy] = useState<string | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [health, setHealth] = useState<{ configured: boolean; ok: boolean; detail: string } | null>(null);
+  const [links, setLinks] = useState<Record<string, string>>(
+    () => Object.fromEntries(funnelChars.map((c) => [c.id, c.fanvue_link ?? ""]))
+  );
+  const [savingLink, setSavingLink] = useState<string | null>(null);
+  const [savedLink, setSavedLink] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/fanvue/health").then((r) => r.json()).then(setHealth).catch(() => {});
   }, []);
+
+  // IG → Fanvue funnel link: goes into the IG bio manually, and the engine uses it
+  // automatically as the Story link sticker on every scheduled story.
+  async function saveLink(charId: string) {
+    setSavingLink(charId);
+    try {
+      await fetch("/api/characters/update", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterId: charId, fanvue_link: (links[charId] ?? "").trim() || null }),
+      });
+      setSavedLink(charId);
+      setTimeout(() => setSavedLink(null), 2000);
+    } finally { setSavingLink(null); }
+  }
 
   async function update(id: string, patch: Record<string, unknown>) {
     setBusy(id);
@@ -102,15 +131,57 @@ export default function FanvueClient({ drafts, dayById }: { drafts: Draft[]; day
     <div className="p-4 lg:p-8 space-y-4">
       {/* Fanvue API status */}
       {health && (
-        <div className={`px-4 py-2.5 border font-mono text-[10px] flex items-center gap-2 ${
+        <div className={`px-4 py-2.5 border font-mono text-[10px] flex items-center gap-3 flex-wrap ${
           health.ok ? "bg-teal/5 border-teal/20 text-teal" : "bg-amber/5 border-amber/20 text-amber"
         }`}>
           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${health.ok ? "bg-teal" : "bg-amber"}`} />
-          {health.ok
-            ? "Fanvue API pripojené — publish je aktívny"
-            : !health.configured
-              ? "FANVUE_API_KEY chýba vo Vercel env — publish tlačidlá zlyhajú, kým ho nenastavíš (Fanvue → Creator Settings → API keys)"
-              : `Fanvue API problém: ${health.detail}`}
+          <span className="flex-1 min-w-0">
+            {health.ok
+              ? "Fanvue API pripojené (OAuth) — publish je aktívny"
+              : !health.configured
+                ? "FANVUE_CLIENT_ID / FANVUE_CLIENT_SECRET chýbajú vo Vercel env (Fanvue → Builder area → Create app)"
+                : `Fanvue: ${health.detail}`}
+          </span>
+          {!health.ok && health.configured && (
+            <a
+              href="/api/auth/fanvue"
+              className="font-mono text-[9px] uppercase tracking-[0.05em] bg-accent/10 border border-accent/30 text-accent px-3 py-1 hover:bg-accent/20 transition-colors flex-shrink-0"
+            >
+              → Pripojiť Fanvue (OAuth)
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* IG → Fanvue funnel link */}
+      {funnelChars.length > 0 && (
+        <div className="bg-[#050709] border border-border p-4">
+          <p className="font-mono text-[9px] text-muted uppercase tracking-[0.15em] mb-1">// IG → Fanvue link</p>
+          <p className="font-mono text-[9px] text-muted2 leading-relaxed mb-3">
+            Tento link patrí do IG bio (manuálne, raz) a engine ho automaticky pridáva ako link sticker na každú
+            naplánovanú Story. CTA v captionoch („link in bio“) sa naň odvoláva.
+          </p>
+          <div className="space-y-2">
+            {funnelChars.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-[10px] text-ink w-24 flex-shrink-0 truncate">{c.name}</span>
+                <input
+                  type="url"
+                  value={links[c.id] ?? ""}
+                  onChange={(e) => setLinks((l) => ({ ...l, [c.id]: e.target.value }))}
+                  placeholder="https://www.fanvue.com/tvoj-handle"
+                  className="flex-1 min-w-[200px] bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 focus:outline-none focus:border-teal"
+                />
+                <button
+                  onClick={() => saveLink(c.id)}
+                  disabled={savingLink === c.id}
+                  className="font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal px-3 py-1.5 hover:bg-teal/20 transition-colors disabled:opacity-50"
+                >
+                  {savedLink === c.id ? "✓" : savingLink === c.id ? "…" : "Uložiť"}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <div className="grid gap-4 lg:grid-cols-2">

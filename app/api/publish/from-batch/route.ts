@@ -17,6 +17,7 @@ interface Character {
   name: string;
   posting_time: string;
   platforms: string[];
+  fanvue_link: string | null;
 }
 
 interface StoryDay {
@@ -122,7 +123,21 @@ async function processCharacter(
 
   const existingTypes = new Set(((existingPosts as Array<{ post_type: string }>) ?? []).map((p) => p.post_type));
 
-  const captionFromStory = (storyDay as StoryDay).ig_caption;
+  // IG → Fanvue funnel: if the day's unlock draft carries an ig_cta (rate-limited
+  // to ~25–35% of days by the fanvue layer), append it to the public caption.
+  // The CTA points at the bio link (char.fanvue_link goes into the IG bio / story sticker).
+  let captionFromStory = (storyDay as StoryDay).ig_caption;
+  const { data: unlockDraft } = await supabase
+    .from("chs_fanvue_unlocks")
+    .select("ig_cta")
+    .eq("story_day_id", (storyDay as StoryDay).id)
+    .not("ig_cta", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (captionFromStory && unlockDraft?.ig_cta) {
+    captionFromStory = `${captionFromStory}\n\n${unlockDraft.ig_cta} — link in bio 🔗`;
+  }
+
   const hashtagsFromStory = (storyDay as StoryDay).hashtags ?? [];
   const hasInstagram = char.platforms.includes("instagram");
   const hasYouTube = char.platforms.includes("youtube");
@@ -224,6 +239,9 @@ async function processCharacter(
           status: "scheduled",
           story_day_id: (storyDay as StoryDay).id,
           source: "batch",
+          // Default link sticker → Fanvue (per-character funnel link); the publish
+          // route already renders story_link_url as an IG link sticker.
+          story_link_url: char.fanvue_link || null,
         })
         .select("id")
         .single();
@@ -251,7 +269,7 @@ async function handle(req: Request): Promise<NextResponse> {
 
     let charQuery = supabase
       .from("chs_characters")
-      .select("id, name, posting_time, platforms")
+      .select("id, name, posting_time, platforms, fanvue_link")
       .eq("is_active", true);
 
     if (characterId) {

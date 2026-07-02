@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const { unlockId, mode = "post" } = body;
     if (!unlockId) return NextResponse.json({ error: "unlockId required" }, { status: 400 });
     if (!fanvueConfigured()) {
-      return NextResponse.json({ error: "FANVUE_API_KEY nie je nastavený vo Vercel env" }, { status: 500 });
+      return NextResponse.json({ error: "FANVUE_CLIENT_ID / FANVUE_CLIENT_SECRET nie sú nastavené — vytvor app vo Fanvue Builder a autorizuj cez /api/auth/fanvue" }, { status: 500 });
     }
 
     const { data: unlock } = await supabase

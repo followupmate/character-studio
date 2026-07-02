@@ -1,31 +1,100 @@
+import { supabase } from "@/lib/supabase";
+
 // Fanvue API client (server-side) — the engine's "last mile" to revenue.
-// Auth: creator API key in X-Fanvue-API-Key (Creator Settings → Request API keys),
-// or an OAuth bearer token when FANVUE_AUTH_BEARER=1. Every request carries
-// X-Fanvue-API-Version (2025-06-26).
 //
-// Verified against the public API docs / MCP schema:
-//   POST  /chats/mass-messages   — mass message (text, mediaUuids, price in cents ≥300, includedLists)
-//   POST  /posts                 — create post (audience, text, mediaUuids, price cents, mediaPreviewUuid)
+// Auth: Fanvue is OAuth-2.0-only (no API keys). One-time setup: create an app in
+// the Fanvue Builder area, put FANVUE_CLIENT_ID + FANVUE_CLIENT_SECRET into env,
+// then visit /api/auth/fanvue once to authorize — tokens land in chs_oauth_tokens
+// and refresh automatically from then on (rotation-safe: a rotated refresh_token
+// is written back to the DB).
+//
+// Verified endpoints:
+//   auth:  https://auth.fanvue.com/oauth2/auth + /oauth2/token (PKCE mandatory)
+//   POST  /chats/mass-messages — mass message (text, mediaUuids, price cents ≥300)
+//   POST  /posts               — create post (audience, text, mediaUuids, price)
 //   upload flow: POST create session → GET presigned part URL → PUT bytes → PATCH complete
 // The exact upload-session paths aren't published outside the docs portal, so each
-// step walks a small candidate list and remembers what worked (404/405 → next).
+// step walks a small candidate list (404/405 → next).
 
 const BASE = "https://api.fanvue.com";
+const TOKEN_URL = "https://auth.fanvue.com/oauth2/token";
 const API_VERSION = "2025-06-26";
 
 export function fanvueConfigured(): boolean {
-  return !!process.env.FANVUE_API_KEY;
+  return !!process.env.FANVUE_CLIENT_ID && !!process.env.FANVUE_CLIENT_SECRET;
 }
 
-function authHeaders(): Record<string, string> {
-  const key = process.env.FANVUE_API_KEY;
-  if (!key) throw new Error("FANVUE_API_KEY not configured (Vercel env)");
-  const h: Record<string, string> = { "X-Fanvue-API-Version": API_VERSION };
-  if (process.env.FANVUE_AUTH_BEARER === "1") h.Authorization = `Bearer ${key}`;
-  else h["X-Fanvue-API-Key"] = key;
-  return h;
+// ── OAuth token management (DB-backed, auto-refresh) ───────────
+interface TokenRow {
+  access_token: string;
+  refresh_token: string | null;
+  expires_at: string | null;
 }
 
+let cached: { token: string; expiresAt: number } | null = null;
+
+export async function getAccessToken(): Promise<string> {
+  if (cached && cached.expiresAt - Date.now() > 60_000) return cached.token;
+
+  const { data } = await supabase
+    .from("chs_oauth_tokens")
+    .select("access_token, refresh_token, expires_at")
+    .eq("provider", "fanvue")
+    .maybeSingle();
+  const row = data as TokenRow | null;
+  if (!row) throw new Error("Fanvue nie je autorizované — otvor /api/auth/fanvue a povoľ prístup");
+
+  const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+  if (expiresAt - Date.now() > 60_000) {
+    cached = { token: row.access_token, expiresAt };
+    return row.access_token;
+  }
+
+  // Expired → refresh
+  if (!row.refresh_token) throw new Error("Fanvue token expiroval a chýba refresh token — otvor /api/auth/fanvue znova");
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: row.refresh_token,
+      client_id: process.env.FANVUE_CLIENT_ID!,
+      client_secret: process.env.FANVUE_CLIENT_SECRET!,
+    }),
+  });
+  const tok = await res.json().catch(() => ({})) as {
+    access_token?: string; refresh_token?: string; expires_in?: number; error?: string; error_description?: string;
+  };
+  if (!res.ok || !tok.access_token) {
+    throw new Error(`Fanvue token refresh zlyhal (${res.status}): ${tok.error_description ?? tok.error ?? "?"} — otvor /api/auth/fanvue znova`);
+  }
+
+  await saveTokens({
+    access_token: tok.access_token,
+    refresh_token: tok.refresh_token ?? row.refresh_token, // keep old one if not rotated
+    expires_in: tok.expires_in ?? 3600,
+  });
+  return tok.access_token;
+}
+
+export async function saveTokens(t: { access_token: string; refresh_token: string | null; expires_in: number }): Promise<void> {
+  const expiresAt = new Date(Date.now() + t.expires_in * 1000);
+  cached = { token: t.access_token, expiresAt: expiresAt.getTime() };
+  await supabase.from("chs_oauth_tokens").upsert({
+    provider: "fanvue",
+    access_token: t.access_token,
+    refresh_token: t.refresh_token,
+    expires_at: expiresAt.toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getAccessToken();
+  return { Authorization: `Bearer ${token}`, "X-Fanvue-API-Version": API_VERSION };
+}
+
+// ── HTTP helpers ───────────────────────────────────────────────
 async function fv(
   method: string,
   path: string,
@@ -33,7 +102,7 @@ async function fv(
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { ...authHeaders(), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+    headers: { ...(await authHeaders()), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -153,6 +222,10 @@ export async function sendFanvueMassMessage(args: FanvueMassMessageArgs): Promis
 
 // ── Health probe (auth + connectivity) ─────────────────────────
 export async function fanvueHealth(): Promise<{ ok: boolean; detail: string }> {
-  const r = await fvFirst("GET", ["/users/me", "/me", "/users/self"]);
-  return { ok: r.ok, detail: r.ok ? JSON.stringify(r.data).slice(0, 200) : errDetail(r) };
+  try {
+    const r = await fvFirst("GET", ["/users/me", "/me", "/users/self"]);
+    return { ok: r.ok, detail: r.ok ? JSON.stringify(r.data).slice(0, 200) : errDetail(r) };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : String(err) };
+  }
 }
