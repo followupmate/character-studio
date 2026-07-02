@@ -11,10 +11,10 @@ async function getData() {
   const [{ data: drafts }, { data: characters }] = await Promise.all([
     supabase
       .from("chs_fanvue_unlocks")
-      .select("id, series_name, title, teaser_text, sales_copy, suggested_price, intensity, ig_cta, fanvue_prompt, unlock_type, status, story_day_id, created_at")
+      .select("id, series_name, title, teaser_text, sales_copy, suggested_price, intensity, ig_cta, fanvue_prompt, unlock_type, status, story_day_id, created_at, media_urls, published_at, publish_error")
       .order("created_at", { ascending: false })
       .limit(100),
-    supabase.from("chs_characters").select("id, name, feature_flags, fanvue_snapshot").eq("is_active", true),
+    supabase.from("chs_characters").select("id, name, feature_flags, fanvue_snapshot, fanvue_link").eq("is_active", true),
   ]);
 
   const dayIds = Array.from(new Set((drafts ?? []).map((d) => d.story_day_id).filter(Boolean))) as string[];
@@ -28,18 +28,24 @@ async function getData() {
   const snapshot = (auditChar?.fanvue_snapshot ?? null) as FanvueSnapshot | null;
   const strategy = deriveStrategy(snapshot);
 
-  return { drafts: drafts ?? [], dayById: Object.fromEntries(dayById), snapshot, strategy, auditName: auditChar?.name ?? null };
+  const funnelChars = (characters ?? []).map((c) => ({
+    id: c.id as string,
+    name: c.name as string,
+    fanvue_link: ((c as Record<string, unknown>).fanvue_link as string | null) ?? null,
+  }));
+
+  return { drafts: drafts ?? [], dayById: Object.fromEntries(dayById), snapshot, strategy, auditName: auditChar?.name ?? null, funnelChars };
 }
 
 export default async function FanvuePage() {
-  const { drafts, dayById, snapshot, strategy, auditName } = await getData();
+  const { drafts, dayById, snapshot, strategy, auditName, funnelChars } = await getData();
   return (
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 lg:ml-56">
         <div className="sticky top-0 z-40 bg-surface border-b border-border pl-14 pr-4 lg:px-8 h-13 flex items-center justify-between">
           <h1 className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted2">Fanvue · Unlock Drafts</h1>
-          <span className="font-mono text-[10px] text-muted">never auto-published</span>
+          <span className="font-mono text-[10px] text-muted">publish len na explicitný klik</span>
         </div>
 
         {snapshot && strategy && (
@@ -70,7 +76,7 @@ export default async function FanvuePage() {
           </div>
         )}
 
-        <FanvueClient drafts={drafts} dayById={dayById} />
+        <FanvueClient drafts={drafts} dayById={dayById} funnelChars={funnelChars} />
       </main>
     </div>
   );

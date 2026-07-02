@@ -3,12 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useMotionValue, useSpring, AnimatePresence } from "motion/react";
-import { Character, StoryDay, Media } from "@/types";
+import { Character, StoryDay, Media, TopPostSummary } from "@/types";
+import { deriveStrategy, FanvueSnapshot } from "@/lib/fanvueStrategy";
 
 interface Props {
   characters: Character[];
   todayStories: (StoryDay & { chs_media: Media[] })[];
   photoMap: Record<string, string>;
+  topPosts?: TopPostSummary[];
 }
 
 function uptimeHours(createdAt: string): string {
@@ -226,6 +228,139 @@ function TodayOutputs({
           })}
         </div>
       )}
+    </motion.div>
+  );
+}
+
+const PHASE_LABELS: Record<string, string> = {
+  pre_launch: "PRE-LAUNCH",
+  growth_first: "GROWTH",
+  early_monetize: "MONETIZE",
+  scale: "SCALE",
+};
+
+// Money view — Fanvue revenue snapshot + best-performing posts. Read-only:
+// snapshot comes from chs_characters.fanvue_snapshot, scores from the daily
+// import-insights cron. This is the "does it make money?" panel.
+function MoneyStrip({
+  characters,
+  topPosts,
+}: {
+  characters: Character[];
+  topPosts: TopPostSummary[];
+}) {
+  const charById = new Map(characters.map((c) => [c.id, c]));
+  const withSnapshot = characters.filter((c) => c.is_active && c.fanvue_snapshot);
+
+  return (
+    <motion.div
+      className="mb-10"
+      variants={fadeUpVariants}
+      initial="hidden"
+      animate="visible"
+      transition={{ delay: 0.18 }}
+    >
+      <p className="font-mono text-[9px] tracking-[0.15em] text-muted uppercase mb-3">// Money Engine</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-border border border-border">
+        {/* Fanvue revenue */}
+        <div className="bg-surface p-5">
+          <div className="flex items-center justify-between mb-4">
+            <span className="font-mono text-[8px] border border-accent/30 bg-accent/5 text-accent px-2 py-0.5 uppercase tracking-[0.1em]">Fanvue</span>
+            <a href="/fanvue" className="font-mono text-[9px] text-accent hover:text-white transition-colors">Detail →</a>
+          </div>
+          {withSnapshot.length === 0 ? (
+            <div className="py-4">
+              <p className="font-mono text-[11px] text-muted2 mb-1.5">Žiadny Fanvue audit</p>
+              <p className="font-mono text-[9px] text-muted leading-relaxed">
+                Earnings a subscribers sa zobrazia po prvom audite — spusti ho na <a href="/fanvue" className="text-accent hover:underline">/fanvue</a>.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {withSnapshot.map((c) => {
+                const s = c.fanvue_snapshot as FanvueSnapshot;
+                const strategy = deriveStrategy(s);
+                return (
+                  <div key={c.id}>
+                    <div className="flex items-center gap-2.5 mb-2 flex-wrap">
+                      <span className="font-display italic text-[15px] text-white leading-none">{c.name}</span>
+                      {strategy && (
+                        <span className="font-mono text-[8px] bg-teal/10 border border-teal/30 text-teal px-1.5 py-0.5 tracking-[0.1em]">
+                          {PHASE_LABELS[strategy.phase] ?? strategy.phase.toUpperCase()}
+                        </span>
+                      )}
+                      {s.audited_at && (
+                        <span className="font-mono text-[8px] text-muted">
+                          audit {new Date(s.audited_at).toLocaleDateString("sk-SK")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-px bg-border">
+                      <div className="bg-surface-low p-3">
+                        <div className="font-mono text-[8px] text-muted uppercase tracking-[0.1em] mb-1">Earnings</div>
+                        <div className="font-display text-[24px] leading-none text-teal">
+                          {(s.earnings_total ?? 0).toLocaleString("sk-SK")}<span className="text-[13px] text-teal/70"> €</span>
+                        </div>
+                      </div>
+                      <div className="bg-surface-low p-3">
+                        <div className="font-mono text-[8px] text-muted uppercase tracking-[0.1em] mb-1">Subscribers</div>
+                        <div className="font-display text-[24px] leading-none text-white">{s.subscribers ?? 0}</div>
+                      </div>
+                      <div className="bg-surface-low p-3">
+                        <div className="font-mono text-[8px] text-muted uppercase tracking-[0.1em] mb-1">Followers</div>
+                        <div className="font-display text-[24px] leading-none text-white">{s.followers ?? 0}</div>
+                      </div>
+                    </div>
+                    {strategy && (
+                      <p className="font-mono text-[9px] text-muted2 mt-2 leading-relaxed">{strategy.headline}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Top performing posts */}
+        <div className="bg-surface p-5">
+          <div className="flex items-center justify-between mb-4">
+            <span className="font-mono text-[8px] border border-amber/30 bg-amber/5 text-amber px-2 py-0.5 uppercase tracking-[0.1em]">Top výstupy · 14 dní</span>
+            <a href="/growth" className="font-mono text-[9px] text-accent hover:text-white transition-colors">Growth →</a>
+          </div>
+          {topPosts.length === 0 ? (
+            <div className="py-4">
+              <p className="font-mono text-[11px] text-muted2 mb-1.5">Žiadne skórované posty</p>
+              <p className="font-mono text-[9px] text-muted leading-relaxed">
+                IG metriky sa importujú automaticky každý deň o 20:00 UTC (cron <span className="text-ink">import-insights</span>).
+                Skóre sa objaví deň po prvom publikovanom poste.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-px">
+              {topPosts.map((p, i) => {
+                const char = p.character_id ? charById.get(p.character_id) : undefined;
+                const e = p.engagement ?? {};
+                return (
+                  <div key={p.id} className="flex items-center gap-3 bg-surface-low px-3 py-2">
+                    <span className="font-mono text-[10px] text-muted w-4 flex-shrink-0">{i + 1}.</span>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.05em] text-ink flex-shrink-0">{p.post_type}</span>
+                    {p.growth_winner && <span className="text-[10px] flex-shrink-0" title="Growth winner">🏆</span>}
+                    <span className="font-mono text-[9px] text-muted truncate">
+                      {char?.name ?? ""}{p.posted_at ? ` · ${new Date(p.posted_at).toLocaleDateString("sk-SK")}` : ""}
+                    </span>
+                    <span className="font-mono text-[9px] text-muted2 ml-auto flex-shrink-0 hidden sm:inline">
+                      {e.views ? `${e.views.toLocaleString("sk-SK")} views · ` : ""}
+                      {e.follows ? `+${e.follows} follows · ` : ""}
+                      {e.fanvue_clicks ? `${e.fanvue_clicks} FV clicks · ` : ""}
+                    </span>
+                    <span className="font-mono text-[11px] text-amber flex-shrink-0">{Math.round(Number(p.growth_score))}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -592,7 +727,7 @@ function CharacterCard({
   );
 }
 
-export default function Dashboard({ characters, todayStories, photoMap }: Props) {
+export default function Dashboard({ characters, todayStories, photoMap, topPosts = [] }: Props) {
   const router = useRouter();
   const activeChars = characters.filter((c) => c.is_active);
   const totalMedia = todayStories.flatMap((s) => s.chs_media);
@@ -780,6 +915,9 @@ export default function Dashboard({ characters, todayStories, photoMap }: Props)
 
         {/* Today's outputs gallery */}
         <TodayOutputs todayStories={todayStories} characters={characters} />
+
+        {/* Money view: Fanvue revenue + top posts */}
+        <MoneyStrip characters={characters} topPosts={topPosts} />
 
         {/* Quick Actions */}
         <motion.div

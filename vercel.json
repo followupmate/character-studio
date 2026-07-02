@@ -11,6 +11,14 @@
     {
       "path": "/api/characters/publish",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/publish/import-insights",
+      "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/fanvue/sync-snapshot",
+      "schedule": "45 19 * * *"
     }
   ]
 }
