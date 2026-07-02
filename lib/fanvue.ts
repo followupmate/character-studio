@@ -220,6 +220,72 @@ export async function sendFanvueMassMessage(args: FanvueMassMessageArgs): Promis
   return r.data;
 }
 
+// ── Account snapshot (Money Engine auto-refresh) ───────────────
+// Best-effort: each sub-call fails independently; whatever succeeds lands in the
+// snapshot. Shapes are read defensively (the docs portal hides exact schemas).
+
+function num(...vals: unknown[]): number | undefined {
+  for (const v of vals) {
+    const n = Number(v);
+    if (Number.isFinite(n) && v !== null && v !== undefined && v !== "") return n;
+  }
+  return undefined;
+}
+
+async function countOf(paths: string[]): Promise<number | undefined> {
+  const r = await fvFirst("GET", paths);
+  if (!r.ok) return undefined;
+  const d = r.data as Record<string, unknown> & {
+    pagination?: { total?: number; totalCount?: number };
+    meta?: { total?: number };
+    data?: unknown[];
+  };
+  return num(d.total, d.totalCount, d.count, d.pagination?.total, d.pagination?.totalCount, d.meta?.total)
+    ?? (Array.isArray(d.data) ? d.data.length : undefined);
+}
+
+export interface FanvueAccountSnapshot {
+  audited_at: string;
+  handle?: string;
+  display_name?: string;
+  followers?: number;
+  subscribers?: number;
+  earnings_total?: number;
+  errors?: string[];
+}
+
+export async function fetchFanvueSnapshot(): Promise<FanvueAccountSnapshot> {
+  const snapshot: FanvueAccountSnapshot = { audited_at: new Date().toISOString() };
+  const errors: string[] = [];
+
+  const me = await fvFirst("GET", ["/users/me"]);
+  if (me.ok) {
+    const d = me.data as Record<string, unknown>;
+    snapshot.handle = (d.handle ?? d.username ?? d.slug) as string | undefined;
+    snapshot.display_name = (d.displayName ?? d.display_name ?? d.name) as string | undefined;
+  } else errors.push(`me: ${errDetail(me)}`);
+
+  const subs = await countOf(["/subscribers?page=1&size=1", "/subscribers"]);
+  if (subs !== undefined) snapshot.subscribers = subs; else errors.push("subscribers: unavailable");
+
+  const followers = await countOf(["/followers?page=1&size=1", "/followers"]);
+  if (followers !== undefined) snapshot.followers = followers; else errors.push("followers: unavailable");
+
+  const earn = await fvFirst("GET", ["/insights/earnings", "/insights/earnings-summary", "/insights/earnings/summary"]);
+  if (earn.ok) {
+    const d = earn.data as Record<string, unknown> & { total?: unknown; summary?: Record<string, unknown> };
+    const total = num(
+      d.total, d.totalEarnings, d.total_earnings, d.grossTotal, d.netTotal,
+      d.summary?.total, d.summary?.gross, d.summary?.net
+    );
+    if (total !== undefined) snapshot.earnings_total = total;
+    else errors.push(`earnings: unexpected shape ${JSON.stringify(d).slice(0, 150)}`);
+  } else errors.push(`earnings: ${errDetail(earn)}`);
+
+  if (errors.length) snapshot.errors = errors;
+  return snapshot;
+}
+
 // ── Health probe (auth + connectivity) ─────────────────────────
 export async function fanvueHealth(): Promise<{ ok: boolean; detail: string }> {
   try {

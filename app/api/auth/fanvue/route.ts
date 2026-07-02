@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 // Prereq: app created in the Fanvue Builder area with redirect URI
 // {APP_URL}/api/auth/fanvue/callback, FANVUE_CLIENT_ID/SECRET in env.
 
-const DEFAULT_SCOPES = "offline_access read:self write:post write:media write:chat-message";
+// read:fan (subscribers/followers) + read:insights (earnings) power the Money Engine snapshot sync
+const DEFAULT_SCOPES = "offline_access read:self read:fan read:insights write:post write:media write:chat-message";
 
 function b64url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
