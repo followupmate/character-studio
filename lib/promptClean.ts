@@ -6,9 +6,15 @@
 // header Claude sometimes emits before the actual prompt, plus leading emoji.
 export function stripPromptHeader(raw: string): string {
   return raw
-    .replace(/^Model:\s*(?:Soul\s*\d+|Seedance\s*\S*)\s*[\u{1F000}-\u{1FFFF}☀-➿]*\s*(?:Video\s*Prompt|Image\s*Prompt)?[\s:]*/imu, "")
+    .trimStart()
+    // Full header including a "(Video|Image) Prompt:" label — [^\n]*? swallows any
+    // emoji between, incl. variation selectors (U+FE0F) the old char-class ranges missed.
+    .replace(/^Model:[^\n]*?(?:Video|Image)\s*Prompt[\s:]*/i, "")
+    // Header without a label ("Model: Soul 2" / "Model: Seedance 2.0")
+    .replace(/^Model:\s*(?:Soul\s*\d+|Seedance\s*\S*)[\s:]*/i, "")
+    // Leading emoji/symbols (incl. U+FE0F variation selector), then a bare label
+    .replace(/^[\s\u{1F000}-\u{1FFFF}️☀-➿]+/u, "")
     .replace(/^(?:Video|Image)\s*Prompt[\s:]*/i, "")
-    .replace(/^[\s\u{1F000}-\u{1FFFF}☀-➿]+/u, "")
     .trim();
 }
 

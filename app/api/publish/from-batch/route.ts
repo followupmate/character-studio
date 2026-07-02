@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { scheduledIso } from "@/lib/publishTime";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,17 +44,7 @@ function isAuthorized(req: Request): boolean {
   return url.searchParams.get("secret") === secret;
 }
 
-function scheduledIso(dateStr: string, postingTime: string, offsetMinutes = 0): string {
-  const [h, m] = postingTime.split(":").map(Number);
-  const dt = new Date(`${dateStr}T00:00:00.000Z`);
-  dt.setUTCHours(h ?? 10, m ?? 0, 0, 0);
-  dt.setUTCMinutes(dt.getUTCMinutes() + offsetMinutes);
-  // Don't schedule in the past — push to "now" if so
-  if (dt.getTime() < Date.now()) {
-    return new Date(Date.now() + 60_000).toISOString();
-  }
-  return dt.toISOString();
-}
+
 
 interface PerCharacterResult {
   character: string;
