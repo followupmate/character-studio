@@ -34,6 +34,7 @@ export interface Character {
   lora_model_id: string | null;
   lora_trigger_word: string | null;
   lora_provider: string | null;
+  fanvue_snapshot?: Record<string, unknown> | null;
 }
 
 export interface StoryDay {
@@ -97,4 +98,15 @@ export interface StoryDayWithCharacter extends StoryDay {
 
 export interface MediaWithStory extends Media {
   chs_story_days: StoryDayWithCharacter;
+}
+
+// Money view: summary row for best-performing posts (dashboard)
+export interface TopPostSummary {
+  id: string;
+  post_type: string;
+  growth_score: number;
+  growth_winner: boolean | null;
+  engagement: Record<string, number> | null;
+  posted_at: string | null;
+  character_id: string | null;
 }

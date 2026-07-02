@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { Character, StoryDay, Media } from "@/types";
+import { Character, StoryDay, Media, TopPostSummary } from "@/types";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Dashboard from "@/components/dashboard/Dashboard";
 
@@ -8,8 +8,9 @@ export const revalidate = 0;
 
 async function getData() {
   const today = new Date().toISOString().split("T")[0];
+  const since14d = new Date(Date.now() - 14 * 86400000).toISOString();
 
-  const [{ data: characters }, { data: todayStories }, { data: photos }] = await Promise.all([
+  const [{ data: characters }, { data: todayStories }, { data: photos }, { data: topPosts }] = await Promise.all([
     supabase
       .from("chs_characters")
       .select("*")
@@ -26,6 +27,15 @@ async function getData() {
       .eq("status", "ready")
       .not("media_url", "is", null)
       .order("created_at", { ascending: false }),
+    // Money view: best-performing posts of the last 14 days (auto-scored by import-insights)
+    supabase
+      .from("chs_posts")
+      .select("id, post_type, growth_score, growth_winner, engagement, posted_at, character_id")
+      .eq("status", "posted")
+      .gt("growth_score", 0)
+      .gte("posted_at", since14d)
+      .order("growth_score", { ascending: false })
+      .limit(5),
   ]);
 
   // latest photo URL per character
@@ -39,17 +49,18 @@ async function getData() {
     characters: (characters as Character[]) ?? [],
     todayStories: (todayStories as (StoryDay & { chs_media: Media[] })[]) ?? [],
     photoMap,
+    topPosts: (topPosts as TopPostSummary[]) ?? [],
   };
 }
 
 export default async function Home() {
-  const { characters, todayStories, photoMap } = await getData();
+  const { characters, todayStories, photoMap, topPosts } = await getData();
 
   return (
     <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 lg:ml-56">
-        <Dashboard characters={characters} todayStories={todayStories} photoMap={photoMap} />
+        <Dashboard characters={characters} todayStories={todayStories} photoMap={photoMap} topPosts={topPosts} />
       </main>
     </div>
   );
