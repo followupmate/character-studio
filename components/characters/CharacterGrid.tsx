@@ -167,7 +167,7 @@ function DoctrineNote({
           </span>
         )}
         {doctrine !== "cinematic" && doctrine !== "instagram" && (
-          <span className="text-muted/60">· editorial/deepseek ignoruje "drift" voice — pre Vivienne použi cinematic</span>
+          <span className="text-muted/60">· editorial/deepseek ignoruje &quot;drift&quot; voice — pre Vivienne použi cinematic</span>
         )}
       </div>
     </div>

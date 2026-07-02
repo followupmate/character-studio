@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
 import { generateSoulImage, soulConfigured, FALLBACK_SOUL_ID } from "@/lib/higgsfieldSoul";
+import { sanitizePrompt, stripPromptHeader } from "@/lib/promptClean";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -80,82 +81,6 @@ async function generateWithBFL(
   throw new Error("BFL generation timed out");
 }
 
-// Sanitize prompt for Google IMAGE_SAFETY classifier.
-// Targets known triggers: "nude" as clothing color, detailed anatomical body
-// descriptions combined with minimal clothing. These trigger post-generation
-// image safety regardless of reference images or safetySettings thresholds.
-// Sanitize prompt for Google IMAGE_SAFETY and Veo video safety classifiers.
-// Applied to both image and video generation before sending to any Google API.
-function sanitizePrompt(prompt: string): string {
-  // Strip "Model: Soul 2 ..." prefixes (may appear on multiple lines if Claude output multiple alternatives)
-  const stripped = prompt.replace(/^Model:\s*Soul\s*\d+[^\n]*\n?/gim, "");
-
-  // Split on " ; " (two-scene separator) or double-newline (multiple alternatives) — keep first only
-  const firstBlock = stripped
-    .split(/\s*;\s+(?=[A-Z])|\n{2,}/)[0]
-    .split("\n")
-    .filter((l) => l.trim().length > 0)
-    .slice(0, 3)   // max 3 lines = one caption
-    .join(" ");
-
-  return firstBlock
-    // Strip "Signature: ..." tags — model renders these as literal text/watermarks in the image
-    .replace(/Signature:\s*[^\n.;]+[.\n]?/gi, "")
-    // Strip "Frame contains: ..." blocks
-    .replace(/Frame contains:[^.]*\./gi, "")
-    // "nude [clothing]" → safe color (biggest IMAGE_SAFETY trigger)
-    .replace(/\bnude\s+(bandeau|bikini|bra|bralette|top|bodysuit|leotard|shorts|thong|underwear|swimsuit|one-piece)\b/gi, "sand-colored $1")
-    .replace(/\bnude-toned\b/gi, "skin-toned")
-    .replace(/\bnude\s+(?=fabric|lace|silk|satin|mesh)/gi, "sheer ")
-    // Bikini → neutral clothing — full chain: specific style → generic → neutral
-    // "triangle bikini top" → "bikini top" → "crop top"
-    // "high-cut minimal bikini bottom" → "bikini bottom" → "shorts"
-    .replace(/\btriangle\s+bikini\b/gi, "bikini")
-    .replace(/\bhigh-cut\s+(?:minimal\s+)?bikini\b/gi, "bikini")
-    .replace(/\bminimal\s+bikini\b/gi, "bikini")
-    .replace(/\bhigh-cut\b/gi, "")
-    .replace(/\bbikini\s+top\b/gi, "crop top")
-    .replace(/\bbikini\s+bottom\b/gi, "shorts")
-    .replace(/\bbikini\s+set\b/gi, "swimwear")
-    .replace(/\bbikini\b/gi, "swimwear")
-    // "open shirt" combined with swimwear triggers classifier — remove "open" modifier
-    .replace(/\bopen\s+shirt\b/gi, "shirt")
-    // Revealing/context language that triggers safety classifier
-    .replace(/\brevealing\b/gi, "showing")
-    .replace(/\bfalls\s+open\b/gi, "rests")
-    .replace(/\bopen\s+at\s+the\s+hip\b/gi, "at the hip")
-    // Anatomical body descriptions
-    .replace(/\bnarrow feminine shoulders\b/gi, "shoulders")
-    .replace(/\bsoft musculature\b/gi, "")
-    .replace(/\bsmooth skin\b/gi, "natural skin")
-    .replace(/\bbare back\b/gi, "back")
-    .replace(/\bbare shoulders\b/gi, "shoulders")
-    .replace(/\bbare skin\b/gi, "skin")
-    .replace(/\bexposed skin\b/gi, "skin")
-    // Undressing/motion language
-    .replace(/\bsliding open\b/gi, "draped")
-    .replace(/\bslipping off\b/gi, "draped over")
-    .replace(/\bfalling off\b/gi, "resting on")
-    .replace(/\bslipped off\b/gi, "draped")
-    .replace(/\bslid(?:ing)? open\b/gi, "draped")
-    .replace(/\bloosely belted\b/gi, "belted")
-    .replace(/\buntied\b/gi, "loosely tied")
-    .replace(/\bopen robe\b/gi, "robe")
-    .replace(/\bvisible beneath\b/gi, "worn under")
-    .replace(/\bpeek(?:ing)? (?:out|through)\b/gi, "visible")
-    .replace(/\bslipping\b/gi, "resting")
-    .replace(/\bbare feet\b/gi, "feet")
-    .replace(/\bbare legs\b/gi, "legs")
-    .replace(/\bbare arms\b/gi, "arms")
-    .replace(/\bbare midriff\b/gi, "midriff")
-    .replace(/\bher skin\b/gi, "her")
-    .replace(/\bflesh\b/gi, "")
-    // Clean up
-    .replace(/,\s*,/g, ",")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
 // ── Google Nano Banana generation (character sheet technique) ──
 // model: "gemini-3.1-flash-image" = Nano Banana 2 (fast)
 //        "gemini-3-pro-image"     = Nano Banana Pro (quality)
@@ -181,13 +106,7 @@ async function generateWithGoogle(
   characterName: string | null = null
 ): Promise<string> {
   const aspectLabel = GOOGLE_ASPECT_LABELS[aspectRatio] ?? GOOGLE_ASPECT_LABELS["4:5"];
-  const cleanPrompt = sanitizePrompt(
-    scenePrompt
-      .replace(/^Model:\s*Soul\s*\d+\s*[\u{1F000}-\u{1FFFF}☀-⟿]*\s*(Image\s*Prompt)?[\s:]*/imu, "")
-      .replace(/^Image\s*Prompt[\s:]*/i, "")
-      .replace(/^[\s\u{1F000}-\u{1FFFF}☀-⟿]+/u, "")
-      .trim()
-  );
+  const cleanPrompt = sanitizePrompt(stripPromptHeader(scenePrompt));
 
   const parts: unknown[] = [];
 
@@ -306,12 +225,7 @@ async function generateWithVeo(
   startFrameUrl: string | null,
   modelId = VEO_MODEL_DEFAULT
 ): Promise<string> {
-  const cleanPrompt = sanitizePrompt(
-    scenePrompt
-      .replace(/^Model:\s*(?:Soul\s*\d+|Seedance\s*\S*)\s*[\u{1F000}-\u{1FFFF}☀-⟿🎬]*\s*(?:Video\s*Prompt|Image\s*Prompt)?[\s:]*/imu, "")
-      .replace(/^(?:Video|Image)\s*Prompt[\s:]*/i, "")
-      .trim()
-  );
+  const cleanPrompt = sanitizePrompt(stripPromptHeader(scenePrompt));
 
   // Build instance: image-to-video when start frame available
   const instance: Record<string, unknown> = {
@@ -497,12 +411,7 @@ async function generateWithKling(
   mediaId: string,
   audioStyle: "scene" | "ambient" | "dialogue" | "silent" = "scene"
 ): Promise<string> {
-  const cleanedPrompt = sanitizePrompt(
-    prompt
-      .replace(/^Model:\s*(?:Soul\s*\d+|Seedance\s*\S*)\s*[\u{1F000}-\u{1FFFF}☀-⟿🎬]*\s*(?:Video\s*Prompt|Image\s*Prompt)?[\s:]*/imu, "")
-      .replace(/^(?:Video|Image)\s*Prompt[\s:]*/i, "")
-      .trim()
-  );
+  const cleanedPrompt = sanitizePrompt(stripPromptHeader(prompt));
 
   const model = startFrameUrl ? KLING_MODEL_I2V : KLING_MODEL_T2V;
 
@@ -588,12 +497,7 @@ async function generateWithSeedance(
   characterSheetUrl: string | null = null
 ): Promise<string> {
   const audioHint = AUDIO_HINTS[audioStyle] ?? AUDIO_HINTS.scene;
-  const cleanedPrompt = sanitizePrompt(
-    rawPrompt
-      .replace(/^Model:\s*(?:Soul\s*\d+|Seedance\s*\S*)\s*[\u{1F000}-\u{1FFFF}☀-⟿🎬]*\s*(?:Video\s*Prompt|Image\s*Prompt)?[\s:]*/imu, "")
-      .replace(/^(?:Video|Image)\s*Prompt[\s:]*/i, "")
-      .trim()
-  );
+  const cleanedPrompt = sanitizePrompt(stripPromptHeader(rawPrompt));
 
   let videoUrl: string;
 

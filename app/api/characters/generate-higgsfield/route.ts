@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { stripPromptHeader } from "@/lib/promptClean";
 import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -51,11 +52,7 @@ function realismSuffix(tier: string | null | undefined): string {
 }
 
 function cleanPrompt(raw: string): string {
-  return raw
-    .replace(/^Model:\s*Soul\s*\d+\s*[^\n]*?(Image\s*Prompt)?[\s:]*/i, "")
-    .replace(/^Image\s*Prompt[\s:]*/i, "")
-    .replace(/^[\s🖤🖼️]+/, "")
-    .trim();
+  return stripPromptHeader(raw);
 }
 
 // Lightweight poll for the (older) async flow / status checks.

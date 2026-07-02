@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { CharacterDNA } from "@/lib/archetypes";
+import { mapPlatforms } from "@/lib/platforms";
 
 function toSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -31,14 +32,7 @@ interface MediaConfig {
   photo_url?: string;
 }
 
-const PLATFORM_MAP: Record<string, string> = {
-  "instagram": "instagram",
-  "tiktok":    "tiktok",
-  "youtube":   "youtube",
-  "x/twitter": "x",
-  "twitter":   "x",
-  "x":         "x",
-};
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -70,9 +64,7 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
       .join(" — ");
 
-    const platforms = dna.content.platforms
-      .map((p) => PLATFORM_MAP[p.toLowerCase().trim()])
-      .filter((p): p is string => !!p);
+    const platforms = mapPlatforms(dna.content.platforms);
 
     const cleanUrl = (u?: string) => (u?.trim() ? u.trim() : null);
     const refUrls = (media.reference_image_urls ?? [])

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { stripPromptHeader } from "@/lib/promptClean";
 
 // Shared Higgsfield Soul V2 image generation (Cloud API, platform.higgsfield.ai).
 // Used by the in-app Higgsfield button AND as the preferred fallback in generate-media when Google
@@ -16,13 +17,7 @@ export function soulConfigured(): boolean {
   return !!c && c.includes(":");
 }
 
-function cleanForSoul(raw: string): string {
-  return raw
-    .replace(/^Model:\s*Soul\s*\d+\s*[^\n]*?(Image\s*Prompt)?[\s:]*/i, "")
-    .replace(/^Image\s*Prompt[\s:]*/i, "")
-    .replace(/^[\s🖤🖼️]+/, "")
-    .trim();
-}
+
 
 export async function generateSoulImage(opts: {
   prompt: string;
@@ -38,7 +33,7 @@ export async function generateSoulImage(opts: {
     method: "POST",
     headers: { Authorization: auth, "Content-Type": "application/json" },
     body: JSON.stringify({
-      prompt: cleanForSoul(opts.prompt),
+      prompt: stripPromptHeader(opts.prompt),
       aspect_ratio: opts.aspect,
       resolution: "1080p",
       enhance_prompt: false,

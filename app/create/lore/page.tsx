@@ -141,7 +141,7 @@ export default function LorePage() {
                   <div className="space-y-2">
                     {dna.personality.signaturePhrases.map((phrase, i) => (
                       <div key={i} className="bg-bg2 border border-border rounded-md px-4 py-3 flex items-start justify-between gap-3">
-                        <p className="font-mono text-[11px] text-ink italic flex-1 leading-relaxed">"{phrase}"</p>
+                        <p className="font-mono text-[11px] text-ink italic flex-1 leading-relaxed">&quot;{phrase}&quot;</p>
                         <button
                           onClick={() => copy(phrase, i, "phrase")}
                           className="flex-shrink-0 font-mono text-[8px] border border-border2 text-muted2 px-2 py-0.5 rounded hover:text-ink hover:border-border transition-colors"
