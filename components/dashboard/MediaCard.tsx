@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Media } from "@/types";
+import { stripPromptHeader } from "@/lib/promptClean";
 
 /* ─── Generator options ──────────────────────────────────────── */
 const IMAGE_GENERATORS = [
@@ -98,11 +99,7 @@ const cardVariants = {
 };
 
 function cleanPrompt(raw: string): string {
-  return raw
-    .replace(/^Model:\s*Soul\s*\d+\s*[^\n]*?(Image\s*Prompt)?[\s:]*/i, "")
-    .replace(/^Image\s*Prompt[\s:]*/i, "")
-    .replace(/^[\s🖤🖼️]+/, "")
-    .trim();
+  return stripPromptHeader(raw);
 }
 
 export default function MediaCard({ media, canAutoGenerate = false }: { media: Media; canAutoGenerate?: boolean }) {

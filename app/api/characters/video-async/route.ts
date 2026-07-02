@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { stripPromptHeader } from "@/lib/promptClean";
 import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
 
@@ -29,10 +30,7 @@ interface FalQState {
 }
 
 function clean(p: string): string {
-  return p
-    .replace(/^Model:\s*(?:Soul\s*\d+|Seedance\s*\S*)\s*[^\n]*?(?:Video\s*Prompt|Image\s*Prompt)?[\s:]*/i, "")
-    .replace(/^(?:Video|Image)\s*Prompt[\s:]*/i, "")
-    .trim();
+  return stripPromptHeader(p);
 }
 
 function parseState(raw: string | null): FalQState | null {
