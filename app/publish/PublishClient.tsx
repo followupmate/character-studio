@@ -70,6 +70,25 @@ const POST_TYPE_STYLES: Record<string, { label: string; style: string; icon: str
   reel: { label: "Reel", style: "text-green-400 border-green-400/30 bg-green-400/10", icon: "🎬" },
 };
 
+// Relative time for the queue ("o 3 h", "pred 2 dňami", "teraz"). A scheduled
+// post whose time is already in the past is "overdue" — the cron should have
+// fired, so it's a useful "something's stuck" signal.
+function relTime(iso: string | null, now: number = Date.now()): { text: string; overdue: boolean } {
+  if (!iso) return { text: "—", overdue: false };
+  const diffMs = new Date(iso).getTime() - now;
+  const overdue = diffMs < 0;
+  const mins = Math.round(Math.abs(diffMs) / 60000);
+  const hrs = Math.round(mins / 60);
+  const days = Math.round(hrs / 24);
+  let mag: string;
+  if (mins < 1) mag = "teraz";
+  else if (mins < 60) mag = `${mins} min`;
+  else if (hrs < 24) mag = `${hrs} h`;
+  else mag = `${days} ${days === 1 ? "deň" : days < 5 ? "dni" : "dní"}`;
+  if (mins < 1) return { text: "teraz", overdue: false };
+  return { text: overdue ? `pred ${mag}` : `o ${mag}`, overdue };
+}
+
 function formatStoryDayLabel(sd: StoryDayOption): string {
   const date = new Date(sd.date);
   const months = [
@@ -270,6 +289,8 @@ export default function PublishClient({
   const [uploadMsg, setUploadMsg] = useState("");
   const [queue, setQueue] = useState<QueuePost[]>(initialQueue);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   // Today's batch info
   const [batch, setBatch] = useState<BatchStatusResponse | null>(null);
@@ -1095,11 +1116,36 @@ export default function PublishClient({
       </section>
 
       {/* ── Section C: Queue ────────────────────────────────────── */}
+      {(() => {
+        const nScheduled = queue.filter((p) => p.status === "scheduled").length;
+        const nOverdue = queue.filter((p) => p.status === "scheduled" && relTime(p.scheduled_at).overdue).length;
+        const nPosted = queue.filter((p) => p.status === "posted").length;
+        const nFailed = queue.filter((p) => p.status === "failed").length;
+        return (
       <section className="bg-bg2 border border-border">
-        <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-border bg-bg3 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-[16px] text-muted">list</span>
             <p className="font-mono text-[9px] tracking-widest text-muted uppercase">// Queue</p>
+          </div>
+          {/* Status summary — instant overview instead of scanning the table */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-mono text-[9px] uppercase tracking-wider border px-2 py-0.5 text-amber border-amber/30 bg-amber/10">
+              {nScheduled} scheduled
+            </span>
+            {nOverdue > 0 && (
+              <span className="font-mono text-[9px] uppercase tracking-wider border px-2 py-0.5 text-red-400 border-red-400/40 bg-red-400/10" title="Naplánované, ale čas už uplynul — cron mal odoslať">
+                ⚠ {nOverdue} po termíne
+              </span>
+            )}
+            <span className="font-mono text-[9px] uppercase tracking-wider border px-2 py-0.5 text-teal border-teal/30 bg-teal/10">
+              {nPosted} posted
+            </span>
+            {nFailed > 0 && (
+              <span className="font-mono text-[9px] uppercase tracking-wider border px-2 py-0.5 text-red-400 border-red-400/30 bg-red-400/10">
+                {nFailed} failed
+              </span>
+            )}
           </div>
           <button
             onClick={refreshQueue}
@@ -1148,13 +1194,15 @@ export default function PublishClient({
 
                   const isStory = post.post_type === "story";
                   const postTypeInfo = POST_TYPE_STYLES[post.post_type ?? "feed"] ?? POST_TYPE_STYLES.feed;
+                  const rel = relTime(post.scheduled_at);
+                  const isOverdue = post.status === "scheduled" && rel.overdue;
 
                   return (
                     <tr
                       key={post.id}
                       className={`border-b border-border last:border-0 hover:bg-bg3/50 transition-colors ${
                         isStory ? "opacity-70 italic" : ""
-                      }`}
+                      } ${isOverdue ? "bg-red-500/5" : ""}`}
                     >
                       <td className="px-4 py-3 font-mono text-[11px] text-ink">
                         {isStory && <span className="inline-block w-3 mr-1 text-muted">↳</span>}
@@ -1172,7 +1220,16 @@ export default function PublishClient({
                           {postTypeInfo.icon} {postTypeInfo.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-mono text-[10px] text-muted2">{scheduledStr}</td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-muted2">
+                        <div className="flex flex-col gap-0.5">
+                          <span>{scheduledStr}</span>
+                          {post.status === "scheduled" && (
+                            <span className={`text-[9px] ${isOverdue ? "text-red-400" : "text-muted"}`}>
+                              {isOverdue ? "⚠ " : ""}{rel.text}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-block font-mono text-[9px] uppercase tracking-wider border px-2 py-0.5 ${
@@ -1184,31 +1241,55 @@ export default function PublishClient({
                       </td>
                       <td className="px-4 py-3">
                         {post.status === "scheduled" ? (
-                          <button
-                            onClick={() => cancelPost(post.id)}
-                            className="font-mono text-[10px] text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/60 px-2 py-1 transition-all"
-                          >
-                            Zruš
-                          </button>
+                          confirmCancelId === post.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-[9px] text-red-400">Zrušiť?</span>
+                              <button
+                                onClick={async () => { setConfirmCancelId(null); await cancelPost(post.id); }}
+                                className="font-mono text-[9px] text-red-400 border border-red-400/40 px-1.5 py-0.5 hover:bg-red-400/10 transition-all"
+                              >
+                                Áno
+                              </button>
+                              <button
+                                onClick={() => setConfirmCancelId(null)}
+                                className="font-mono text-[9px] text-muted border border-border px-1.5 py-0.5 hover:text-ink transition-all"
+                              >
+                                Nie
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmCancelId(post.id)}
+                              className="font-mono text-[10px] text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/60 px-2 py-1 transition-all"
+                            >
+                              Zruš
+                            </button>
+                          )
                         ) : post.status === "posted" ? (
                           <span className="text-teal text-[14px]">✓</span>
                         ) : post.status === "failed" ? (
                           <div className="flex flex-col gap-1 items-start">
                             <button
+                              disabled={retryingId === post.id}
                               onClick={async () => {
-                                const endpoint = post.post_type === "story"
-                                  ? "/api/publish/post-instagram-story"
-                                  : "/api/publish/post-now";
-                                await fetch(endpoint, {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ post_id: post.id }),
-                                });
-                                await refreshQueue();
+                                setRetryingId(post.id);
+                                try {
+                                  const endpoint = post.post_type === "story"
+                                    ? "/api/publish/post-instagram-story"
+                                    : "/api/publish/post-now";
+                                  await fetch(endpoint, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ post_id: post.id }),
+                                  });
+                                  await refreshQueue();
+                                } finally {
+                                  setRetryingId(null);
+                                }
                               }}
-                              className="font-mono text-[10px] text-amber hover:text-amber/80 border border-amber/30 hover:border-amber/60 px-2 py-1 transition-all"
+                              className="font-mono text-[10px] text-amber hover:text-amber/80 border border-amber/30 hover:border-amber/60 px-2 py-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              Retry
+                              {retryingId === post.id ? "Skúšam…" : "Retry"}
                             </button>
                             {!!(post as Record<string, unknown>).last_error && (
                               <span className="font-mono text-[8px] text-red-400/70 max-w-[200px] break-words leading-snug">
@@ -1226,6 +1307,8 @@ export default function PublishClient({
           </div>
         )}
       </section>
+        );
+      })()}
 
       {toast && <ToastBar toast={toast} onClose={() => setToast(null)} />}
     </div>
