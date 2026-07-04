@@ -3,6 +3,7 @@ import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
 import { generateSoulImage, soulConfigured, FALLBACK_SOUL_ID } from "@/lib/higgsfieldSoul";
 import { sanitizePrompt, stripPromptHeader } from "@/lib/promptClean";
+import { cronAuthorized } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -598,23 +599,16 @@ async function findStartFrame(batchId: string): Promise<string | null> {
   return data?.media_url ?? null;
 }
 
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const auth = req.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) return true;
-  const url = new URL(req.url);
-  return url.searchParams.get("secret") === secret;
-}
-
 // ── Main handler ───────────────────────────────────────────────
 export async function POST(req: Request) {
-  // Auth: CRON_SECRET required only for external/server-to-server calls.
-  // Browser requests from the app UI are allowed without secret.
+  // Auth: CRON_SECRET required for external/server-to-server calls (fail-closed
+  // via cronAuthorized). Browser requests from the app UI are allowed without a
+  // secret — see M1-3 in docs/AUDIT to close this Origin bypass once a UI
+  // session/password exists (deferred: single-operator app).
   const origin = req.headers.get("origin") ?? "";
   const appUrl = process.env.APP_URL ?? "";
   const isBrowserRequest = origin.includes("vercel.app") || origin.includes("localhost") || origin === appUrl;
-  if (!isBrowserRequest && !isAuthorized(req)) {
+  if (!isBrowserRequest && !cronAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

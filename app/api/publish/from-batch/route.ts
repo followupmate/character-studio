@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { scheduledIso } from "@/lib/publishTime";
+import { requireCron } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -34,17 +35,6 @@ interface DailyPlan {
   character_id: string;
   story_day_id: string | null;
 }
-
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const auth = req.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) return true;
-  const url = new URL(req.url);
-  return url.searchParams.get("secret") === secret;
-}
-
-
 
 interface PerCharacterResult {
   character: string;
@@ -248,9 +238,8 @@ async function processCharacter(
 }
 
 async function handle(req: Request): Promise<NextResponse> {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const deny = requireCron(req);
+  if (deny) return deny;
 
   try {
     const url = new URL(req.url);

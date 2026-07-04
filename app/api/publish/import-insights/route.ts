@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { calculateGrowthScore, GrowthMetrics } from "@/lib/growthScore";
+import { requireCron } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -11,15 +12,6 @@ export const maxDuration = 120;
 // recomputes growth_score + growth_winner (top ~30%). Runs daily from vercel.json
 // cron; manual fields imported via /api/characters/import-metrics (fanvue_clicks…)
 // are preserved by the merge.
-
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const auth = req.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) return true;
-  const url = new URL(req.url);
-  return url.searchParams.get("secret") === secret;
-}
 
 // Metric sets from richest to safest — profile_visits/follows aren't available on
 // every media type, and an unsupported metric fails the whole call, so we walk down.
@@ -66,7 +58,8 @@ async function fetchInsights(mediaId: string, token: string): Promise<{ metrics:
 }
 
 export async function GET(req: Request) {
-  if (!isAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = requireCron(req);
+  if (deny) return deny;
 
   const token = process.env.IG_ACCESS_TOKEN;
   if (!token) return NextResponse.json({ error: "IG_ACCESS_TOKEN not configured" }, { status: 500 });
