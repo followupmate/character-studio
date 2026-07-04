@@ -1,24 +1,15 @@
 import { NextResponse } from "next/server";
+import { requireCron } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const auth = req.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) return true;
-  const url = new URL(req.url);
-  return url.searchParams.get("secret") === secret;
-}
 
 // Daily Vercel cron: ensure today's batch slots are queued as chs_posts.
 // Actual posting is dispatched separately by /api/publish/cron
 // (cron-job.org every 15 min) so this endpoint stays lightweight.
 export async function GET(req: Request) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const deny = requireCron(req);
+  if (deny) return deny;
 
   try {
     const origin =

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Media } from "@/types";
 import { stripPromptHeader } from "@/lib/promptClean";
+import { slotLabel } from "@/lib/slots";
 
 /* ─── Generator options ──────────────────────────────────────── */
 const IMAGE_GENERATORS = [
@@ -73,17 +74,6 @@ function Badge({ status }: { status: string }) {
   );
 }
 
-const SLOT_LABELS: Record<string, string> = {
-  carousel_1: "CAROUSEL 1 · WIDE",
-  carousel_2: "CAROUSEL 2 · MID",
-  carousel_3: "CAROUSEL 3 · DETAIL",
-  carousel_4: "CAROUSEL 4 · REVERSE",
-  carousel_5: "CAROUSEL 5 · EMOTIONAL",
-  reel_start_frame: "REEL · START FRAME",
-  reel_video: "REEL · VIDEO",
-  story_bts: "STORY · BTS",
-};
-
 function formatHintFor(media: Media): string {
   if (media.channel === "reel") return "// 9:16 → Reels / TikTok / Shorts";
   if (media.channel === "story") return "// 9:16 → Instagram Story";
@@ -110,8 +100,8 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const defaultImageGen: GeneratorId = isWideSlot ? "google" : "flux-lora";
   const isCarousel  = media.channel === "feed";
   const baseLabel = isPhoto ? "FOTO" : "VIDEO";
-  const slotLabel = media.slot ? SLOT_LABELS[media.slot] ?? media.slot.toUpperCase() : null;
-  const label = slotLabel ?? baseLabel;
+  const slotLabelText = slotLabel(media.slot, "");
+  const label = slotLabelText || baseLabel;
   const model = isPhoto ? "Google · Nano Banana" : "Google · Veo 3.1";
   const formatHint = formatHintFor(media);
   const activeGenerators = isVideoSlot ? VIDEO_GENERATORS : IMAGE_GENERATORS;

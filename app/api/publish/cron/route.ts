@@ -1,27 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireCron } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // no secret configured — open
-
-  const auth = req.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) return true;
-
-  // Query param fallback for external schedulers (cron-job.org etc.)
-  const url = new URL(req.url);
-  if (url.searchParams.get("secret") === secret) return true;
-
-  return false;
-}
-
 export async function POST(req: Request) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const deny = requireCron(req);
+  if (deny) return deny;
   try {
     const { data: duePosts, error } = await supabase
       .from("chs_posts")

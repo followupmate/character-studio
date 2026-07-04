@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { slotShort } from "@/lib/slots";
 
 // One-click generation of ALL image slots for a day's batch (5 carousel + reel start frame + story BTS).
 // Replaces the old workflow of clicking each slot individually. Video (reel) stays a separate click
@@ -16,17 +17,6 @@ interface SlotProgress {
   status: string; // pending | generating | retrying | completed | failed
   error?: string | null;
 }
-
-const SLOT_SHORT: Record<string, string> = {
-  carousel_1: "C1",
-  carousel_2: "C2",
-  carousel_3: "C3",
-  carousel_4: "C4",
-  carousel_5: "C5",
-  reel_start_frame: "START",
-  reel_video: "VIDEO",
-  story_bts: "STORY",
-};
 
 function chipClass(s: SlotProgress): string {
   if (s.hasMedia) return "border-teal/40 bg-teal/10 text-teal";
@@ -140,7 +130,7 @@ export default function GenerateDayButton({ batchId }: { batchId: string }) {
                   className={`font-mono text-[8px] tracking-[0.08em] px-1.5 py-0.5 border flex items-center gap-1 ${chipClass(s)}`}
                 >
                   <span>{chipIcon(s)}</span>
-                  {SLOT_SHORT[s.slot] ?? s.slot?.toUpperCase()}
+                  {slotShort(s.slot)}
                 </span>
               ))}
             </div>
@@ -157,7 +147,7 @@ export default function GenerateDayButton({ batchId }: { batchId: string }) {
       {result && <p className="font-mono text-[10px] text-teal">✓ {result}</p>}
       {!loading && failedSlots.length > 0 && (
         <p className="font-mono text-[10px] text-red-400">
-          ✗ Zlyhalo: {failedSlots.map((s) => SLOT_SHORT[s.slot] ?? s.slot).join(", ")} — klikni znova pre opakovanie
+          ✗ Zlyhalo: {failedSlots.map((s) => slotShort(s.slot)).join(", ")} — klikni znova pre opakovanie
         </p>
       )}
       {error && <p className="font-mono text-[10px] text-red-400">✗ {error}</p>}

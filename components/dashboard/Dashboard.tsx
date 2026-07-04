@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, useMotionValue, useSpring, AnimatePresence } from "motion/react";
 import { Character, StoryDay, Media, TopPostSummary } from "@/types";
 import { deriveStrategy, FanvueSnapshot } from "@/lib/fanvueStrategy";
+import { slotShort } from "@/lib/slots";
 
 interface Props {
   characters: Character[];
@@ -61,17 +62,6 @@ function AnimatedCounter({ value, className }: { value: number; className?: stri
   return <span className={className}>{display}</span>;
 }
 
-const SLOT_SHORT: Record<string, string> = {
-  carousel_1: "C1",
-  carousel_2: "C2",
-  carousel_3: "C3",
-  carousel_4: "C4",
-  carousel_5: "C5",
-  reel_start_frame: "START",
-  reel_video: "VIDEO",
-  story_bts: "STORY",
-};
-
 // Border + dot colour per media status for the outputs gallery
 function outputStatusClasses(m: Media): { border: string; dot: string; pulse: boolean } {
   if (m.status === "posted")  return { border: "border-accent/50", dot: "bg-accent", pulse: false };
@@ -85,7 +75,7 @@ function outputStatusClasses(m: Media): { border: string; dot: string; pulse: bo
 
 function OutputThumb({ media }: { media: Media }) {
   const { border, dot, pulse } = outputStatusClasses(media);
-  const slotLabel = media.slot ? SLOT_SHORT[media.slot] ?? media.slot.toUpperCase() : media.type.toUpperCase();
+  const slotLabel = slotShort(media.slot, media.type.toUpperCase());
   const isVideo = media.type === "video";
 
   const inner = media.media_url ? (

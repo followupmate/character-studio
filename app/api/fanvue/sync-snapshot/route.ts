@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { fanvueConfigured, fetchFanvueSnapshot } from "@/lib/fanvue";
+import { requireCron } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,17 +14,9 @@ export const maxDuration = 60;
 // Existing snapshot fields the API sync doesn't cover (post_count, smart_lists…)
 // are preserved by the merge, so a manual MCP audit stays compatible.
 
-function isAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const auth = req.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) return true;
-  const url = new URL(req.url);
-  return url.searchParams.get("secret") === secret;
-}
-
 export async function GET(req: Request) {
-  if (!isAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const deny = requireCron(req);
+  if (deny) return deny;
   if (!fanvueConfigured()) {
     return NextResponse.json({ error: "FANVUE_CLIENT_ID / FANVUE_CLIENT_SECRET nie sú nastavené" }, { status: 500 });
   }
