@@ -1,12 +1,13 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { requireEnv } from "@/lib/env";
 
 let _supabase: SupabaseClient | undefined;
 
 function getClient(): SupabaseClient {
   if (!_supabase) {
     _supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
+      requireEnv("SUPABASE_URL"),
+      requireEnv("SUPABASE_SERVICE_KEY"),
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
   }

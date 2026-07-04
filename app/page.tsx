@@ -20,13 +20,16 @@ async function getData() {
       .select("*, chs_media(*)")
       .eq("date", today)
       .order("created_at", { ascending: false }),
+    // Only the most recent photos are needed — one per character for the card
+    // thumbnail. Bounded so the query cost doesn't grow with the whole history.
     supabase
       .from("chs_media")
       .select("media_url, chs_story_days(character_id)")
       .eq("type", "photo")
       .eq("status", "ready")
       .not("media_url", "is", null)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(60),
     // Money view: best-performing posts of the last 14 days (auto-scored by import-insights)
     supabase
       .from("chs_posts")
