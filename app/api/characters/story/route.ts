@@ -59,6 +59,35 @@ GOOD (travel): "lisbon at 7am before anyone wakes up. the light does something d
 BAD: "Living my best life! ✨ So grateful for these moments 🙏"
 BAD: "feeling so sexy and confident today 💋💋" — explicit self-labelling kills the provocation`;
 
+// DISCOVERY MODE (flag: discovery_mode) — reach-first editorial for cold audience.
+// Carousels/stories serve existing followers; cold reach on IG comes from a
+// scroll-stopping first frame + a legible reason to follow + keyword-rich caption.
+// This block overrides the hook_text / ig_caption / hashtags output rules when on.
+const DISCOVERY_DOCTRINE = `DISCOVERY MODE (ACTIVE — reach-first, overrides the caption/hook/hashtag rules below)
+
+The account is small and needs NEW followers, not just depth with existing ones. A cold viewer
+sees ONE frame with zero context — no narrative, no history. Win the first 1.5 seconds and give a
+reason to follow. Continuity/lore is invisible to them; do not rely on it.
+
+HOOK_TEXT — now MANDATORY every day (not 35%). This is the on-screen overlay that stops the scroll
+on the first carousel image. 2 to 6 words, lowercase. It must do ONE of: spark curiosity ("the one
+thing i changed"), be relatable-specific ("nobody talks about this"), or promise a payoff ("wait for
+the last one"). Concrete beats clever. Avoid vague mood words ("slow morning") in discovery mode —
+those don't stop a stranger's scroll.
+
+IG_CAPTION — hook-first structure:
+  line 1 = a scroll-stopping opener (curiosity, a relatable confession, or a bold specific claim)
+  line 2 = one real detail that pays off the hook (keeps the voice doctrine — no fluff)
+  end = a soft follow-reason, ONE short line that tells a stranger what they get by following
+        (e.g. "here most days if this is your kind of quiet", "more like this if you stay").
+        Not desperate, not "follow me!!" — an invitation with self-possession.
+  Weave 1 to 2 plain keywords a stranger might search (the place, the activity, the aesthetic) into
+  the natural text — IG now ranks captions as search text. No keyword stuffing.
+
+HASHTAGS — reach mix, not vanity: 4 mid-size discoverable niche tags (10k–500k posts, findable), 3
+specific long-tail tags, 2 location/context tags, 1 broad. Drop dead branded tags. Never spammy adult
+tags (they suppress the whole account).`;
+
 function buildSystemPrompt(args: {
   character: Character;
   tier: StoryTier;
@@ -66,8 +95,9 @@ function buildSystemPrompt(args: {
   dayNumber: number;
   historyText: string;
   lifeContext?: string; // life_layer: continuity guidance from yesterday's life_state + active events
+  discoveryMode?: boolean; // discovery_mode: reach-first caption/hook editorial
 }): string {
-  const { character, tier, driftSeeds, historyText, lifeContext } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode } = args;
   const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
@@ -85,7 +115,7 @@ ${JSON.stringify(personality, null, 2)}
 ${sacred ? `\nSACRED DETAILS (invariant world objects and rules):\n${JSON.stringify(sacred, null, 2)}` : ""}
 
 ${VOICE_DOCTRINE}
-
+${discoveryMode ? `\n${DISCOVERY_DOCTRINE}\n` : ""}
 ${tierGuidance(tier)}
 
 ${driftSeedGuidance(driftSeeds)}
@@ -196,7 +226,8 @@ export async function GET() {
         lifeContext = lifeContextBlock(prevLife, activeEvents);
       }
 
-      const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext });
+      const discoveryMode = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "discovery_mode");
+      const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext, discoveryMode });
 
       const msg = await anthropic.messages.create({
         model: "claude-sonnet-4-6",

@@ -483,8 +483,11 @@ WHERE slug = 'vivienne';
 
 -- ── v1.1 Life + Growth + Fanvue layers (2026-06-29) — additive, all gated by chs_characters.feature_flags ──
 ALTER TABLE chs_characters ADD COLUMN IF NOT EXISTS feature_flags jsonb
-  DEFAULT '{"life_layer":false,"growth_layer":false,"fanvue_drafts":false,"mcp_audit":false}'::jsonb;
+  DEFAULT '{"life_layer":false,"growth_layer":false,"fanvue_drafts":false,"mcp_audit":false,"discovery_mode":false}'::jsonb;
 ALTER TABLE chs_characters ADD COLUMN IF NOT EXISTS fanvue_snapshot jsonb;
+
+-- discovery_mode (reach-first caption/hook editorial) — enable per character:
+--   UPDATE chs_characters SET feature_flags = coalesce(feature_flags,'{}'::jsonb) || '{"discovery_mode":true}'::jsonb WHERE slug = 'vivienne';
 ALTER TABLE chs_story_days ADD COLUMN IF NOT EXISTS life_state jsonb;
 ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS growth_score numeric DEFAULT 0;
 ALTER TABLE chs_posts ADD COLUMN IF NOT EXISTS growth_winner boolean DEFAULT false;
