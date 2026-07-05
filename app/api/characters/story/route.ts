@@ -59,35 +59,38 @@ GOOD (travel): "lisbon at 7am before anyone wakes up. the light does something d
 BAD: "Living my best life! ✨ So grateful for these moments 🙏"
 BAD: "feeling so sexy and confident today 💋💋" — explicit self-labelling kills the provocation`;
 
-// DISCOVERY MODE (flag: discovery_mode) — reach-first editorial for cold audience.
-// Carousels/stories serve existing followers; cold reach on IG comes from a
-// scroll-stopping first frame + a legible reason to follow + keyword-rich caption.
-// This block overrides the hook_text / ig_caption / hashtags output rules when on.
-const DISCOVERY_DOCTRINE = `DISCOVERY MODE (ACTIVE — reach-first, overrides the caption/hook/hashtag rules below)
+// DISCOVERY MODE (flag: discovery_mode) — reel-first, retention-driven editorial
+// for cold reach. This account's own data: carousels ~4 views (dead), reels ~72
+// views but 0 shares/saves (they hit the test audience and stop). Reels are
+// auto-published via the IG API, so they CANNOT use trending audio — reach must
+// come from watch-time, seamless loops and share/save-worthiness. The batch is
+// reel-only in discovery; this block writes the reel's on-screen hook + caption
+// to earn the rewatch, the share, and the follow.
+const DISCOVERY_DOCTRINE = `DISCOVERY MODE (ACTIVE — reel-first reach, overrides the caption/hook/hashtag rules below)
 
-The account is small and needs NEW followers, not just depth with existing ones. A cold viewer
-sees ONE frame with zero context — no narrative, no history. Win the first 1.5 seconds and give a
-reason to follow. Continuity/lore is invisible to them; do not rely on it.
+The account is small and stuck: reels reach ~70 people then stop because nobody shares or saves.
+Cold viewers see ONE reel with zero context — no narrative, no history. There is NO trending audio
+(reels are API-published). So reach must be EARNED by: a scroll-stopping first second, a reason to
+watch to the end / rewatch, and a reason to share or save. Continuity/lore is invisible to strangers.
 
-FIRST-IMPRESSION RULE: today's post must work as a stranger's FIRST encounter, not as the next page
-of a diary. Do NOT open mid-conversation, do NOT reference "yesterday" / "still" / "again" / an
-ongoing arc. Each post stands fully on its own. The narrative/arc still drives the IMAGE direction,
-but the caption and hook are written for someone who has never seen her before.
+FIRST-IMPRESSION RULE: today's post must work as a stranger's FIRST encounter, not the next page of a
+diary. Do NOT open mid-conversation or reference "yesterday" / "still" / "again" / an ongoing arc.
+Each post stands fully on its own.
 
-HOOK_TEXT — now MANDATORY every day (not 35%). This is the on-screen overlay that stops the scroll
-on the first carousel image. 2 to 6 words, lowercase. It must do ONE of: spark curiosity ("the one
-thing i changed"), be relatable-specific ("nobody talks about this"), or promise a payoff ("wait for
-the last one"). Concrete beats clever. Avoid vague mood words ("slow morning") in discovery mode —
-those don't stop a stranger's scroll.
+HOOK_TEXT — MANDATORY. This is the BOLD ON-SCREEN TEXT baked onto the reel's first frame (and its
+cover). 2 to 6 words. It must open a curiosity gap or promise a payoff so a stranger keeps watching:
+"wait for it", "the one thing nobody tells you", "watch till the end", "you weren't supposed to see
+this", "guess where this is". Concrete beats clever. NEVER a vague mood word ("slow morning") — those
+do not stop a scroll or earn a watch.
 
-IG_CAPTION — hook-first structure:
+IG_CAPTION — written to earn a SHARE/SAVE and a follow (these are the reach signals we can move):
   line 1 = a scroll-stopping opener (curiosity, a relatable confession, or a bold specific claim)
-  line 2 = one real detail that pays off the hook (keeps the voice doctrine — no fluff)
-  end = a soft follow-reason, ONE short line that tells a stranger what they get by following
-        (e.g. "here most days if this is your kind of quiet", "more like this if you stay").
-        Not desperate, not "follow me!!" — an invitation with self-possession.
+  line 2 = one real detail that pays off the hook (keep the voice doctrine — no fluff)
+  end = a soft follow-reason, ONE short line telling a stranger what they get by following
+        ("here most days if this is your kind of quiet", "more like this if you stay") — an
+        invitation with self-possession, never "follow me!!".
   Weave 1 to 2 plain keywords a stranger might search (the place, the activity, the aesthetic) into
-  the natural text — IG now ranks captions as search text. No keyword stuffing.
+  the natural text — IG ranks captions as search text. No keyword stuffing.
 
 HASHTAGS — reach mix, not vanity: 4 mid-size discoverable niche tags (10k–500k posts, findable), 3
 specific long-tail tags, 2 location/context tags, 1 broad. Drop dead branded tags. Never spammy adult
