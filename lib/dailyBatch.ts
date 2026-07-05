@@ -203,35 +203,40 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     return { batchId, status: "ready", generated: [] };
   }
 
-  // Generate carousel script (coordinated 5-slide arc). Falls back to per-slot hooks on failure.
+  // Coordinated carousel script — only when the batch actually has feed slots.
+  // Discovery mode is reel-only (no carousel), so skip the script (and its Claude
+  // call) entirely there. Falls back to per-slot hooks on failure.
   const carouselSlideMap: Record<string, CarouselSlide> = {};
-  try {
-    const existingScript = planComplete
-      ? (existingPlan as { carousel_script?: unknown }).carousel_script
-      : null;
-    const script = existingScript
-      ? (existingScript as import("@/lib/carouselScript").CarouselScript)
-      : await generateCarouselScript({
-          tier: storyDay.tier ?? "lifestyle_travel",
-          location: storyDay.location,
-          mood: storyDay.mood,
-          narrative: storyDay.narrative,
-          emotional_beat: storyDay.emotional_beat ?? null,
-          character: { name: character.name, visual_brief: character.visual_brief },
-          slideCount: discoveryMode ? 3 : 5,
-        });
-    if (!existingScript) {
-      await supabase
-        .from("chs_daily_plans")
-        .update({ carousel_script: script })
-        .eq("id", batchId);
+  const hasFeedSlots = slotsToGenerate.some((s) => s.channel === "feed");
+  if (hasFeedSlots) {
+    try {
+      const existingScript = planComplete
+        ? (existingPlan as { carousel_script?: unknown }).carousel_script
+        : null;
+      const script = existingScript
+        ? (existingScript as import("@/lib/carouselScript").CarouselScript)
+        : await generateCarouselScript({
+            tier: storyDay.tier ?? "lifestyle_travel",
+            location: storyDay.location,
+            mood: storyDay.mood,
+            narrative: storyDay.narrative,
+            emotional_beat: storyDay.emotional_beat ?? null,
+            character: { name: character.name, visual_brief: character.visual_brief },
+            slideCount: 5,
+          });
+      if (!existingScript) {
+        await supabase
+          .from("chs_daily_plans")
+          .update({ carousel_script: script })
+          .eq("id", batchId);
+      }
+      for (const slide of script.slides) {
+        carouselSlideMap[`carousel_${slide.slide}`] = slide;
+      }
+    } catch (err) {
+      console.error("[carousel-script]", err);
+      // Non-fatal: slots fall back to per-slot hook generation
     }
-    for (const slide of script.slides) {
-      carouselSlideMap[`carousel_${slide.slide}`] = slide;
-    }
-  } catch (err) {
-    console.error("[carousel-script]", err);
-    // Non-fatal: slots fall back to per-slot hook generation
   }
 
   const archetypeMap = await pickArchetypesForBatch({

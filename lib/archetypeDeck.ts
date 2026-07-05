@@ -105,31 +105,29 @@ export const DAILY_SLOTS: SlotSpec[] = [
   },
 ];
 
-// DISCOVERY MODE (flag: discovery_mode) — reel-hero + a tight 3-slide carousel
-// for cold reach. Carousel drops from 5 → 3 (a wider 5-slide arc is depth for
-// existing followers; a cold viewer needs hook → story → follow, fast). The
-// reel becomes the visual hero. Discovery uses carousel_1/2/3 (contiguous, so
-// from-batch's ordering and the 3-slide carousel script line up).
-export const DISCOVERY_CAROUSEL_COUNT = 3;
-
+// DISCOVERY MODE (flag: discovery_mode) — REEL-ONLY growth batch, data-driven.
+// This account's own numbers: carousels avg ~4 views (dead — the algorithm does
+// not push them), reels ~72 views but 0 shares/saves (they hit the initial test
+// audience and stop). And because reels are auto-published via the IG API, they
+// CANNOT use trending/licensed audio (API limitation) — so reach can't come from
+// music. The only remaining reach levers the engine controls are WATCH-TIME,
+// SEAMLESS LOOP and SHARE/SAVE-worthiness. So discovery drops the whole carousel
+// and ships a retention-engineered reel + a story, concentrating everything on
+// the one surface that gets any reach.
 const DISCOVERY_FRAMING: Partial<Record<SlotName, string>> = {
-  carousel_1:
-    "SLIDE 1 / HOOK — the first thing a stranger sees in the feed/grid; carries the hook_text overlay. NOT a slow empty establishing wide. Give an immediate reason to stop: subject present and engaging (face visible, looking toward or just past camera) OR one striking high-contrast hook composition. Bold, legible at thumbnail size, strong focal point. A cold viewer must get 'what is this' in under a second.",
-  carousel_2:
-    "SLIDE 2 / STORY — the sensory detail only someone there would know. Subject in the space, same light and wardrobe as slide 1 (continuity locked). Keeps the open loop from slide 1 alive; pulls the viewer to the last slide.",
-  carousel_3:
-    "SLIDE 3 / CLOSER — emotional close on the face (eyes, micro-expression), OR a striking final beat that leaves desire, not explanation. This is the slide they leave with; it earns the follow/save. Face visible and engaging. NOT a face-out detail crop.",
   reel_start_frame:
-    "REEL COVER + identity anchor — this frame is both the thumbnail that earns the tap AND the image the video animates from. Face clearly forward, eyes to camera, an expressive, magnetic micro-moment. Bold, high-contrast, strong subject presence; works standalone as a scroll-stopper. Vertical 9:16. (Critical: face forward and clearly visible — a cropped/headless/face-away frame makes the video model invent a new face and loses the identity.)",
+    "REEL COVER + first frame + identity anchor. This must STOP THE SCROLL and hold the eye long enough to start watch-time. Bake a BOLD on-screen TEXT HOOK into the frame — 2 to 6 words, high-contrast, top or center third, readable at a glance (a curiosity gap or a 'wait for it' promise). Face clearly FORWARD, eyes to camera, one magnetic expressive micro-moment. High-contrast, strong single focal point, no clutter. Vertical 9:16. (Critical: face forward and clearly visible — a cropped/headless/face-away frame makes the video model invent a new face and loses the identity.)",
   reel_video:
-    "First 1 second = strongest motion AND face to camera — this is the scroll-stop for a cold viewer with zero context. Standalone: no narrative dependency, a stranger must get it in ~2 seconds. Keep her face toward camera throughout (no turn-away / pan-off / push-to-wide, or the model invents a new face). Gentle but immediately readable motion. 5–9s, 9:16, explicit loop at the end.",
+    "RETENTION-ENGINEERED LOOP — reach here comes ONLY from watch-time + rewatches + shares (no trending audio available on API-published reels). Rules: (1) the on-screen text hook from the first frame stays legible through the first ~1s. (2) SHORT — 5 to 6 seconds, no filler; every frame earns its place. (3) A 'wait-for-it' PAYOFF beat around 2–4s: a small reveal, a change, a satisfying motion that rewards staying and makes a viewer rewatch to catch it. (4) SEAMLESS LOOP — the final frame must match the first frame's pose/composition so it loops invisibly and racks up repeat views. (5) Face toward camera throughout (no turn-away / pan-off / push-to-wide, or the model invents a new face). Immediately readable, single clean action — a cold viewer must 'get it' in ~2 seconds.",
 };
 
-// Slots dropped in discovery mode (carousel trimmed 5 → 3).
-const DISCOVERY_DROP: Set<SlotName> = new Set(["carousel_4", "carousel_5"]);
+// In discovery mode the entire carousel is dropped (data: ~4 views, no reach).
+const DISCOVERY_DROP: Set<SlotName> = new Set([
+  "carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5",
+]);
 
-// Returns the daily deck. In discovery mode: drop carousel_4/5 and swap in the
-// reel-hero + 3-slide-carousel framing.
+// Returns the daily deck. Discovery mode = reel-only growth batch: drop the
+// carousel and swap in retention-engineered reel framing.
 export function dailySlots(discoveryMode = false): SlotSpec[] {
   if (!discoveryMode) return DAILY_SLOTS;
   return DAILY_SLOTS
