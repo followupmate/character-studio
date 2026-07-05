@@ -123,12 +123,15 @@ async function processCharacter(
   const hasInstagram = char.platforms.includes("instagram");
   const hasYouTube = char.platforms.includes("youtube");
 
-  // 1) Carousel — only if all 5 carousel slots have media_url
+  // 1) Carousel — queue once every carousel slot that EXISTS for this batch is ready.
+  // The batch pre-reserves its carousel rows up front (5 in default, 3 in discovery
+  // mode), so carouselSlots.length is the expected count and .every(ready) waits for
+  // exactly those. Min 2 (IG requires ≥2 slides).
   const carouselSlots = ["carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5"]
     .map((s) => bySlot(s))
     .filter((s): s is SlotMedia => !!s);
 
-  if (carouselSlots.length === 5 && carouselSlots.every(ready)) {
+  if (carouselSlots.length >= 2 && carouselSlots.every(ready)) {
     if (existingTypes.has("carousel")) {
       result.skipped.push("carousel (already queued)");
     } else if (hasInstagram) {
@@ -157,7 +160,8 @@ async function processCharacter(
       result.skipped.push("carousel (no instagram platform)");
     }
   } else {
-    const missing = 5 - carouselSlots.filter(ready).length;
+    // Not ready: count the reserved carousel rows that still lack media.
+    const missing = carouselSlots.filter((s) => !ready(s)).length;
     if (missing > 0) result.warnings.push(`carousel: ${missing} slot(s) not ready`);
   }
 

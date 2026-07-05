@@ -105,26 +105,36 @@ export const DAILY_SLOTS: SlotSpec[] = [
   },
 ];
 
-// DISCOVERY MODE (flag: discovery_mode) — reel-hero + scroll-stopper framing for
-// cold reach. Same slot NAMES and COUNT as DAILY_SLOTS (the publish pipeline and
-// carousel-script both assume 5 carousel + reel + story), so only the framing
-// prose changes: the reel becomes the visual hero, carousel_1 becomes a
-// stop-the-scroll feed entry instead of a slow empty establishing wide.
+// DISCOVERY MODE (flag: discovery_mode) — reel-hero + a tight 3-slide carousel
+// for cold reach. Carousel drops from 5 → 3 (a wider 5-slide arc is depth for
+// existing followers; a cold viewer needs hook → story → follow, fast). The
+// reel becomes the visual hero. Discovery uses carousel_1/2/3 (contiguous, so
+// from-batch's ordering and the 3-slide carousel script line up).
+export const DISCOVERY_CAROUSEL_COUNT = 3;
+
 const DISCOVERY_FRAMING: Partial<Record<SlotName, string>> = {
   carousel_1:
-    "SCROLL-STOPPER — this is the first thing a stranger sees in the feed/grid, and it carries the hook_text overlay. NOT a slow empty establishing wide. Give an immediate reason to stop: subject present and engaging (face visible, looking toward or just past camera) OR one striking high-contrast hook composition. Bold, legible at thumbnail size, strong focal point. A cold viewer must get 'what is this' in under a second.",
+    "SLIDE 1 / HOOK — the first thing a stranger sees in the feed/grid; carries the hook_text overlay. NOT a slow empty establishing wide. Give an immediate reason to stop: subject present and engaging (face visible, looking toward or just past camera) OR one striking high-contrast hook composition. Bold, legible at thumbnail size, strong focal point. A cold viewer must get 'what is this' in under a second.",
+  carousel_2:
+    "SLIDE 2 / STORY — the sensory detail only someone there would know. Subject in the space, same light and wardrobe as slide 1 (continuity locked). Keeps the open loop from slide 1 alive; pulls the viewer to the last slide.",
+  carousel_3:
+    "SLIDE 3 / CLOSER — emotional close on the face (eyes, micro-expression), OR a striking final beat that leaves desire, not explanation. This is the slide they leave with; it earns the follow/save. Face visible and engaging. NOT a face-out detail crop.",
   reel_start_frame:
     "REEL COVER + identity anchor — this frame is both the thumbnail that earns the tap AND the image the video animates from. Face clearly forward, eyes to camera, an expressive, magnetic micro-moment. Bold, high-contrast, strong subject presence; works standalone as a scroll-stopper. Vertical 9:16. (Critical: face forward and clearly visible — a cropped/headless/face-away frame makes the video model invent a new face and loses the identity.)",
   reel_video:
     "First 1 second = strongest motion AND face to camera — this is the scroll-stop for a cold viewer with zero context. Standalone: no narrative dependency, a stranger must get it in ~2 seconds. Keep her face toward camera throughout (no turn-away / pan-off / push-to-wide, or the model invents a new face). Gentle but immediately readable motion. 5–9s, 9:16, explicit loop at the end.",
 };
 
-// Returns the daily deck, swapping in discovery framing when the flag is on.
+// Slots dropped in discovery mode (carousel trimmed 5 → 3).
+const DISCOVERY_DROP: Set<SlotName> = new Set(["carousel_4", "carousel_5"]);
+
+// Returns the daily deck. In discovery mode: drop carousel_4/5 and swap in the
+// reel-hero + 3-slide-carousel framing.
 export function dailySlots(discoveryMode = false): SlotSpec[] {
   if (!discoveryMode) return DAILY_SLOTS;
-  return DAILY_SLOTS.map((s) =>
-    DISCOVERY_FRAMING[s.slot] ? { ...s, framing: DISCOVERY_FRAMING[s.slot]! } : s
-  );
+  return DAILY_SLOTS
+    .filter((s) => !DISCOVERY_DROP.has(s.slot))
+    .map((s) => (DISCOVERY_FRAMING[s.slot] ? { ...s, framing: DISCOVERY_FRAMING[s.slot]! } : s));
 }
 
 interface PickArgs {

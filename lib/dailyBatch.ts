@@ -218,6 +218,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           narrative: storyDay.narrative,
           emotional_beat: storyDay.emotional_beat ?? null,
           character: { name: character.name, visual_brief: character.visual_brief },
+          slideCount: discoveryMode ? 3 : 5,
         });
     if (!existingScript) {
       await supabase
