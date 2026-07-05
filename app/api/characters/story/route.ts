@@ -69,6 +69,11 @@ The account is small and needs NEW followers, not just depth with existing ones.
 sees ONE frame with zero context — no narrative, no history. Win the first 1.5 seconds and give a
 reason to follow. Continuity/lore is invisible to them; do not rely on it.
 
+FIRST-IMPRESSION RULE: today's post must work as a stranger's FIRST encounter, not as the next page
+of a diary. Do NOT open mid-conversation, do NOT reference "yesterday" / "still" / "again" / an
+ongoing arc. Each post stands fully on its own. The narrative/arc still drives the IMAGE direction,
+but the caption and hook are written for someone who has never seen her before.
+
 HOOK_TEXT — now MANDATORY every day (not 35%). This is the on-screen overlay that stops the scroll
 on the first carousel image. 2 to 6 words, lowercase. It must do ONE of: spark curiosity ("the one
 thing i changed"), be relatable-specific ("nobody talks about this"), or promise a payoff ("wait for

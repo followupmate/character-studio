@@ -35,6 +35,7 @@ export interface Character {
   lora_trigger_word: string | null;
   lora_provider: string | null;
   fanvue_snapshot?: Record<string, unknown> | null;
+  feature_flags?: Record<string, boolean> | null;
 }
 
 export interface StoryDay {

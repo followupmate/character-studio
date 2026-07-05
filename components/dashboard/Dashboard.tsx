@@ -396,6 +396,20 @@ function CharacterCard({
   const [stylingInput, setStylingInput] = useState(char.styling_note ?? "");
   const [savingStyling, setSavingStyling] = useState(false);
   const [savingDoctrine, setSavingDoctrine] = useState(false);
+  const [discoveryOn, setDiscoveryOn] = useState<boolean>(!!char.feature_flags?.discovery_mode);
+  const [savingDiscovery, setSavingDiscovery] = useState(false);
+
+  async function toggleDiscovery() {
+    const next = !discoveryOn;
+    setDiscoveryOn(next);
+    setSavingDiscovery(true);
+    await fetch("/api/characters/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ characterId: char.id, feature_flag: { flag: "discovery_mode", value: next } }),
+    });
+    setSavingDiscovery(false);
+  }
 
   async function savePhoto() {
     setSavingPhoto(true);
@@ -655,6 +669,26 @@ function CharacterCard({
             })}
           </div>
         </div>
+
+        {/* Growth mode (discovery_mode flag) — reach-first caption + reel-hero framing */}
+        <button
+          onClick={toggleDiscovery}
+          disabled={savingDiscovery}
+          className={`w-full flex items-center justify-between border px-3 py-2 transition-colors disabled:opacity-50 ${
+            discoveryOn ? "bg-teal/10 border-teal/40" : "bg-surface-low border-border"
+          }`}
+          title="Reach-first: hook captiony na každý deň + reel ako vizuálny hrdina"
+        >
+          <span className="flex items-center gap-1.5">
+            <span className={`material-symbols-outlined text-[13px] ${discoveryOn ? "text-teal" : "text-muted"}`}>trending_up</span>
+            <span className={`font-mono text-[8px] tracking-[0.1em] uppercase ${discoveryOn ? "text-teal" : "text-muted"}`}>
+              Growth mode
+            </span>
+          </span>
+          <span className={`font-mono text-[8px] tracking-[0.1em] uppercase ${discoveryOn ? "text-teal" : "text-muted"}`}>
+            {savingDiscovery ? "…" : discoveryOn ? "ON" : "OFF"}
+          </span>
+        </button>
 
         {/* Stats row */}
         <div className="flex gap-4 mt-auto pt-3 border-t border-border">
