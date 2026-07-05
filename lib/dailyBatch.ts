@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import {
   DAILY_SLOTS,
+  dailySlots,
   SlotSpec,
   pickArchetypesForBatch,
   logArchetypeUsage,
@@ -191,7 +192,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     }
   }
 
-  const slotsToGenerate = await determineSlotsNeeded(batchId, forceRegenerate);
+  const discoveryMode = isFlagOn(character.feature_flags, "discovery_mode");
+  const slotsToGenerate = await determineSlotsNeeded(batchId, forceRegenerate, discoveryMode);
 
   if (slotsToGenerate.length === 0) {
     await supabase
@@ -364,10 +366,11 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   return { batchId, status, generated };
 }
 
-async function determineSlotsNeeded(batchId: string, force: boolean): Promise<SlotSpec[]> {
+async function determineSlotsNeeded(batchId: string, force: boolean, discoveryMode = false): Promise<SlotSpec[]> {
+  const deck = dailySlots(discoveryMode);
   if (force) {
     await supabase.from("chs_media").delete().eq("batch_id", batchId);
-    return DAILY_SLOTS;
+    return deck;
   }
 
   const { data: existing } = await supabase
@@ -379,7 +382,7 @@ async function determineSlotsNeeded(batchId: string, force: boolean): Promise<Sl
     (existing ?? []).filter((m) => m.generation_status === "completed").map((m) => m.slot)
   );
 
-  return DAILY_SLOTS.filter((s) => !completedSlots.has(s.slot));
+  return deck.filter((s) => !completedSlots.has(s.slot));
 }
 
 async function prereserveSlots(
@@ -524,8 +527,8 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
       scene_brief_doctrine: string;
     };
   }>) {
-    const slot = DAILY_SLOTS.find((s) => s.slot === row.slot);
-    if (!slot) continue;
+    // Existence check on slot name (identical across decks); real spec resolved below with char's flags.
+    if (!DAILY_SLOTS.some((s) => s.slot === row.slot)) continue;
 
     const { data: char } = await supabase
       .from("chs_characters")
@@ -540,6 +543,9 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
       .single();
 
     if (!char || !storyDay) continue;
+
+    const slot = dailySlots(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "discovery_mode"))
+      .find((s) => s.slot === row.slot)!;
 
     const guidance = await getArchetypeGuidance(row.shot_archetype);
     const doctrine = resolveDoctrine((char as { prompt_doctrine?: unknown }).prompt_doctrine);

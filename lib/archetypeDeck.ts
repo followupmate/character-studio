@@ -105,6 +105,28 @@ export const DAILY_SLOTS: SlotSpec[] = [
   },
 ];
 
+// DISCOVERY MODE (flag: discovery_mode) — reel-hero + scroll-stopper framing for
+// cold reach. Same slot NAMES and COUNT as DAILY_SLOTS (the publish pipeline and
+// carousel-script both assume 5 carousel + reel + story), so only the framing
+// prose changes: the reel becomes the visual hero, carousel_1 becomes a
+// stop-the-scroll feed entry instead of a slow empty establishing wide.
+const DISCOVERY_FRAMING: Partial<Record<SlotName, string>> = {
+  carousel_1:
+    "SCROLL-STOPPER — this is the first thing a stranger sees in the feed/grid, and it carries the hook_text overlay. NOT a slow empty establishing wide. Give an immediate reason to stop: subject present and engaging (face visible, looking toward or just past camera) OR one striking high-contrast hook composition. Bold, legible at thumbnail size, strong focal point. A cold viewer must get 'what is this' in under a second.",
+  reel_start_frame:
+    "REEL COVER + identity anchor — this frame is both the thumbnail that earns the tap AND the image the video animates from. Face clearly forward, eyes to camera, an expressive, magnetic micro-moment. Bold, high-contrast, strong subject presence; works standalone as a scroll-stopper. Vertical 9:16. (Critical: face forward and clearly visible — a cropped/headless/face-away frame makes the video model invent a new face and loses the identity.)",
+  reel_video:
+    "First 1 second = strongest motion AND face to camera — this is the scroll-stop for a cold viewer with zero context. Standalone: no narrative dependency, a stranger must get it in ~2 seconds. Keep her face toward camera throughout (no turn-away / pan-off / push-to-wide, or the model invents a new face). Gentle but immediately readable motion. 5–9s, 9:16, explicit loop at the end.",
+};
+
+// Returns the daily deck, swapping in discovery framing when the flag is on.
+export function dailySlots(discoveryMode = false): SlotSpec[] {
+  if (!discoveryMode) return DAILY_SLOTS;
+  return DAILY_SLOTS.map((s) =>
+    DISCOVERY_FRAMING[s.slot] ? { ...s, framing: DISCOVERY_FRAMING[s.slot]! } : s
+  );
+}
+
 interface PickArgs {
   characterId: string;
   slots: SlotSpec[];
