@@ -127,12 +127,24 @@ const DISCOVERY_DROP: Set<SlotName> = new Set([
 ]);
 
 // Returns the daily deck. Discovery mode = reel-only growth batch: drop the
-// carousel and swap in retention-engineered reel framing.
-export function dailySlots(discoveryMode = false): SlotSpec[] {
+// carousel and swap in retention-engineered reel framing. `reelFormat`, when
+// given, layers a proven short-form format (POV / wait-for-it / GRWM …) onto the
+// reel so every day has a deliberate retention shape, not a generic pretty clip.
+export function dailySlots(
+  discoveryMode = false,
+  reelFormat?: { label: string; coverCue: string; videoDirective: string }
+): SlotSpec[] {
   if (!discoveryMode) return DAILY_SLOTS;
   return DAILY_SLOTS
     .filter((s) => !DISCOVERY_DROP.has(s.slot))
-    .map((s) => (DISCOVERY_FRAMING[s.slot] ? { ...s, framing: DISCOVERY_FRAMING[s.slot]! } : s));
+    .map((s) => {
+      let framing = DISCOVERY_FRAMING[s.slot] ?? s.framing;
+      if (reelFormat) {
+        if (s.slot === "reel_start_frame") framing += ` FORMAT — ${reelFormat.label}: ${reelFormat.coverCue}`;
+        else if (s.slot === "reel_video") framing += ` FORMAT — ${reelFormat.label}: ${reelFormat.videoDirective}`;
+      }
+      return framing === s.framing ? s : { ...s, framing };
+    });
 }
 
 interface PickArgs {
