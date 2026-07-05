@@ -12,43 +12,12 @@ import {
 } from "@/lib/storyTier";
 import { Character, StoryDay } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
+import { VOICE_DOCTRINE, DISCOVERY_DOCTRINE } from "@/lib/storyPrompt";
 import { getLatestLifeState, getActiveLifeEvents, lifeContextBlock, LIFE_OUTPUT_SPEC, maybeCreateLifeEvent } from "@/lib/lifeState";
 import { getGrowthBias } from "@/lib/growthScore";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-const VOICE_DOCTRINE = `VOICE DOCTRINE (mandatory — overrides anything in recent history that drifted off-tone)
-
-You are writing for an attractive young woman's lifestyle Instagram — a real-feeling daily life that
-pulls followers close (girlfriend energy) and quietly funnels the most invested ones to her private
-content (OnlyFans / Fanvue). Reach + closeness on IG; conversion through confidence and allure. Four modes, one voice.
-
-EVERYDAY_LIFE: Viewer wants to be in her life. Warm, personal, relatable — home, coffee, errands, a normal good day.
-WELLNESS_FITNESS: Viewer admires her. Confident, healthy, light — gym/pilates/post-workout, earned-glow.
-INTIMATE_AESTHETIC: Viewer wants more of her. Daring, self-possessed, a quiet invitation — the "come find the rest" energy that converts. Suggestive, never explicit.
-LIFESTYLE_TRAVEL: Viewer wants to be where she is. Location-anchored, aspirational, occasional.
-
-WRITE LIKE:
-- first or third person, present or recent past tense
-- direct and personal — like a text to someone she likes
-- one concrete real detail — the place, the moment, the light, the fabric
-- healthy confidence — she knows she looks good and doesn't apologise for it
-- leave desire in the room — never explain the image
-
-NEVER WRITE:
-- influencer vocabulary: "healing", "soft life", "main character", "era", "manifesting", "slay", "girlboss"
-- hollow affirmations: "life is beautiful", "grateful and blessed"
-- generic blog filler: "hidden gem", "breathtaking", "magical", "wanderlust"
-- emoji chains (one emoji maximum)
-- rhetorical questions to audience
-- over-describing the body explicitly — provocation through confidence and indirection, never pornographic
-
-GOOD (everyday): "monday. too much coffee, no plans, perfect."
-GOOD (wellness): "earned the matcha today."
-GOOD (intimate): "woke up like this. stayed like this." / "you only get the rest of this somewhere else 😏"
-GOOD (travel): "lisbon at 7am before anyone wakes up."
-BAD: "Living my best life! ✨ So grateful 🙏"`;
 
 function buildSystemPrompt(args: {
   character: Character;
@@ -57,8 +26,9 @@ function buildSystemPrompt(args: {
   dayNumber: number;
   historyText: string;
   lifeContext?: string; // life_layer: continuity guidance from yesterday's life_state + active events
+  discoveryMode?: boolean; // discovery_mode: reach-first caption/hook editorial
 }): string {
-  const { character, tier, driftSeeds, historyText, lifeContext } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode } = args;
   const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
@@ -76,7 +46,7 @@ ${JSON.stringify(personality, null, 2)}
 ${sacred ? `\nSACRED DETAILS (invariant world objects and rules):\n${JSON.stringify(sacred, null, 2)}` : ""}
 
 ${VOICE_DOCTRINE}
-
+${discoveryMode ? `\n${DISCOVERY_DOCTRINE}\n` : ""}
 ${tierGuidance(tier)}
 
 ${driftSeedGuidance(driftSeeds)}
@@ -212,7 +182,8 @@ export async function POST(req: Request) {
             lifeContext = lifeContextBlock(prevLife, activeEvents);
           }
 
-          const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext });
+          const discoveryMode = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "discovery_mode");
+          const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext, discoveryMode });
 
           const msg = await claudeWithRetry({
             model: "claude-sonnet-4-6",
