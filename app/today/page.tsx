@@ -6,6 +6,7 @@ import CharacterSelector from "@/components/today/CharacterSelector";
 import DateNav from "@/components/today/DateNav";
 import GenerateForwardButton from "@/components/today/GenerateForwardButton";
 import GenerateDayButton from "@/components/today/GenerateDayButton";
+import PublishText from "@/components/today/PublishText";
 
 // Always render fresh — otherwise generated images don't appear after reload (page was cached).
 export const dynamic = "force-dynamic";
@@ -44,29 +45,6 @@ function ProductionGroup({ title, hint, items, canAutoGenerate }: { title: strin
         {items.map((m) => (
           <MediaCard key={m.id} media={m} canAutoGenerate={canAutoGenerate} />
         ))}
-      </div>
-    </div>
-  );
-}
-
-function CaptionBlock({ caption, hashtags }: { caption: string; hashtags?: string[] | null }) {
-  return (
-    <div className="pt-4 border-t border-border space-y-4">
-      <div>
-        <p className="font-mono text-[9px] text-muted tracking-widest uppercase mb-3">
-          // Instagram caption
-        </p>
-        <div className="space-y-2">
-          <div className="flex items-start gap-2">
-            <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-1.5 py-0.5 rounded-sm flex-shrink-0 mt-0.5">EN</span>
-            <p className="text-sm text-ink italic leading-relaxed whitespace-pre-line">{caption}</p>
-          </div>
-        </div>
-        {hashtags && hashtags.length > 0 && (
-          <p className="font-mono text-[10px] text-muted leading-relaxed mt-2">
-            {hashtags.map((h) => `#${h}`).join(" ")}
-          </p>
-        )}
       </div>
     </div>
   );
@@ -285,12 +263,11 @@ export default async function TodayPage({
                         );
                       })()}
 
-                      {story.ig_caption && (
-                        <CaptionBlock
-                          caption={story.ig_caption}
-                          hashtags={story.hashtags}
-                        />
-                      )}
+                      <PublishText
+                        caption={story.ig_caption}
+                        overlay={story.hook_text}
+                        hashtags={story.hashtags}
+                      />
                     </div>
                   </>
                   ); })()}

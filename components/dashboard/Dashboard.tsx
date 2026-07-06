@@ -6,6 +6,7 @@ import { motion, useMotionValue, useSpring, AnimatePresence } from "motion/react
 import { Character, StoryDay, Media, TopPostSummary } from "@/types";
 import { deriveStrategy, FanvueSnapshot } from "@/lib/fanvueStrategy";
 import { slotShort } from "@/lib/slots";
+import PublishText from "@/components/today/PublishText";
 
 interface Props {
   characters: Character[];
@@ -213,6 +214,7 @@ function TodayOutputs({
                 ) : (
                   <p className="font-mono text-[9px] text-muted">Príbeh existuje, médiá ešte neboli naplánované.</p>
                 )}
+                <PublishText caption={story.ig_caption} overlay={story.hook_text} hashtags={story.hashtags} />
               </div>
             );
           })}
