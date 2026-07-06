@@ -43,6 +43,23 @@ function parseState(raw: string | null): FalQState | null {
   }
 }
 
+// fal ApiError carries the real reason (field validation) in `.body`, while
+// `.message` is just "Unprocessable Entity". Dig the detail out so failures are
+// diagnosable instead of opaque.
+function falErr(err: unknown): string {
+  if (err && typeof err === "object") {
+    const e = err as { message?: string; status?: number; body?: unknown };
+    const body = e.body as { detail?: unknown; message?: unknown } | undefined;
+    const detail = body?.detail ?? body?.message ?? e.body;
+    if (detail) {
+      const text = typeof detail === "string" ? detail : JSON.stringify(detail);
+      return `${e.message ?? "error"}: ${text}`.slice(0, 400);
+    }
+    if (e.message) return e.message;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export async function POST(req: Request) {
   const falApiKey = process.env.FAL_API_KEY;
   if (!falApiKey) return NextResponse.json({ error: "FAL_API_KEY not configured" }, { status: 500 });
@@ -75,20 +92,14 @@ export async function POST(req: Request) {
     }
 
     // ── POLL an existing job ───────────────────────────────────
+    // Any failure here (job errored on fal, expired, download/upload problem)
+    // MUST clear the stored job id. Leaving it set poisons every future click —
+    // including a switch to a different model — because we'd just re-poll the dead
+    // job and re-throw the same error forever.
     if (state) {
-      let s: string | undefined;
       try {
         const status = await fal.queue.status(state.model, { requestId: state.requestId });
-        s = (status as { status?: string }).status;
-      } catch (pollErr) {
-        // Job expired / not found on fal → the row is wedged forever if we keep
-        // polling it. Drop the stale state and fall through to submit a fresh job.
-        console.warn("[video-async] stale job cleared:", pollErr instanceof Error ? pollErr.message : String(pollErr));
-        await supabase.from("chs_media").update({ higgsfield_job_id: null }).eq("id", mediaId);
-        state = null;
-      }
-
-      if (state) {
+        const s = (status as { status?: string }).status;
         if (s !== "COMPLETED") {
           return NextResponse.json({ status: "generating", phase: state.phase });
         }
@@ -127,6 +138,14 @@ export async function POST(req: Request) {
           .eq("id", mediaId);
 
         return NextResponse.json({ status: "ready", url: finalUrl });
+      } catch (pollErr) {
+        const detail = falErr(pollErr);
+        console.warn("[video-async] job cleared after poll failure:", detail);
+        await supabase
+          .from("chs_media")
+          .update({ higgsfield_job_id: null, generation_status: "failed", last_error: detail })
+          .eq("id", mediaId);
+        return NextResponse.json({ status: "error", error: detail }, { status: 502 });
       }
     }
 
@@ -171,11 +190,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Unsupported async video model: ${model}` }, { status: 400 });
     }
 
-    const sub = await fal.queue.submit(falModel, { input });
+    let sub: { request_id: string };
+    try {
+      sub = await fal.queue.submit(falModel, { input }) as { request_id: string };
+    } catch (subErr) {
+      // Surface fal's real rejection reason (bad param, unfetchable image, …)
+      // and persist it so the card shows why instead of a blank "generating".
+      const detail = falErr(subErr);
+      console.error("[video-async] submit failed:", detail);
+      await supabase
+        .from("chs_media")
+        .update({ generation_status: "failed", last_error: detail })
+        .eq("id", mediaId);
+      return NextResponse.json({ status: "error", error: detail }, { status: 502 });
+    }
+
     const newState: FalQState = {
       falq: true,
       model: falModel,
-      requestId: (sub as { request_id: string }).request_id,
+      requestId: sub.request_id,
       phase: "video",
       audioStyle,
       needsAudio,
