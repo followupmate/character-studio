@@ -558,6 +558,8 @@ CHARACTER VISUAL BRIEF: ${args.character.visual_brief}
 ${args.character.soul_id ? `SOUL ID: ${args.character.soul_id}` : ""}
 ${sacredBlock(args.character.sacred_details)}
 
+NO RENDERED TEXT (universal — image/video gens cannot spell): NEVER instruct the generator to draw any text, letters, words, captions, on-screen hook, subtitle, watermark or UI. Any hook / overlay text is added LATER as a real text layer in the editor, never baked into the pixels. Describe the scene and leave clean negative space where an overlay might sit — do not write a text string for the frame to display.
+
 SLOT: ${args.slot.slot}${args.slot.sequence_index ? ` (carousel position ${args.slot.sequence_index} of 5)` : ""}
 SLOT FRAMING: ${args.slot.framing}
 ${args.carouselSlide ? `
