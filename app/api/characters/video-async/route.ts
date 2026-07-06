@@ -49,11 +49,12 @@ export async function POST(req: Request) {
   fal.config({ credentials: falApiKey });
 
   try {
-    const { mediaId, model = "kling", audioStyle = "scene", promptOverride } = (await req.json()) as {
+    const { mediaId, model = "kling", audioStyle = "scene", promptOverride, forceRestart } = (await req.json()) as {
       mediaId?: string;
       model?: string;
       audioStyle?: "scene" | "ambient" | "dialogue" | "silent";
       promptOverride?: string;
+      forceRestart?: boolean;
     };
     if (!mediaId) return NextResponse.json({ error: "mediaId is required" }, { status: 400 });
 
@@ -64,51 +65,69 @@ export async function POST(req: Request) {
       .single();
     if (error || !media) return NextResponse.json({ error: "Media not found" }, { status: 404 });
 
-    const state = parseState(media.higgsfield_job_id);
+    let state = parseState(media.higgsfield_job_id);
+
+    // forceRestart lets the client abandon a wedged job and submit a fresh one
+    // (the regenerate flow uses this). Otherwise an existing job resumes on reload.
+    if (state && forceRestart) {
+      await supabase.from("chs_media").update({ higgsfield_job_id: null }).eq("id", mediaId);
+      state = null;
+    }
 
     // ── POLL an existing job ───────────────────────────────────
     if (state) {
-      const status = await fal.queue.status(state.model, { requestId: state.requestId });
-      const s = (status as { status?: string }).status;
-
-      if (s !== "COMPLETED") {
-        return NextResponse.json({ status: "generating", phase: state.phase });
+      let s: string | undefined;
+      try {
+        const status = await fal.queue.status(state.model, { requestId: state.requestId });
+        s = (status as { status?: string }).status;
+      } catch (pollErr) {
+        // Job expired / not found on fal → the row is wedged forever if we keep
+        // polling it. Drop the stale state and fall through to submit a fresh job.
+        console.warn("[video-async] stale job cleared:", pollErr instanceof Error ? pollErr.message : String(pollErr));
+        await supabase.from("chs_media").update({ higgsfield_job_id: null }).eq("id", mediaId);
+        state = null;
       }
 
-      const result = await fal.queue.result(state.model, { requestId: state.requestId });
-      const outUrl =
-        (result as { data?: { video?: { url?: string } } })?.data?.video?.url ??
-        (result as { video?: { url?: string } })?.video?.url;
-      if (!outUrl) throw new Error("fal result has no video url");
+      if (state) {
+        if (s !== "COMPLETED") {
+          return NextResponse.json({ status: "generating", phase: state.phase });
+        }
 
-      // Kling video done but still needs audio → submit mmaudio as a second job.
-      if (state.phase === "video" && state.needsAudio) {
-        const sub = await fal.queue.submit("fal-ai/mmaudio-v2", {
-          input: { video_url: outUrl, prompt: AUDIO_HINTS[state.audioStyle] ?? AUDIO_HINTS.scene, num_steps: 25 },
-        });
-        const newState: FalQState = { ...state, model: "fal-ai/mmaudio-v2", requestId: (sub as { request_id: string }).request_id, phase: "audio" };
-        await supabase.from("chs_media").update({ higgsfield_job_id: JSON.stringify(newState) }).eq("id", mediaId);
-        return NextResponse.json({ status: "generating", phase: "audio" });
+        const result = await fal.queue.result(state.model, { requestId: state.requestId });
+        const outUrl =
+          (result as { data?: { video?: { url?: string } } })?.data?.video?.url ??
+          (result as { video?: { url?: string } })?.video?.url;
+        if (!outUrl) throw new Error("fal result has no video url");
+
+        // Kling video done but still needs audio → submit mmaudio as a second job.
+        if (state.phase === "video" && state.needsAudio) {
+          const sub = await fal.queue.submit("fal-ai/mmaudio-v2", {
+            input: { video_url: outUrl, prompt: AUDIO_HINTS[state.audioStyle] ?? AUDIO_HINTS.scene, num_steps: 25 },
+          });
+          const newState: FalQState = { ...state, model: "fal-ai/mmaudio-v2", requestId: (sub as { request_id: string }).request_id, phase: "audio" };
+          await supabase.from("chs_media").update({ higgsfield_job_id: JSON.stringify(newState) }).eq("id", mediaId);
+          return NextResponse.json({ status: "generating", phase: "audio" });
+        }
+
+        // Final video ready → download + upload to Supabase Storage.
+        const vid = await fetch(outUrl);
+        if (!vid.ok) throw new Error(`download failed ${vid.status}`);
+        const buf = Buffer.from(await vid.arrayBuffer());
+        const storagePath = `videos/${mediaId}.mp4`;
+        const { error: upErr } = await supabase.storage
+          .from("character-media")
+          .upload(storagePath, buf, { contentType: "video/mp4", upsert: true });
+        if (upErr) throw new Error(`storage upload failed: ${upErr.message}`);
+        const { data: pub } = supabase.storage.from("character-media").getPublicUrl(storagePath);
+        const finalUrl = `${pub.publicUrl}?t=${Date.now()}`;
+
+        await supabase
+          .from("chs_media")
+          .update({ media_url: finalUrl, source_url: finalUrl, generation_status: "completed", status: "ready", higgsfield_job_id: null, last_error: null })
+          .eq("id", mediaId);
+
+        return NextResponse.json({ status: "ready", url: finalUrl });
       }
-
-      // Final video ready → download + upload to Supabase Storage.
-      const vid = await fetch(outUrl);
-      if (!vid.ok) throw new Error(`download failed ${vid.status}`);
-      const buf = Buffer.from(await vid.arrayBuffer());
-      const storagePath = `videos/${mediaId}.mp4`;
-      const { error: upErr } = await supabase.storage
-        .from("character-media")
-        .upload(storagePath, buf, { contentType: "video/mp4", upsert: true });
-      if (upErr) throw new Error(`storage upload failed: ${upErr.message}`);
-      const { data: pub } = supabase.storage.from("character-media").getPublicUrl(storagePath);
-      const finalUrl = `${pub.publicUrl}?t=${Date.now()}`;
-
-      await supabase
-        .from("chs_media")
-        .update({ media_url: finalUrl, source_url: finalUrl, generation_status: "completed", status: "ready", higgsfield_job_id: null, last_error: null })
-        .eq("id", mediaId);
-
-      return NextResponse.json({ status: "ready", url: finalUrl });
     }
 
     // ── SUBMIT a new job ───────────────────────────────────────

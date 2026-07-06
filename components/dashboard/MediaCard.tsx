@@ -140,14 +140,16 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
 
   // Async reel-video flow: submit a fal.queue job, then poll until ready (no serverless timeout).
   // The job state persists on the media row, so if you reload mid-generation, clicking again resumes it.
-  async function runAsyncVideo(model: string, aStyle: string, promptOverride?: string): Promise<string> {
-    const call = () =>
+  async function runAsyncVideo(model: string, aStyle: string, promptOverride?: string, forceRestart?: boolean): Promise<string> {
+    // forceRestart only on the first (submit) call — polling calls must resume the
+    // same job, not spawn a new one each poll.
+    const call = (restart?: boolean) =>
       fetch("/api/characters/video-async", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mediaId: media.id, model, audioStyle: aStyle, promptOverride }),
+        body: JSON.stringify({ mediaId: media.id, model, audioStyle: aStyle, promptOverride, forceRestart: restart }),
       }).then((r) => r.json());
-    const sub = await call();
+    const sub = await call(forceRestart);
     if (sub.status === "error") throw new Error(sub.error ?? "Video submit zlyhal");
     if (sub.status === "ready") return sub.url;
     for (let i = 0; i < 44; i++) {
@@ -245,7 +247,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     const g = GENERATORS.find((x) => x.id === regenGenerator) ?? GENERATORS[0];
     try {
       if (isAsyncVideo(g.model)) {
-        await runAsyncVideo(g.model, regenAudioStyle, regenPrompt.trim() || undefined);
+        await runAsyncVideo(g.model, regenAudioStyle, regenPrompt.trim() || undefined, true);
         setTimeout(() => window.location.reload(), 800);
         return;
       }
