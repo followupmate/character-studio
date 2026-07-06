@@ -15,12 +15,12 @@ const IMAGE_GENERATORS = [
 ] as const;
 
 const VIDEO_GENERATORS = [
-  { id: "seedance-ref",  label: "Seedance Ref",  desc: "Seedance 2.0 standard · ref photos · audio · $0.30/s",  model: "seedance-ref",  loraScale: 0, steps: 0, guidance: 0 },
-  { id: "seedance-i2v",  label: "Seedance i2v",  desc: "Seedance 2.0 standard · start frame · audio · $0.30/s", model: "seedance-i2v",  loraScale: 0, steps: 0, guidance: 0 },
-  { id: "seedance-fast", label: "Seedance Fast",  desc: "Seedance 2.0 fast · start frame · audio · $0.24/s",    model: "seedance-fast", loraScale: 0, steps: 0, guidance: 0 },
-  { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 i2v · faithful face + scene audio (mmaudio) · ~4 min", model: "kling", loraScale: 0, steps: 0, guidance: 0 },
-  { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min",                        model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
+  { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 i2v · verná tvár + scene audio (mmaudio) · ~4 min · ODPORÚČANÉ pre postavy", model: "kling", loraScale: 0, steps: 0, guidance: 0 },
+  { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min · zvláda realistické tváre",  model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo-quality",   label: "Veo 3.1",         desc: "Google · Veo 3.1 Quality · vyššia kvalita · ~4 min",    model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-ref",  label: "Seedance Ref",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-ref",  loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-i2v",  label: "Seedance i2v",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-i2v",  loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-fast", label: "Seedance Fast",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-fast", loraScale: 0, steps: 0, guidance: 0 },
 ] as const;
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];

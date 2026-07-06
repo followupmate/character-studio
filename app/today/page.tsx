@@ -238,7 +238,7 @@ export default async function TodayPage({
                             {reel.length > 0 && (
                               <ProductionGroup
                                 title="Reel"
-                                hint="Start frame → image gen · motion → Seedance 2.0 · 9:16 · 10s · audio"
+                                hint="Start frame → image gen · motion → Kling (Seedance blokuje realistické tváre) · 9:16 · audio"
                                 items={reel}
                                 canAutoGenerate={canAutoGenerate}
                               />
