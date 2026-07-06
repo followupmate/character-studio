@@ -9,7 +9,11 @@ export async function POST(req: NextRequest) {
   try {
     const fullReset = req.nextUrl.searchParams.get("fullReset") === "true";
     const characterSlug = req.nextUrl.searchParams.get("character");
+    // Optional ?date=YYYY-MM-DD targets a specific day (e.g. to rebuild a past
+    // day's visual batch under updated framing). Defaults to today.
+    const dateParam = req.nextUrl.searchParams.get("date");
     const today = new Date().toISOString().split("T")[0];
+    const targetDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
 
     // Full reset: drop today's story_days + daily_plans, then re-trigger story cron
     if (fullReset) {
@@ -30,14 +34,14 @@ export async function POST(req: NextRequest) {
         .from("chs_daily_plans")
         .delete()
         .in("character_id", charIds)
-        .eq("date", today);
+        .eq("date", targetDate);
       if (planDelErr) throw planDelErr;
 
       const { error: storyDelErr } = await supabase
         .from("chs_story_days")
         .delete()
         .in("character_id", charIds)
-        .eq("date", today);
+        .eq("date", targetDate);
       if (storyDelErr) throw storyDelErr;
 
       const base = new URL(req.url);
@@ -57,7 +61,7 @@ export async function POST(req: NextRequest) {
     let storyQ = supabase
       .from("chs_story_days")
       .select("id, character_id, chs_characters(name, slug)")
-      .eq("date", today);
+      .eq("date", targetDate);
     if (characterSlug) {
       const { data: char } = await supabase
         .from("chs_characters")
