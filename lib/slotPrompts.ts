@@ -590,6 +590,7 @@ function captionBody(args: BuildArgs): string {
 LOCATION: ${args.sceneBriefJson.spatial_setup ?? args.sceneBriefDoctrine.split(".")[0]}
 LIGHTING: ${args.sceneBriefJson.lighting_state}, ${args.sceneBriefJson.time_of_day}
 ${propLine}
+NO RENDERED TEXT: never ask the generator to draw any text, letters, words, caption, on-screen hook or watermark — it scribbles. Any hook text is added later as a real overlay; leave clean negative space instead.
 SLOT: ${args.slot.slot} — ${args.slot.framing}`;
 }
 
