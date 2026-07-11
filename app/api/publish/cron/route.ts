@@ -9,6 +9,27 @@ export async function POST(req: Request) {
   const deny = requireCron(req);
   if (deny) return deny;
   try {
+    const origin = req.headers.get("x-forwarded-host")
+      ? `https://${req.headers.get("x-forwarded-host")}`
+      : process.env.APP_URL ?? "http://localhost:3000";
+
+    // Sweep today's batch into the queue on EVERY tick, not just at the 10:00
+    // daily pass. Discovery reels are often generated manually later in the day
+    // (Kling), so their media isn't ready when the 10:00 from-batch runs — without
+    // this sweep they'd never get queued and the day silently doesn't post.
+    // from-batch is idempotent (skips already-queued post types), so this is safe.
+    const cronSecret = process.env.CRON_SECRET;
+    try {
+      await fetch(`${origin}/api/publish/from-batch`, {
+        method: "POST",
+        headers: cronSecret
+          ? { "Content-Type": "application/json", Authorization: `Bearer ${cronSecret}` }
+          : { "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      console.warn("[publish-cron] from-batch sweep failed:", e instanceof Error ? e.message : String(e));
+    }
+
     const { data: duePosts, error } = await supabase
       .from("chs_posts")
       .select("id, platform, post_type, media_ids, character_id, ig_caption, hashtags")
@@ -17,12 +38,8 @@ export async function POST(req: Request) {
 
     if (error) throw error;
     if (!duePosts || duePosts.length === 0) {
-      return NextResponse.json({ success: true, processed: 0 });
+      return NextResponse.json({ success: true, processed: 0, swept: true });
     }
-
-    const origin = req.headers.get("x-forwarded-host")
-      ? `https://${req.headers.get("x-forwarded-host")}`
-      : process.env.APP_URL ?? "http://localhost:3000";
 
     type DuePost = {
       id: string;
