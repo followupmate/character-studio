@@ -47,17 +47,27 @@ function parseState(raw: string | null): FalQState | null {
 // `.message` is just "Unprocessable Entity". Dig the detail out so failures are
 // diagnosable instead of opaque.
 function falErr(err: unknown): string {
+  let text = "";
   if (err && typeof err === "object") {
     const e = err as { message?: string; status?: number; body?: unknown };
     const body = e.body as { detail?: unknown; message?: unknown } | undefined;
     const detail = body?.detail ?? body?.message ?? e.body;
     if (detail) {
-      const text = typeof detail === "string" ? detail : JSON.stringify(detail);
-      return `${e.message ?? "error"}: ${text}`.slice(0, 400);
+      const d = typeof detail === "string" ? detail : JSON.stringify(detail);
+      text = `${e.message ?? "error"}: ${d}`;
+    } else if (e.message) {
+      text = e.message;
     }
-    if (e.message) return e.message;
   }
-  return err instanceof Error ? err.message : String(err);
+  if (!text) text = err instanceof Error ? err.message : String(err);
+
+  // ByteDance/Seedance blocks realistic human likenesses (anti-deepfake partner
+  // validation). Our characters are photorealistic, so Seedance i2v always fails
+  // here — translate the opaque policy error into an actionable instruction.
+  if (/content_policy_violation|likenesses of real people|partner_validation_failed/i.test(text)) {
+    return "Seedance odmieta realistické ľudské tváre (content policy). Pre reely s postavou použi Kling (default) alebo Veo — tie i2v s tvárou zvládajú.";
+  }
+  return text.slice(0, 400);
 }
 
 export async function POST(req: Request) {
