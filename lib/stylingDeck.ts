@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-type TierName = "everyday_life" | "wellness_fitness" | "intimate_aesthetic" | "lifestyle_travel";
+type TierName = "everyday_life" | "wellness_fitness" | "intimate_aesthetic" | "luxe_car" | "lifestyle_travel";
 
 export interface StylingProfile {
   id: string;
@@ -127,6 +127,43 @@ export const STYLING_PROFILES: StylingProfile[] = [
     makeup: "bronzed, glossy, sun-warmed",
     tier_affinity: ["intimate_aesthetic", "lifestyle_travel"],
     time_affinity: ["midday", "golden_hour"],
+    cooldown_days: 6,
+  },
+  // ── LUXE CAR / NIGHT (passenger-princess crossover — IG-safe ceiling) ──
+  {
+    id: "passenger_lingerie",
+    label: "Passenger-princess lingerie",
+    vibe: "Night-luxe passenger seat. Lingerie styled as fashion with thigh-highs — expensive, cinematic, camera-aware. Highest-reach + conversion crossover.",
+    outfit: "structured bralette or corset-style top + matching briefs or a mini skirt, sheer black thigh-high stockings, strappy heels. Lingerie-as-fashion, tasteful, IG-edge — never past allowed.",
+    hair: "glossy blowout, voluminous evening waves",
+    jewelry: "delicate gold — fine chain, small drops, a slim watch",
+    makeup: "evening glam — defined eye, bronzed glow, nude-rose lip",
+    tier_affinity: ["luxe_car", "intimate_aesthetic"],
+    time_affinity: ["evening"],
+    cooldown_days: 6,
+  },
+  {
+    id: "night_out_dress",
+    label: "Night-out glam dress",
+    vibe: "Elegant going-out energy. Premium, poised, quietly sexy — the passenger of an expensive night.",
+    outfit: "fitted satin or bodycon mini dress (black, champagne or deep red), thin straps or off-shoulder, low neckline; heels. Optional sheer thigh-highs.",
+    hair: "sleek high-shine blowout or a polished low bun",
+    jewelry: "fine gold layers, small drop earrings",
+    makeup: "polished glam — smoked liner, bronzed cheek, glossy nude lip",
+    tier_affinity: ["luxe_car"],
+    time_affinity: ["evening"],
+    cooldown_days: 6,
+  },
+  {
+    id: "leather_luxe",
+    label: "Leather luxe",
+    vibe: "Sleek, expensive, after-dark. Confident and cool without trying.",
+    outfit: "fitted leather or faux-leather mini skirt + a fine-knit or satin bodysuit / bralette top, sheer tights, ankle boots or heels.",
+    hair: "straightened glossy or tousled evening waves",
+    jewelry: "minimal gold — one fine chain, small hoops",
+    makeup: "cool-toned evening — defined eye, matte nude lip",
+    tier_affinity: ["luxe_car", "intimate_aesthetic"],
+    time_affinity: ["evening"],
     cooldown_days: 6,
   },
   // ── TRAVEL (occasional accent) ────────────────────────────
