@@ -53,6 +53,8 @@ function buildPrompt(args: ScriptArgs): string {
   const tierNote =
     args.tier === "intimate_aesthetic"
       ? "intimate tier: body-aware, self-possessed. provocation through confidence and indirection — never explicit. the overlay text carries an edge."
+      : args.tier === "luxe_car"
+      ? "luxe_car tier: night-luxury / passenger-princess. cinematic after-dark energy inside or stepping out of a high-end car — convey wealth through materials and ambient light, NEVER a brand name and NEVER a place-name. POV, exclusive, a little untouchable. the overlay text teases the night, not a location."
       : "lifestyle_travel tier: warm, location-anchored, aspirational. name the place or the specific sensory truth. leave desire in the room without selling it.";
   const three = args.slideCount === 3;
 
