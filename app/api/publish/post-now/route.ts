@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getIgAccessToken } from "@/lib/igToken";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,9 +27,10 @@ async function postToInstagram(
   isVideo: boolean
 ): Promise<string> {
   const igUserId = process.env.IG_USER_ID;
-  const accessToken = process.env.IG_ACCESS_TOKEN;
+  const accessToken = await getIgAccessToken();
+  if (!accessToken) throw new Error("No IG access token available");
 
-  const params = new URLSearchParams({ caption, access_token: accessToken! });
+  const params = new URLSearchParams({ caption, access_token: accessToken });
   if (isVideo) {
     params.append("video_url", mediaUrl);
     params.append("media_type", "REELS");
@@ -66,7 +68,7 @@ async function postToInstagram(
       method: "POST",
       body: new URLSearchParams({
         creation_id: containerRes.id,
-        access_token: accessToken!,
+        access_token: accessToken,
       }),
     }
   ).then((r) => r.json());
