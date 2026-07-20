@@ -16,6 +16,7 @@ interface TierRule {
 
 const FANVUE_RULES: Record<StoryTier, TierRule> = {
   intimate_aesthetic: { probability: 0.85, intensity: "strong", unlock: "subscription", price: 9.99, series: ["Room 407", "After Hours", "Silk & Skin"] },
+  luxe_car:           { probability: 0.80, intensity: "strong", unlock: "subscription", price: 9.99, series: ["Night Drive", "Passenger Princess", "After Dark"] },
   wellness_fitness:   { probability: 0.45, intensity: "medium", unlock: "subscription", price: 7.99, series: ["Body Diary", "Locker Room", "Post-Workout"] },
   lifestyle_travel:   { probability: 0.55, intensity: "medium", unlock: "ppv",          price: 8.99, series: ["Pool Heat", "Room with a View", "Beach Heat"] },
   everyday_life:      { probability: 0.25, intensity: "soft",   unlock: "subscription", price: 6.99, series: ["White Shirt Morning", "Soft Home", "Slow Sunday"] },

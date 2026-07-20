@@ -8,6 +8,7 @@ export type StoryTier =
   | "everyday_life"
   | "wellness_fitness"
   | "intimate_aesthetic"
+  | "luxe_car"
   | "lifestyle_travel";
 
 export type ContentPhaseKind =
@@ -28,9 +29,10 @@ export interface ContentPhase {
 // never gets picked for new days. The tier stays in the StoryTier union and in
 // tierGuidance for backward-compat with already-generated travel days.
 const TIER_WEIGHTS: Record<string, number> = {
-  everyday_life: 0.34,
-  wellness_fitness: 0.33,
-  intimate_aesthetic: 0.33,
+  everyday_life: 0.30,
+  wellness_fitness: 0.20,
+  intimate_aesthetic: 0.25,
+  luxe_car: 0.25, // ON TEST — night luxury / passenger-princess crossover (dial to 0 to disable)
 };
 
 const ALL_TIERS = Object.keys(TIER_WEIGHTS) as StoryTier[];
@@ -156,6 +158,34 @@ Scene must be:
 Narrative tone: direct, daring, self-possessed. The caption has an edge and a quiet invitation — the "come find the rest of this" energy that drives subscriptions, implied never stated.
 
 SAFE RULES (account survival): suggestive yes — explicit NO. No nudity, no exposed nipples/genitals, no sexual acts, no pornographic framing. Lingerie/swimwear/implied-topless-from-behind are the ceiling. Anything past that gets the account banned and is generated nowhere in this pipeline.${REALISM_NOTE}`;
+  }
+
+  if (tier === "luxe_car") {
+    return `TIER: luxe_car (night luxury / passenger-princess — the high-reach crossover: attractive + car/luxury culture)
+
+A cinematic night moment inside, or stepping out of, a high-end car. This tier fuses two audiences — her
+admirers and the luxury/car-culture crowd — which is what drives outsized reach. Premium and elegant, never trashy.
+
+Scene must be:
+- interior of a clearly LUXURY vehicle at night (or her mid-step out of the door): quilted or soft full-grain
+  leather, a starlight-style headliner or warm cabin ambient, a tasteful ambient glow (soft gold, or a restrained
+  red/violet dash glow — cinematic, not gaudy), city lights / a parking structure / a tunnel streaking past the window
+- convey the luxury through MATERIALS AND ATMOSPHERE, NEVER a brand badge, logo or lettering (image gens render
+  logos as garble — keep any badge out of frame or out of focus). Premium/exotic grand-tourer feel, not a mass-market car.
+- one anchor: the passenger seat, a hand on the door, heels on the sill, a seatbelt line across the body
+- her posture: poised, camera-aware, passenger-princess energy — reclined in the seat, legs crossed, glancing back
+  over the shoulder, mid-step out of the door
+
+Wardrobe: evening glam pushed to the IG-allowed edge — an elegant going-out mini dress or bodysuit, or
+lingerie-as-fashion (structured bralette + skirt, silk slip) with sheer thigh-highs, heels, delicate fine jewellery.
+Expensive, deliberate, quietly sexy — luxury-brand ENERGY without ever naming or showing a brand.
+
+Narrative tone: POV / passenger-princess — direct, playful-confident, a little exclusive. The caption teases the
+night and the lifestyle with the "come find the rest" edge that funnels to Fanvue. Hook leans POV/curiosity
+("pov: you're driving", "wait till she steps out") — never a flat mood word.
+
+SAFE RULES (account survival): suggestive yes — explicit NO. Lingerie/eveningwear + thigh-highs are the ceiling;
+no nudity, no exposed nipples/genitals. Anything past that gets the account banned.${REALISM_NOTE}`;
   }
 
   if (tier === "lifestyle_travel") {
