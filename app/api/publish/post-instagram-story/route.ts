@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getIgAccessToken } from "@/lib/igToken";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -107,7 +108,7 @@ export async function POST(req: Request) {
     }
 
     const igAccountId = process.env.IG_USER_ID;
-    const accessToken = process.env.IG_ACCESS_TOKEN;
+    const accessToken = await getIgAccessToken();
 
     if (!igAccountId || !accessToken) {
       throw new Error("Missing IG_USER_ID or IG_ACCESS_TOKEN");

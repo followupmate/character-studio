@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getIgAccessToken } from "@/lib/igToken";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,8 +29,8 @@ export async function POST(req: Request) {
     const { caption, hashtags, character_id } = body;
 
     const igUserId = process.env.IG_USER_ID;
-    const accessToken = process.env.IG_ACCESS_TOKEN;
-    if (!igUserId || !accessToken) throw new Error("IG_USER_ID or IG_ACCESS_TOKEN not set");
+    const accessToken = await getIgAccessToken();
+    if (!igUserId || !accessToken) throw new Error("IG_USER_ID or IG access token not set");
     if (!media_ids || media_ids.length < 2) throw new Error("Carousel requires at least 2 items");
     if (media_ids.length > 10) throw new Error("Carousel supports max 10 items");
 

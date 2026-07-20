@@ -19,6 +19,10 @@
     {
       "path": "/api/fanvue/sync-snapshot",
       "schedule": "45 19 * * *"
+    },
+    {
+      "path": "/api/publish/refresh-ig-token",
+      "schedule": "0 4 * * 1"
     }
   ]
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { calculateGrowthScore, GrowthMetrics } from "@/lib/growthScore";
 import { requireCron } from "@/lib/apiAuth";
+import { getIgAccessToken } from "@/lib/igToken";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -61,8 +62,8 @@ export async function GET(req: Request) {
   const deny = requireCron(req);
   if (deny) return deny;
 
-  const token = process.env.IG_ACCESS_TOKEN;
-  if (!token) return NextResponse.json({ error: "IG_ACCESS_TOKEN not configured" }, { status: 500 });
+  const token = await getIgAccessToken();
+  if (!token) return NextResponse.json({ error: "No IG access token available" }, { status: 500 });
 
   const url = new URL(req.url);
   const days = Math.min(Number(url.searchParams.get("days")) || 7, 30);
