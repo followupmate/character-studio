@@ -173,8 +173,12 @@ Scene must be:
 - convey the luxury through MATERIALS AND ATMOSPHERE, NEVER a brand badge, logo or lettering (image gens render
   logos as garble — keep any badge out of frame or out of focus). Premium/exotic grand-tourer feel, not a mass-market car.
 - one anchor: the passenger seat, a hand on the door, heels on the sill, a seatbelt line across the body
-- her posture: poised, camera-aware, passenger-princess energy — reclined in the seat, legs crossed, glancing back
-  over the shoulder, mid-step out of the door
+- HER POSE IS THE HOOK — it must stop the scroll on its own, deliberate and body-forward, NOT a passive upright
+  sit. Passenger-princess theatrics (IG-safe, suggestive-not-explicit): reclined deep in the seat with knees drawn
+  up or one heel propped on the seat edge, legs long across the frame; an arm stretched along the seat back or door;
+  leaning in toward the lens; a slow glance back over the shoulder; a playful hand near the face, hair or the
+  seatbelt; chin down, eyes up. Pick ONE strong, intentional, a-little-provocative pose — theatrical and alluring,
+  the kind that reads as a hook by itself.
 
 Wardrobe: evening glam pushed to the IG-allowed edge — an elegant going-out mini dress or bodysuit, or
 lingerie-as-fashion (structured bralette + skirt, silk slip) with sheer thigh-highs, heels, delicate fine jewellery.
