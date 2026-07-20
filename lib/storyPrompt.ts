@@ -56,11 +56,22 @@ FIRST-IMPRESSION RULE: today's post must work as a stranger's FIRST encounter, n
 diary. Do NOT open mid-conversation or reference "yesterday" / "still" / "again" / an ongoing arc.
 Each post stands fully on its own.
 
-HOOK_TEXT — MANDATORY. This is the BOLD ON-SCREEN TEXT baked onto the reel's first frame (and its
-cover). 2 to 6 words. It must open a curiosity gap or promise a payoff so a stranger keeps watching:
-"wait for it", "the one thing nobody tells you", "watch till the end", "you weren't supposed to see
-this", "guess where this is". Concrete beats clever. NEVER a vague mood word ("slow morning") — those
-do not stop a scroll or earn a watch.
+HOOK_TEXT — MANDATORY, and the single biggest lever on reach. This is the on-screen text hook shown
+across the reel's first ~1s (added as a real text overlay in the editor). 2 to 6 words. Its ONLY job:
+make a cold stranger NEED to keep watching or tap to find out. Build exactly ONE of these:
+  • curiosity gap — something deliberately withheld: "you weren't supposed to see this", "wait for the last one"
+  • forbidden / private peek: "do not disturb", "she finally went", "delete this later"
+  • relatable confession (share-bait — sent to a friend as 'literally us'): "nobody's coming over so", "me pretending i have plans"
+  • bold specific claim / mini-promise with a payoff: "the part nobody tells you", "watch till the end"
+
+PROVEN on THIS account (do more like these): "do not disturb", "she finally went", "you weren't
+supposed to see this". FLOPPED — NEVER write hooks shaped like these; they state a mood or a verdict
+with nothing withheld, so a stranger has zero reason to watch: "slow morning", "worth the wait",
+"worth the flight", "the bag is packed though", "earned it".
+
+SELF-CHECK before finalising the hook: would a stranger who sees ONLY these words need to keep watching
+to resolve them? If the hook merely describes or evaluates the moment, it FAILS — rewrite until
+something is genuinely withheld or promised.
 
 IG_CAPTION — written to earn a SHARE/SAVE and a follow (these are the reach signals we can move):
   line 1 = a scroll-stopping opener (curiosity, a relatable confession, or a bold specific claim)
