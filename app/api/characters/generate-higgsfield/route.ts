@@ -31,6 +31,13 @@ const SOUL_MODEL = "higgsfield-ai/soul/v2/standard";
 // when the character row has no soul_id.
 const FALLBACK_SOUL_ID = "43d6e73e-f0ac-4f22-a82b-f5819f15367f";
 
+// Soul ID controls how a generated person looks, but does not guarantee that the model includes
+// the person at all. Keep this anchor style-neutral so environment-heavy prompts still contain the
+// trained character without reintroducing the old grain/iPhone realism suffix.
+const SUBJECT_ANCHOR =
+  "MANDATORY SUBJECT: The trained Soul woman must be visibly present as the primary subject of the photograph. " +
+  "Preserve her exact facial identity and natural appearance. Do not generate an empty environment.";
+
 // Soul supports 9:16, 3:4, 1:1 etc. (not 4:5). Map our slots to the closest supported ratio.
 function aspectFor(channel: string | null | undefined): string {
   if (channel === "feed") return "3:4"; // closest to the 4:5 feed carousel
@@ -101,9 +108,9 @@ export async function POST(req: Request) {
     if (!basePrompt) {
       return NextResponse.json({ error: "No prompt available for this media" }, { status: 422 });
     }
-    // Send the stored prompt unchanged so the API generation matches the Higgsfield UI as closely as
-    // possible. Identity consistency remains controlled by custom_reference_id (Soul ID).
-    const prompt = basePrompt;
+    // Keep the user's visual direction unchanged; add only the minimum subject-presence instruction.
+    // Identity consistency remains controlled by custom_reference_id (Soul ID).
+    const prompt = `${SUBJECT_ANCHOR}\n\n${basePrompt}`;
 
     // Persist override + mark generating.
     const update: Record<string, string> = { generation_status: "generating", last_error: "" };
