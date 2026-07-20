@@ -126,15 +126,36 @@ const DISCOVERY_DROP: Set<SlotName> = new Set([
   "carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5",
 ]);
 
+// LUXE_CAR framing addendum — appended to the subject-bearing slots on luxe_car
+// days. The tier's whole appeal is the car cockpit at night; without this the
+// generator defaults to a tight portrait against the seat and the car vanishes
+// (bright, sterile, "girl on a chair"). Force a medium shot with the cabin
+// visible and moody night light.
+const LUXE_CAR_FRAMING =
+  " LUXE-CAR FRAMING (mandatory — overrides any tighter crop): this is a NIGHT interior of a luxury car and the CABIN IS HALF THE SHOT. Frame a MEDIUM shot (roughly waist-up or wider), NOT a tight face/chest crop — the quilted leather seat, the passenger window with streaking city / tunnel lights, and the warm ambient dash / footwell glow must all be clearly visible around her. Low-key MOODY NIGHT lighting (warm amber cabin glow + one cool light streak across her), deep shadows, cinematic — never bright, flat, daylit or studio-sterile. She stays the focal point, but the luxury cockpit reads at a glance.";
+const LUXE_CAR_SLOTS: Set<SlotName> = new Set([
+  "reel_start_frame", "reel_video", "story_bts",
+  "carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5",
+]);
+
 // Returns the daily deck. Discovery mode = reel-only growth batch: drop the
 // carousel and swap in retention-engineered reel framing. `reelFormat`, when
 // given, layers a proven short-form format (POV / wait-for-it / GRWM …) onto the
 // reel so every day has a deliberate retention shape, not a generic pretty clip.
 export function dailySlots(
   discoveryMode = false,
-  reelFormat?: { label: string; coverCue: string; videoDirective: string }
+  reelFormat?: { label: string; coverCue: string; videoDirective: string },
+  tier?: string
 ): SlotSpec[] {
-  if (!discoveryMode) return DAILY_SLOTS;
+  const luxeCar = tier === "luxe_car";
+
+  if (!discoveryMode) {
+    if (!luxeCar) return DAILY_SLOTS;
+    return DAILY_SLOTS.map((s) =>
+      LUXE_CAR_SLOTS.has(s.slot) ? { ...s, framing: s.framing + LUXE_CAR_FRAMING } : s
+    );
+  }
+
   return DAILY_SLOTS
     .filter((s) => !DISCOVERY_DROP.has(s.slot))
     .map((s) => {
@@ -143,6 +164,7 @@ export function dailySlots(
         if (s.slot === "reel_start_frame") framing += ` FORMAT — ${reelFormat.label}: ${reelFormat.coverCue}`;
         else if (s.slot === "reel_video") framing += ` FORMAT — ${reelFormat.label}: ${reelFormat.videoDirective}`;
       }
+      if (luxeCar && LUXE_CAR_SLOTS.has(s.slot)) framing += LUXE_CAR_FRAMING;
       return framing === s.framing ? s : { ...s, framing };
     });
 }

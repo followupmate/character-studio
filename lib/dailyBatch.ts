@@ -196,7 +196,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   const discoveryMode = isFlagOn(character.feature_flags, "discovery_mode");
   // Rotate a proven reel format per day (stable seed = day_number) in discovery mode.
   const reelFormat = discoveryMode ? pickReelFormat(Number(storyDay.day_number) || 0) : undefined;
-  const slotsToGenerate = await determineSlotsNeeded(batchId, forceRegenerate, discoveryMode, reelFormat);
+  const slotsToGenerate = await determineSlotsNeeded(batchId, forceRegenerate, discoveryMode, reelFormat, storyDay.tier ?? undefined);
 
   if (slotsToGenerate.length === 0) {
     await supabase
@@ -375,8 +375,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   return { batchId, status, generated };
 }
 
-async function determineSlotsNeeded(batchId: string, force: boolean, discoveryMode = false, reelFormat?: ReelFormat): Promise<SlotSpec[]> {
-  const deck = dailySlots(discoveryMode, reelFormat);
+async function determineSlotsNeeded(batchId: string, force: boolean, discoveryMode = false, reelFormat?: ReelFormat, tier?: string): Promise<SlotSpec[]> {
+  const deck = dailySlots(discoveryMode, reelFormat, tier);
   if (force) {
     await supabase.from("chs_media").delete().eq("batch_id", batchId);
     return deck;
@@ -547,7 +547,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
 
     const { data: storyDay } = await supabase
       .from("chs_story_days")
-      .select("arc_position, drift_seeds, day_number")
+      .select("arc_position, drift_seeds, day_number, tier")
       .eq("id", row.chs_daily_plans.story_day_id)
       .single();
 
@@ -557,7 +557,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
     // generation used, so a retried reel keeps its format.
     const rcDiscovery = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "discovery_mode");
     const rcFormat = rcDiscovery ? pickReelFormat(Number((storyDay as { day_number?: number }).day_number) || 0) : undefined;
-    const slot = dailySlots(rcDiscovery, rcFormat).find((s) => s.slot === row.slot)!;
+    const slot = dailySlots(rcDiscovery, rcFormat, (storyDay as { tier?: string }).tier).find((s) => s.slot === row.slot)!;
 
     const guidance = await getArchetypeGuidance(row.shot_archetype);
     const doctrine = resolveDoctrine((char as { prompt_doctrine?: unknown }).prompt_doctrine);
