@@ -37,20 +37,6 @@ function aspectFor(channel: string | null | undefined): string {
   return "9:16"; // reel / story / default
 }
 
-// Tier-tuned realism formula appended at generation time (the biggest realism lever — the model is
-// already maxed). Strong candid look for everyday/wellness/travel; milder/tasteful for intimate so it
-// stays alluring and not snapshot-ugly.
-function realismSuffix(tier: string | null | undefined): string {
-  const mild =
-    "Realistic skin texture with visible pores and faint freckles, soft natural light, shot on an iPhone, " +
-    "minimal retouching, no plastic CGI look — tasteful, refined and alluring.";
-  const strong =
-    "Candid unposed snapshot shot on an older iPhone, faint film grain, natural mixed lighting with a slight " +
-    "color cast, slightly imperfect amateur framing, no retouching; realistic skin with visible pores, fine " +
-    "flyaway hairs and tiny natural imperfections — looks like a real photo a friend took, not a CGI render.";
-  return tier === "intimate_aesthetic" ? mild : strong;
-}
-
 function cleanPrompt(raw: string): string {
   return stripPromptHeader(raw);
 }
@@ -95,12 +81,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Media not found" }, { status: 404 });
     }
 
-    // Resolve the character's Soul ID + the day's tier via batch → daily_plan → character / story_day.
+    // Resolve the character's Soul ID via batch → daily_plan → character.
     let soulId = FALLBACK_SOUL_ID;
-    let tier = "everyday_life";
     const { data: plan } = await supabase
       .from("chs_daily_plans")
-      .select("character_id, date")
+      .select("character_id")
       .eq("id", media.batch_id)
       .single();
     if (plan?.character_id) {
@@ -110,23 +95,15 @@ export async function POST(req: Request) {
         .eq("id", plan.character_id)
         .single();
       if (character?.soul_id) soulId = character.soul_id;
-      if (plan.date) {
-        const { data: sd } = await supabase
-          .from("chs_story_days")
-          .select("tier")
-          .eq("character_id", plan.character_id)
-          .eq("date", plan.date)
-          .maybeSingle();
-        if (sd?.tier) tier = sd.tier;
-      }
     }
 
     const basePrompt = cleanPrompt((promptOverride?.trim() || media.higgsfield_prompt || "").trim());
     if (!basePrompt) {
       return NextResponse.json({ error: "No prompt available for this media" }, { status: 422 });
     }
-    // Append the tier-tuned realism formula (kept out of the stored prompt so it never double-stacks).
-    const prompt = `${basePrompt}\n\n${realismSuffix(tier)}`;
+    // Send the stored prompt unchanged so the API generation matches the Higgsfield UI as closely as
+    // possible. Identity consistency remains controlled by custom_reference_id (Soul ID).
+    const prompt = basePrompt;
 
     // Persist override + mark generating.
     const update: Record<string, string> = { generation_status: "generating", last_error: "" };
