@@ -22,12 +22,15 @@ export interface ContentPhase {
   detail?: string;
 }
 
-// Target mix — everyday relatable + wellness reach-drivers + intimate conversion + occasional travel.
-const TIER_WEIGHTS: Record<StoryTier, number> = {
-  everyday_life: 0.3,
-  wellness_fitness: 0.3,
-  intimate_aesthetic: 0.3,
-  lifestyle_travel: 0.1,
+// Target mix — everyday relatable + wellness reach-drivers + intimate conversion.
+// lifestyle_travel is RETIRED from the rotation: in the reel data it was
+// consistently the weakest tier (~115 views vs 1k–100k for the others), so it
+// never gets picked for new days. The tier stays in the StoryTier union and in
+// tierGuidance for backward-compat with already-generated travel days.
+const TIER_WEIGHTS: Record<string, number> = {
+  everyday_life: 0.34,
+  wellness_fitness: 0.33,
+  intimate_aesthetic: 0.33,
 };
 
 const ALL_TIERS = Object.keys(TIER_WEIGHTS) as StoryTier[];
@@ -39,7 +42,7 @@ const BIAS_CAP = 0.10;
 const TIER_FLOOR = 0.05;
 
 function weightedPick(bias?: TierBias): StoryTier {
-  const adjusted: Record<StoryTier, number> = { ...TIER_WEIGHTS };
+  const adjusted: Record<string, number> = { ...TIER_WEIGHTS };
   if (bias) {
     for (const t of ALL_TIERS) {
       const m = Math.max(-BIAS_CAP, Math.min(BIAS_CAP, bias[t] ?? 0));
@@ -94,7 +97,7 @@ export async function pickDriftSeeds(characterId: string, _dayNumber: number, lo
   if (countOf("post_workout") === 0 && Math.random() < 0.14) phases.push({ kind: "post_workout" });
   if (countOf("home_evening") === 0 && Math.random() < 0.14) phases.push({ kind: "home_evening" });
   if (countOf("golden_hour_moment") === 0 && Math.random() < 0.10) phases.push({ kind: "golden_hour_moment" });
-  if (countOf("location_drop") === 0 && Math.random() < 0.06) phases.push({ kind: "location_drop" });
+  // location_drop (travel flavour) retired alongside the lifestyle_travel tier.
 
   return phases;
 }
