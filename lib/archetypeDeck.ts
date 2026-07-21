@@ -116,9 +116,9 @@ export const DAILY_SLOTS: SlotSpec[] = [
 // the one surface that gets any reach.
 const DISCOVERY_FRAMING: Partial<Record<SlotName, string>> = {
   reel_start_frame:
-    "REEL COVER + first frame + identity anchor. This must STOP THE SCROLL and hold the eye long enough to start watch-time — and it does that with the IMAGE, not with drawn text. Build the stop-scroll from a magnetic forward-facing expression, a strong single focal point, high contrast and no clutter. Face clearly FORWARD, eyes to camera, one expressive micro-moment. Leave deliberate CLEAN EMPTY NEGATIVE SPACE in the top third where a bold text hook is added LATER as a real overlay in the editor. Do NOT render any text, letters, words or captions in the image — AI image generators produce garbled scribble, which kills the frame. Vertical 9:16. (Critical: face forward and clearly visible — a cropped/headless/face-away frame makes the video model invent a new face and loses the identity.)",
+    "REEL COVER — stop-scroll first frame, built from the image not text. Face forward, eyes to camera, one magnetic expression. Strong single subject, clean and high-contrast. Leave empty space in the top third for a text overlay added later. Vertical 9:16. (Face clearly visible — a headless / face-away frame makes the video model invent a new face.)",
   reel_video:
-    "RETENTION-ENGINEERED LOOP — reach here comes ONLY from watch-time + rewatches + shares (no trending audio available on API-published reels). Rules: (1) keep clean empty negative space in the top third where the text hook overlay will sit — do NOT render any text, letters or words in the video itself (generators scribble). (2) SHORT — 5 to 6 seconds, no filler; every frame earns its place. (3) A 'wait-for-it' PAYOFF beat around 2–4s: a small reveal, a change, a satisfying motion that rewards staying and makes a viewer rewatch to catch it. (4) SEAMLESS LOOP — the final frame must match the first frame's pose/composition so it loops invisibly and racks up repeat views. (5) Face toward camera throughout (no turn-away / pan-off / push-to-wide, or the model invents a new face). Immediately readable, single clean action — a cold viewer must 'get it' in ~2 seconds.",
+    "REEL — 5 to 6 seconds, one clean immediately-readable action, face to camera throughout. A small satisfying payoff around 2–4s that rewards watching and invites a rewatch. The final frame matches the first so it loops seamlessly. Keep the top third clear for the overlay. Vertical 9:16.",
 };
 
 // In discovery mode the entire carousel is dropped (data: ~4 views, no reach).
@@ -132,7 +132,7 @@ const DISCOVERY_DROP: Set<SlotName> = new Set([
 // (bright, sterile, "girl on a chair"). Force a medium shot with the cabin
 // visible and moody night light.
 const LUXE_CAR_FRAMING =
-  " LUXE-CAR: night interior of a luxury car, medium-or-wider so the cabin shows (quilted leather, window with passing city / tunnel lights, warm ambient glow). She reclines in a deliberate passenger-princess pose — knees up, a heel on the seat, leaning to the lens, calm eye contact. Moody low light, warm + one cool streak. Write a SHORT, plain, photographic prompt — no meta-instructions, no long clauses.";
+  " LUXE-CAR: night interior of a luxury car, medium-or-wider so the cabin shows (quilted leather, warm ambient glow). Through the window, blurred night lights slide past — the car is MOVING, soft and out of focus, no sharp cars or traffic behind her. She reclines in a deliberate passenger-princess pose — knees up, a heel on the seat, leaning to the lens, calm eye contact. Moody low light, warm + one cool streak. Write a SHORT, plain, photographic prompt.";
 const LUXE_CAR_SLOTS: Set<SlotName> = new Set([
   "reel_start_frame", "reel_video", "story_bts",
   "carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5",

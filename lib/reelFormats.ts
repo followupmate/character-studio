@@ -30,72 +30,51 @@ export const REEL_FORMATS: ReelFormat[] = [
   {
     id: "pov",
     label: "POV",
-    coverCue:
-      "Face forward, warm direct eye contact straight down the lens as if looking at the viewer — an intimate 'it's just us' micro-moment. Clean composition with deliberate empty negative space in the top third for a text overlay added later. Render NO text, letters or words in the image.",
-    videoDirective:
-      "POV format: she interacts with the CAMERA as if it were the viewer — a glance, a small gesture toward the lens, a shared private moment. Intimacy through direct address. The viewer should feel talked-to, not watched. Loop back to the opening glance. Keep the top third clear for the overlay; render no text in the video.",
-    overlayStyle:
-      "Overlay reads like a first-person 'pov:' line — e.g. 'pov: your girl on a slow sunday'. Lowercase, top third.",
+    coverCue: "Face forward, warm eye contact down the lens — an 'it's just us' moment. Leave space in the top third for the overlay.",
+    videoDirective: "She looks and gestures to the camera like it's the viewer — a glance, a small shared moment. Loops back to the opening glance.",
+    overlayStyle: "First-person 'pov:' line — e.g. 'pov: your girl on a slow sunday'. Lowercase, top third.",
   },
   {
     id: "wait_for_it",
     label: "Wait-for-it",
-    coverCue:
-      "The cover deliberately withholds the payoff — she is mid-anticipation (a held breath, eyes just beginning to lift, a turn barely started), one magnetic expressive beat. Leave clean empty negative space in the top third for a text overlay added later. Render NO text, letters or words in the image.",
-    videoDirective:
-      "Wait-for-it structure: the first ~3s builds a small anticipation (she moves toward something, the light shifts, a turn begins), then a SATISFYING payoff beat lands at 4-5s (the reveal, the light hits, the smile breaks). The payoff is worth the wait and makes a viewer rewatch to see the build again. Seamless loop. Keep the top third clear for the overlay; render no text in the video.",
-    overlayStyle:
-      "Overlay is a 'wait for it' promise — 'wait for the light', 'watch till the end'. Lowercase, top third.",
+    coverCue: "Mid-anticipation — a held breath, eyes starting to lift, a turn just beginning. Withhold the payoff. Space in the top third for the overlay.",
+    videoDirective: "First ~3s builds a small anticipation, then a satisfying payoff lands at 4–5s (a reveal, the light hits, a smile breaks). Seamless loop.",
+    overlayStyle: "A 'wait for it' promise — 'wait for the light', 'watch till the end'. Lowercase, top third.",
   },
   {
     id: "grwm",
     label: "GRWM",
-    coverCue:
-      "Cover shows the unfinished, in-process 'getting ready' state — one step caught mid-way, relaxed and real, face visible. Leave clean empty negative space in the top third for a text overlay added later. Render NO text, letters or words in the image.",
-    videoDirective:
-      "GRWM (get-ready-with-me): a short process → result arc — one or two quick steps of getting ready, ending on the finished, self-possessed look. Relatable and save-worthy (people save routines). Keep it to 2-3 beats, end on the eye-contact 'done' moment. Keep the top third clear for the overlay; render no text in the video.",
-    overlayStyle:
-      "Overlay frames a 'grwm' moment — 'grwm for a slow morning', 'get ready with me — nowhere to be'. Lowercase, top third.",
+    coverCue: "Unfinished, in-process getting-ready moment — relaxed and real, face visible. Space in the top third for the overlay.",
+    videoDirective: "One or two quick get-ready steps ending on the finished, self-possessed look. 2–3 beats, end on the eye-contact 'done' moment.",
+    overlayStyle: "A 'grwm' moment — 'grwm for a slow morning', 'get ready with me — nowhere to be'. Lowercase, top third.",
   },
   {
     id: "romanticize",
     label: "Romanticize",
-    coverCue:
-      "Cover finds cinematic beauty in one ordinary detail (coffee, light through a window, a stretch) — warm, aspirational, the kind of frame someone wants to live inside. Leave clean empty negative space for a text overlay added later. Render NO text, letters or words in the image.",
-    videoDirective:
-      "'Romanticize your life' aesthetic vlog: 2-3 gentle beats that make an ordinary moment feel cinematic and aspirational (coffee, light, a stretch, a window). Slow, warm, save-worthy. The viewer should want to live in it. Loop on the most beautiful frame. Keep space clear for the overlay; render no text in the video.",
-    overlayStyle:
-      "Overlay romanticizes the ordinary — 'romanticize your morning', 'the little things'. Lowercase, top third.",
+    coverCue: "One ordinary detail made cinematic (coffee, window light, a stretch) — warm, aspirational. Space for the overlay.",
+    videoDirective: "2–3 gentle beats that make an ordinary moment feel cinematic and save-worthy. Loop on the prettiest frame.",
+    overlayStyle: "Romanticizes the ordinary — 'romanticize your morning', 'the little things'. Lowercase, top third.",
   },
   {
     id: "reveal_transition",
     label: "Reveal / transition",
-    coverCue:
-      "Cover is the 'before' state, clean and composed; the change is withheld. Leave clean empty negative space in the top third for a teaser text overlay added later. Render NO text, letters or words in the image.",
-    videoDirective:
-      "Reveal / transition: a clean before → after turn (a spin, a step out of frame and back, a light or outfit change signalled by a hand across the lens). The transition is snappy and satisfying; viewers rewatch to catch it. Loop so before follows after seamlessly. Keep the top third clear for the overlay; render no text in the video.",
-    overlayStyle:
-      "Overlay teases the change — 'watch the switch', 'give me one second'. Lowercase, top third.",
+    coverCue: "The clean 'before' state; the change withheld. Space in the top third for the overlay.",
+    videoDirective: "A clean before → after turn (a spin, a step out and back, a hand across the lens). Snappy, satisfying, loops before → after.",
+    overlayStyle: "Teases the change — 'watch the switch', 'give me one second'. Lowercase, top third.",
   },
   {
     id: "relatable_confession",
     label: "Relatable confession",
-    coverCue:
-      "Cover embodies a small honest feeling with one clear expressive beat (a knowing look, a relieved exhale, a comfortable slump). Leave clean empty negative space in the top third for a confession-style text overlay added later. Render NO text, letters or words in the image.",
-    videoDirective:
-      "Relatable confession: the visual embodies one small honest feeling with a single clear expressive beat (a knowing look, a relieved exhale, a comfortable slump). Made to be SHARED to a friend with 'literally us'. Short, one idea, clean loop. Keep the top third clear for the overlay; render no text in the video.",
-    overlayStyle:
-      "Overlay is a relatable confession — 'nobody's coming over so', 'me pretending i have plans'. Lowercase, top third.",
+    coverCue: "One clear expressive beat embodying a small honest feeling (a knowing look, a relieved slump). Space for the overlay.",
+    videoDirective: "The visual embodies one honest feeling in a single clear beat — made to be shared to a friend as 'literally us'. One idea, clean loop.",
+    overlayStyle: "A relatable confession — 'nobody's coming over so', 'me pretending i have plans'. Lowercase, top third.",
   },
   {
     id: "asmr_satisfying",
     label: "Satisfying / ASMR",
-    coverCue:
-      "Cover centers a satisfying tactile detail (pouring, folding, a fabric, a surface), shot close and clean, with her still in frame for identity. Leave a little clean negative space for an optional minimal overlay added later. Render NO text, letters or words in the image.",
-    videoDirective:
-      "Satisfying / ASMR loop: one repeatable, tactile, oddly-satisfying action (pouring coffee, smoothing a sheet, running a hand along fabric) shot close and clean. No cut, no rush. The action loops perfectly so it plays on repeat unnoticed — pure watch-time. Keep her face in frame for identity even if the action is the star. Render no text in the video.",
-    overlayStyle:
-      "Overlay optional and minimal — a single quiet word or none at all.",
+    coverCue: "A satisfying tactile detail, close and clean (pouring, folding, fabric), her still in frame. A little space for an optional overlay.",
+    videoDirective: "One repeatable, oddly-satisfying action shot close (pouring coffee, smoothing a sheet). Loops perfectly — pure watch-time. Keep her face in frame.",
+    overlayStyle: "Optional and minimal — a single quiet word, or none.",
   },
 ];
 
