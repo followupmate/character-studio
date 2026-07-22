@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { Character, StoryDay, Media } from "@/types";
+import { tierLabel } from "@/lib/storyTier";
 import Sidebar from "@/components/dashboard/Sidebar";
 import MediaCard from "@/components/dashboard/MediaCard";
 import CharacterSelector from "@/components/today/CharacterSelector";
@@ -28,6 +29,7 @@ const arcColors: Record<string, string> = {
 };
 
 const tierColors: Record<string, string> = {
+  lived_moments: "text-emerald-400 border-emerald-400/20 bg-emerald-400/10",
   everyday_life: "text-teal border-teal/20 bg-teal/10",
   wellness_fitness: "text-accent border-accent/20 bg-accent/10",
   intimate_aesthetic: "text-pink-400 border-pink-400/20 bg-pink-400/10",
@@ -153,7 +155,7 @@ export default async function TodayPage({
                         </span>
                         {story.tier && (
                           <span className={`font-mono text-[9px] border px-2 py-0.5 tracking-wider uppercase ${tierColors[story.tier] ?? "text-muted2 border-border bg-bg3"}`}>
-                            {story.tier.replace(/_/g, " ")}
+                            {tierLabel(story.tier)}
                           </span>
                         )}
                       </div>

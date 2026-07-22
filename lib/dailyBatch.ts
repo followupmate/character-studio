@@ -120,7 +120,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       stylingProfile = STYLING_PROFILES.find((p) => p.id === existingId);
     }
     if (!stylingProfile) {
-      stylingProfile = await pickStylingProfile(characterId, storyDay.tier ?? "lifestyle_travel");
+      stylingProfile = await pickStylingProfile(characterId, storyDay.tier ?? "lifestyle_travel", storyDay.moment_family ?? null);
       // Persist after scene brief is saved (update below)
     }
 
@@ -360,6 +360,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
         dailyPlanId: batchId,
         storyDay: {
           tier: storyDay.tier ?? null,
+          moment_family: storyDay.moment_family ?? null,
+          magnetism_level: storyDay.magnetism_level ?? null,
           location: storyDay.location ?? null,
           mood: storyDay.mood ?? null,
           ig_caption: storyDay.ig_caption ?? null,

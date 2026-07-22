@@ -1,15 +1,11 @@
 import { supabase } from "@/lib/supabase";
+import type { StoryTier, MomentFamily, MagnetismLevel } from "@/types";
 
-// Content direction (2026-06-25 overhaul): everyday-life dominant, OnlyFans/Fanvue funnel.
-// IG = top of funnel (reach + followers via relatable, attractive, realistic everyday content)
-// → conversion to OF/Fanvue via the suggestive intimate tier. All IG-public content stays
-// within IG rules (suggestive, never explicit/nude — that gets the account banned).
-export type StoryTier =
-  | "everyday_life"
-  | "wellness_fitness"
-  | "intimate_aesthetic"
-  | "luxe_car"
-  | "lifestyle_travel";
+// StoryTier's single source of truth is types/index.ts. Re-exported here so the
+// many existing `import { StoryTier } from "@/lib/storyTier"` call sites keep
+// working. `import type` keeps this a pure type edge (erased at runtime → no cycle
+// with lib/supabase, which this module imports for its DB helpers).
+export type { StoryTier, MomentFamily, MagnetismLevel };
 
 export type ContentPhaseKind =
   | "morning_light"
@@ -23,16 +19,15 @@ export interface ContentPhase {
   detail?: string;
 }
 
-// Target mix — everyday relatable + wellness reach-drivers + intimate conversion.
-// lifestyle_travel is RETIRED from the rotation: in the reel data it was
-// consistently the weakest tier (~115 views vs 1k–100k for the others), so it
-// never gets picked for new days. The tier stays in the StoryTier union and in
-// tierGuidance for backward-compat with already-generated travel days.
-const TIER_WEIGHTS: Record<string, number> = {
-  everyday_life: 0.30,
-  wellness_fitness: 0.20,
-  intimate_aesthetic: 0.25,
-  luxe_car: 0.25, // ON TEST — night luxury / passenger-princess crossover (dial to 0 to disable)
+// ACTIVE rotation weights (sum to 1.0). Historical tiers (lifestyle_travel,
+// grounded_routine, …) are intentionally absent → never re-selected, though old
+// story_days that carry them still read fine.
+export const TIER_WEIGHTS: Record<string, number> = {
+  lived_moments: 0.30,     // varied, believable human life — humanizes the profile, top of funnel
+  everyday_life: 0.20,     // private, quieter home closeness
+  intimate_aesthetic: 0.20,
+  wellness_fitness: 0.15,
+  luxe_car: 0.15,          // ON TEST — night luxury / passenger-princess crossover
 };
 
 const ALL_TIERS = Object.keys(TIER_WEIGHTS) as StoryTier[];
@@ -104,6 +99,73 @@ export async function pickDriftSeeds(characterId: string, _dayNumber: number, lo
   return phases;
 }
 
+// ── lived_moments: theme families + magnetism ────────────────────────────────
+// A lived_moments day commits to ONE of five "worlds". Weights are the target mix.
+export const MOMENT_FAMILIES: MomentFamily[] = [
+  "home_private", "friends_fun", "vacation_beach_water", "pets_spontaneous", "city_transit",
+];
+const MOMENT_FAMILY_WEIGHTS: Record<MomentFamily, number> = {
+  home_private: 0.30,
+  friends_fun: 0.25,
+  vacation_beach_water: 0.20,
+  pets_spontaneous: 0.15,
+  city_transit: 0.10,
+};
+
+// Per-day magnetism intensity for lived_moments (mostly soft, rarely sensual).
+export const MAGNETISM_LEVELS: MagnetismLevel[] = ["soft", "playful", "flirty", "sensual"];
+const MAGNETISM_WEIGHTS: Record<MagnetismLevel, number> = {
+  soft: 0.40, playful: 0.35, flirty: 0.20, sensual: 0.05,
+};
+// Fanvue draft probability by magnetism level (deliberately raised — stronger
+// monetization pressure for lived_moments). Weighted by the 40/35/20/5 mix the
+// average lands ≈ 0.4925.
+export const MAGNETISM_FANVUE_PROB: Record<MagnetismLevel, number> = {
+  soft: 0.30, playful: 0.50, flirty: 0.75, sensual: 0.95,
+};
+// Safe fallback (0.50) when a lived_moments day has no magnetism_level (old rows).
+export const LIVED_MOMENTS_FANVUE_FALLBACK = 0.50;
+export function livedMomentsFanvueProbability(magnetism: MagnetismLevel | null | undefined): number {
+  return magnetism && MAGNETISM_FANVUE_PROB[magnetism] !== undefined
+    ? MAGNETISM_FANVUE_PROB[magnetism]
+    : LIVED_MOMENTS_FANVUE_FALLBACK;
+}
+
+// Deterministic weighted pick over a pool, driven by an injectable rng (0..1).
+function weightedFrom<T extends string>(weights: Record<T, number>, pool: T[], rng: () => number): T {
+  const total = pool.reduce((s, k) => s + weights[k], 0);
+  let r = rng() * total;
+  for (const k of pool) {
+    r -= weights[k];
+    if (r <= 0) return k;
+  }
+  return pool[pool.length - 1];
+}
+
+// Pure + unit-testable. Avoids repeating the immediately-previous family when an
+// alternative exists; `last` from another tier / null is simply ignored.
+export function pickMomentFamily(last?: MomentFamily | null, rng: () => number = Math.random): MomentFamily {
+  const pool = last ? MOMENT_FAMILIES.filter((f) => f !== last) : MOMENT_FAMILIES;
+  return weightedFrom(MOMENT_FAMILY_WEIGHTS, pool.length > 0 ? pool : MOMENT_FAMILIES, rng);
+}
+
+export function pickMagnetismLevel(rng: () => number = Math.random): MagnetismLevel {
+  return weightedFrom(MAGNETISM_WEIGHTS, MAGNETISM_LEVELS, rng);
+}
+
+// Reads only PREVIOUS lived_moments days; rows with null moment_family are ignored.
+export async function getLastMomentFamily(characterId: string): Promise<MomentFamily | null> {
+  const { data } = await supabase
+    .from("chs_story_days")
+    .select("moment_family")
+    .eq("character_id", characterId)
+    .eq("tier", "lived_moments")
+    .not("moment_family", "is", null)
+    .order("date", { ascending: false })
+    .limit(1);
+  return (data?.[0] as { moment_family?: MomentFamily } | undefined)?.moment_family ?? null;
+}
+
 // Shared realism note appended to every tier — drives the "real photo, not AI" look that
 // makes the avatar believable and attractive (this is what converts viewers).
 const REALISM_NOTE = `
@@ -111,7 +173,68 @@ REALISM (mandatory for every scene): this must read like a real photo a friend t
 not a studio render. Candid framing, slightly imperfect, natural light, real skin (visible pores,
 no airbrush). Off-duty energy — caught mid-moment, not posed for a catalogue.`;
 
-export function tierGuidance(tier: StoryTier): string {
+// UI label for a tier. Only lived_moments overrides; the rest humanize the id.
+const TIER_LABELS: Partial<Record<StoryTier, string>> = {
+  lived_moments: "Magnetic Everyday Life",
+};
+export function tierLabel(tier: StoryTier | null | undefined): string {
+  if (!tier) return "";
+  return TIER_LABELS[tier] ?? tier.replace(/_/g, " ");
+}
+
+// The chosen lived_moments world, expanded into scene direction.
+export function momentFamilyGuidance(family: MomentFamily): string {
+  const map: Record<MomentFamily, string> = {
+    home_private:
+      "TODAY'S WORLD — home_private: one private moment at home. Bed on waking, morning coffee, cooking in the kitchen, reading on the couch, skincare in the bathroom, getting dressed, tidying, a quiet evening in, or the balcony. Unforced and personal.",
+    friends_fun:
+      "TODAY'S WORLD — friends_fun: a social, lively moment — a drink with a friend, dinner or brunch, getting ready to go out, a house party, music, dancing, laughing. Other people may appear ONLY partly: out of focus, back-to-camera, in motion, or just a hand / shoulder / glass — at most ONE partly-visible companion, and NEVER a second fully-rendered face (it duplicates her face and breaks identity). She is the single clear main character.",
+    vacation_beach_water:
+      "TODAY'S WORLD — vacation_beach_water: sun and water — beach, pool, a boat, a drink by the sea, wet hair, a towel, a beach bar, a hotel morning before the pool. A SPECIFIC activity or moment, not a swimwear catalogue. Solo is completely fine. The destination must never overshadow her.",
+    pets_spontaneous:
+      "TODAY'S WORLD — pets_spontaneous: a pet and a real, slightly spontaneous moment — a dog on the bed, a morning walk, a cat on the kitchen counter, play, a touch, a genuine reaction, a little mess. Warm and human. She stays the visual centre; the animal supports, never takes over.",
+    city_transit:
+      "TODAY'S WORLD — city_transit: on the move — a car ride, a taxi, an airport, a train, a walk through the city, a coffee-to-go between places, buying flowers or groceries, waiting. A small real event of getting somewhere.",
+  };
+  return map[family];
+}
+
+// The chosen magnetism level, expanded into intensity direction.
+export function magnetismGuidance(level: MagnetismLevel): string {
+  const map: Record<MagnetismLevel, string> = {
+    soft: "MAGNETISM — soft: naturally attractive, easy, human. Simple eye contact or none, relaxed body, pleasant energy. No deliberate teasing.",
+    playful: "MAGNETISM — playful: cheerful, spontaneous, a smile or laugh, livelier play with the camera, a little teasing, the feel of a shared moment.",
+    flirty: "MAGNETISM — flirty: knowing eye contact, a coquettish charge, slightly more attractive styling, a touch closer to the camera, a lightly private / teasing beat — still fully Instagram-safe.",
+    sensual: "MAGNETISM — sensual: tasteful, non-explicit sensuality that fits the situation naturally — a stronger play of silhouette, styling or closeness. Stays contextual and believable; does NOT turn the scene into a lingerie / bedroom set (that is intimate_aesthetic).",
+  };
+  return `${map[level]} One or two natural magnetic details only (eye contact, a body line, a bare shoulder or leg, wet hair, an oversized tee, hair movement, a spontaneous gesture) — never all at once, and never by simply removing clothes.`;
+}
+
+export function tierGuidance(
+  tier: StoryTier,
+  extras?: { family?: MomentFamily | null; magnetism?: MagnetismLevel | null }
+): string {
+  if (tier === "lived_moments") {
+    const base = `TIER: lived_moments — "Magnetic Everyday Life" (a varied, believable human life; she is LIVING it, not presenting it)
+
+Human first. Attractive always. Playful and flirtatious when it fits naturally. Each day shows ONE specific fragment of her real life across home, friends, travel, water, pets or the city — she feels like a person with a full life beyond the frame, not a series of model poses or a luxury-destination catalogue.
+
+MANDATORY every frame:
+- She is clearly present and the single main character, but her body and attention do NOT always face the camera.
+- One concrete moment and one action — doing, reacting to, or interacting with something. Not a generic lifestyle pose.
+- At least one SIGN OF REAL LIFE: a used object, an unfinished activity, food, a drink, luggage, wet hair, an open door, rumpled fabric, a pet, another person partly in frame, or something happening off-frame.
+- The environment is recognizable and meaningfully connected to the action.
+- Expressions vary naturally: quiet, amused, distracted, laughing, tired, curious, caught mid-conversation.
+
+ONE COHERENT MOMENT: the whole day stays in ONE event — same base location (or a logical move within it), same time of day, same outfit (or a natural progression), same mood, same visual tone, same weather. Do not jump between unrelated settings.
+
+VISUAL: clean, believable contemporary photography. Human warmth without forced imperfection or heavy grain. Aspirational without looking staged. No empty environments, no repetitive solo posing, no catalogue framing.${REALISM_NOTE}`;
+    const parts = [base];
+    if (extras?.family) parts.push(momentFamilyGuidance(extras.family));
+    if (extras?.magnetism) parts.push(magnetismGuidance(extras.magnetism));
+    return parts.join("\n\n");
+  }
+
   if (tier === "everyday_life") {
     return `TIER: everyday_life (relatable daily life, girlfriend energy, the life a follower wants to step into)
 
