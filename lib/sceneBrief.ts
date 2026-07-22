@@ -89,6 +89,11 @@ export async function generateSceneBrief({ storyScene, character, recentBriefs, 
   const stylingText = character.styling_note ? `STYLING OVERRIDE: ${character.styling_note}` : "";
   const sceneJsonText = storyScene.scene ? `STRUCTURED SCENE:\n${JSON.stringify(storyScene.scene, null, 2)}` : "";
   const tierText = storyScene.tier ? `TIER: ${storyScene.tier}` : "";
+  // Tier-neutral environment-building instruction (all tiers). Fixes flat, backdrop-against-a-
+  // wall locks by requiring real depth and by enumerating the background layers that ARE present,
+  // so the slot prompts can build three-dimensional composition without inventing anything.
+  // Density is calibrated per tier/mood (a café is populated; an intimate bedroom stays minimal).
+  const environmentDepth = `\nENVIRONMENT DEPTH (all tiers): lock a location that has real depth and layers, not a flat backdrop. In spatial_setup and location_constraints, name the foreground, midground and background elements that ARE present, so the slot prompts can build three-dimensional composition without inventing anything downstream. Match the density to the tier and mood — a café, kitchen or gym is populated and layered; an intimate bedroom or an open beach stays minimal but STILL has depth (a window, a lamp, curtains, the horizon, soft background). Never lock an empty, sterile or minimalist frame with nothing behind the subject.`;
   // lived_moments is "Magnetic Everyday Life" — it wants populated, lived-in spaces with
   // real background depth, the opposite of the sparse "empty micro-location" bias baked into
   // the spatial_setup instruction below. Put the richness INTO the lock: when the elements are
@@ -150,6 +155,7 @@ ${stylingText}
 ${stylingText2}
 
 ${tierText}
+${environmentDepth}
 ${livedMomentsBrief}
 ${rotationText}
 
