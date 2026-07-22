@@ -138,6 +138,18 @@ const LUXE_CAR_SLOTS: Set<SlotName> = new Set([
   "carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5",
 ]);
 
+// LIVED_MOMENTS framing addendum — appended to the subject-bearing discovery slots
+// on lived_moments days. The default discovery cover forces a locked "face forward,
+// eyes to camera" portrait, which reads as posed and catalogue-like. lived_moments
+// wants the opposite: a caught-mid-moment candid where she is clearly present but
+// living the scene, not presenting to the lens. Face stays clearly visible (a
+// face-away cover makes the video model invent a new face), just not locked to it.
+const LIVED_MOMENTS_FRAMING =
+  " LIVED-MOMENT: caught mid-action, not posed — she is DOING the moment (mid-sip, mid-laugh, reaching, turning, glancing away), face clearly visible but she may look off-camera rather than straight into the lens. Frame slightly wider so the real environment reads: 2–3 concrete surroundings from the scene plus one real in-use prop (a cup, a phone, a towel, keys, a pet). Slightly off-centre. Natural light, clean and well-exposed. Believable phone snapshot a friend took, not a studio portrait.";
+const LIVED_MOMENTS_SLOTS: Set<SlotName> = new Set([
+  "reel_start_frame", "reel_video", "story_bts",
+]);
+
 // Returns the daily deck. Discovery mode = reel-only growth batch: drop the
 // carousel and swap in retention-engineered reel framing. `reelFormat`, when
 // given, layers a proven short-form format (POV / wait-for-it / GRWM …) onto the
@@ -148,12 +160,20 @@ export function dailySlots(
   tier?: string
 ): SlotSpec[] {
   const luxeCar = tier === "luxe_car";
+  const livedMoments = tier === "lived_moments";
 
   if (!discoveryMode) {
-    if (!luxeCar) return DAILY_SLOTS;
-    return DAILY_SLOTS.map((s) =>
-      LUXE_CAR_SLOTS.has(s.slot) ? { ...s, framing: s.framing + LUXE_CAR_FRAMING } : s
-    );
+    if (luxeCar) {
+      return DAILY_SLOTS.map((s) =>
+        LUXE_CAR_SLOTS.has(s.slot) ? { ...s, framing: s.framing + LUXE_CAR_FRAMING } : s
+      );
+    }
+    if (livedMoments) {
+      return DAILY_SLOTS.map((s) =>
+        LIVED_MOMENTS_SLOTS.has(s.slot) ? { ...s, framing: s.framing + LIVED_MOMENTS_FRAMING } : s
+      );
+    }
+    return DAILY_SLOTS;
   }
 
   return DAILY_SLOTS
@@ -165,6 +185,7 @@ export function dailySlots(
         else if (s.slot === "reel_video") framing += ` FORMAT — ${reelFormat.label}: ${reelFormat.videoDirective}`;
       }
       if (luxeCar && LUXE_CAR_SLOTS.has(s.slot)) framing += LUXE_CAR_FRAMING;
+      if (livedMoments && LIVED_MOMENTS_SLOTS.has(s.slot)) framing += LIVED_MOMENTS_FRAMING;
       return framing === s.framing ? s : { ...s, framing };
     });
 }
