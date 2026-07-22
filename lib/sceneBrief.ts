@@ -89,6 +89,20 @@ export async function generateSceneBrief({ storyScene, character, recentBriefs, 
   const stylingText = character.styling_note ? `STYLING OVERRIDE: ${character.styling_note}` : "";
   const sceneJsonText = storyScene.scene ? `STRUCTURED SCENE:\n${JSON.stringify(storyScene.scene, null, 2)}` : "";
   const tierText = storyScene.tier ? `TIER: ${storyScene.tier}` : "";
+  // lived_moments is "Magnetic Everyday Life" — it wants populated, lived-in spaces with
+  // real background depth, the opposite of the sparse "empty micro-location" bias baked into
+  // the spatial_setup instruction below. Put the richness INTO the lock: when the elements are
+  // enumerated in spatial_setup / location_constraints, the slot prompts are allowed to show
+  // them, so depth is legitimate and the NO-INVENTION rule is never broken.
+  const livedMomentsBrief = storyScene.tier === "lived_moments"
+    ? `\nLIVED_MOMENTS ENVIRONMENT (overrides the "sparse micro-location" bias in spatial_setup for THIS brief):
+This location must feel like a real, populated, lived-in everyday place with visual DEPTH — not an empty corner or a bare wall. In spatial_setup AND location_constraints, lock a LAYERED space and enumerate its background elements explicitly, e.g.:
+- café → nearby occupied-looking tables, a counter with cups, a pastry case, a window to the street, hanging plants
+- kitchen → counter with everyday items, open shelves, a window, a fruit bowl
+- living room → sofa, a low table, shelves with books, a lamp, a plant
+- bedroom → unmade bed, a nightstand, a window with curtains, a chair with clothes
+Because these elements are named in the lock, the slot prompts are ALLOWED to show them — that is intended. Still ONE micro-location and still exhaustive, but exhaustive about a RICH space: list what IS there across foreground + midground + background so every slot has real depth. Genuinely sparse outdoor locations (beach, pool, open street) get their depth from distance and natural layers (horizon, water, people far off) rather than furniture — do not force furniture where it would not exist. Never lock an empty, sterile or minimalist frame for this tier.`
+    : "";
   const driftRules = driftRulesForBrief(storyScene.drift_seeds, character.sacred_details);
   const driftText = driftRules.length > 0
     ? `\nDRIFT SEEDS ACTIVE TODAY (mandatory — bake these into the brief's visual_rules array verbatim):\n${driftRules.map((r) => `- ${r}`).join("\n")}`
@@ -136,6 +150,7 @@ ${stylingText}
 ${stylingText2}
 
 ${tierText}
+${livedMomentsBrief}
 ${rotationText}
 
 STORY CONTEXT:
