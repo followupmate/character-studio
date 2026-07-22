@@ -42,20 +42,11 @@ interface GenerateArgs {
   lifeNote?: string; // life_layer: short mood/energy continuity note (optional, never overrides tier)
 }
 
-function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | null, sacred: Record<string, unknown> | null): string[] {
+function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | null): string[] {
   if (!seeds || seeds.length === 0) return [];
   const rules: string[] = [];
   for (const s of seeds) {
-    if (s.kind === "recurring_stranger") {
-      const stranger = (sacred && typeof sacred === "object" && "marseille_stranger" in sacred
-        ? (sacred as { marseille_stranger?: { prompt_injection?: string } }).marseille_stranger
-        : null);
-      const inj = stranger?.prompt_injection ??
-        "An indeterminate male figure in a long charcoal wool coat stands completely still deep in the background. He is out of focus, heavily blurred by shallow depth of field (f/1.4), blending into the urban geometry, ignoring the subject.";
-      rules.push(
-        `Background presence (mandatory, inject into 2 of the 7 frames only — never all): ${inj} Never described as a character. Never named. Never foregrounded.`
-      );
-    } else if (s.kind === "timestamp_mismatch") {
+    if (s.kind === "timestamp_mismatch") {
       rules.push(
         `Timestamp contradiction is in effect — the caption will say ${s.detail ?? "04:17"} while the scene is clear daylight. Do NOT reconcile this in any prompt. Light it as the time of day suggests, not as the caption suggests.`
       );
@@ -93,25 +84,25 @@ export async function generateSceneBrief({ storyScene, character, recentBriefs, 
   // wall locks by requiring real depth and by enumerating the background layers that ARE present,
   // so the slot prompts can build three-dimensional composition without inventing anything.
   // Density is calibrated per tier/mood (a café is dense with objects; an intimate bedroom stays minimal).
-  // Depth is built from OBJECTS and natural layers, never from background people — those are banned in the
-  // downstream slot-prompt contract (only a deliberate drift seed adds one figure).
-  const environmentDepth = `\nENVIRONMENT DEPTH (all tiers): lock a location that has real depth and layers, not a flat backdrop. In spatial_setup and location_constraints, name the foreground, midground and background elements that ARE present, so the slot prompts can build three-dimensional composition without inventing anything downstream. Match the density to the tier and mood — a café, kitchen or gym is dense with objects and layered surfaces; an intimate bedroom or an open beach stays minimal but STILL has depth (a window, a lamp, curtains, the horizon, soft background). Build depth from OBJECTS, surfaces and natural layers ONLY — never from background people (background people are excluded downstream unless a drift seed adds one). Never lock an empty, sterile or minimalist frame with nothing behind the subject.`;
+  // Depth comes from objects, natural layers AND, in public places, a few blurred anonymous background
+  // people — the one hard rule is identity safety: never a second sharp or recognizable face.
+  const environmentDepth = `\nENVIRONMENT DEPTH (all tiers): lock a location that has real depth and layers, not a flat backdrop. In spatial_setup and location_constraints, name the foreground, midground and background elements that ARE present, so the slot prompts can build three-dimensional composition without inventing anything downstream. Match the density to the tier and mood — a café, kitchen or gym is dense with objects and layered surfaces; an intimate bedroom or an open beach stays minimal but STILL has depth (a window, a lamp, curtains, the horizon, soft background). In public places (café, gym, street, shop, beach) a few BLURRED, ANONYMOUS, out-of-focus background people are welcome as ambient life — they make the scene feel real — but NEVER a second sharp or recognizable face, never a foreground companion, never anyone interacting with the subject. The subject stays the single clear main character. Never lock an empty, sterile or minimalist frame with nothing behind the subject.`;
   // lived_moments is "Magnetic Everyday Life" — it wants rich, lived-in spaces with
   // real background depth, the opposite of the sparse "empty micro-location" bias baked into
   // the spatial_setup instruction below. Put the richness INTO the lock: when the elements are
   // enumerated in spatial_setup / location_constraints, the slot prompts are allowed to show
-  // them, so depth is legitimate and the NO-INVENTION rule is never broken. Depth comes from
-  // objects and natural layers, never from background people (banned downstream, drift seed aside).
+  // them, so depth is legitimate and the NO-INVENTION rule is never broken. In public places a
+  // few blurred anonymous background people are welcome (identity safety: never a second sharp face).
   const livedMomentsBrief = storyScene.tier === "lived_moments"
     ? `\nLIVED_MOMENTS ENVIRONMENT (overrides the "sparse micro-location" bias in spatial_setup for THIS brief):
 This location must feel like a real, lived-in everyday place with visual DEPTH — not an empty corner or a bare wall. In spatial_setup AND location_constraints, lock a LAYERED space and enumerate its background elements explicitly, e.g.:
-- café → nearby empty tables and chairs, a counter with cups, a pastry case, a window to the street, hanging plants
+- café → nearby tables and chairs, a counter with cups, a pastry case, a window to the street, hanging plants, a couple of blurred anonymous patrons deep in the background
 - kitchen → counter with everyday items, open shelves, a window, a fruit bowl
 - living room → sofa, a low table, shelves with books, a lamp, a plant
 - bedroom → unmade bed, a nightstand, a window with curtains, a chair with clothes
-Because these elements are named in the lock, the slot prompts are ALLOWED to show them — that is intended. Still ONE micro-location and still exhaustive, but exhaustive about a RICH space: list what IS there across foreground + midground + background so every slot has real depth. Build this depth from OBJECTS, furniture and natural layers, NOT from background people (background people are excluded downstream unless a drift seed adds one). Genuinely sparse outdoor locations (beach, pool, open street) get their depth from distance and natural layers (horizon, water, a distant coastline, dunes, the sky) rather than furniture — do not force furniture where it would not exist. Never lock an empty, sterile or minimalist frame for this tier.`
+Because these elements are named in the lock, the slot prompts are ALLOWED to show them — that is intended. Still ONE micro-location and still exhaustive, but exhaustive about a RICH space: list what IS there across foreground + midground + background so every slot has real depth. In busy public places a few BLURRED, ANONYMOUS, out-of-focus background people are welcome as ambient life — but NEVER a second sharp or recognizable face, never a foreground companion; she stays the single clear main character. Genuinely sparse outdoor locations (beach, pool, open street) get their depth from distance and natural layers (horizon, water, a distant coastline, dunes, the sky) plus, where natural, a few far-off blurred figures — do not force furniture where it would not exist. Never lock an empty, sterile or minimalist frame for this tier.`
     : "";
-  const driftRules = driftRulesForBrief(storyScene.drift_seeds, character.sacred_details);
+  const driftRules = driftRulesForBrief(storyScene.drift_seeds);
   const driftText = driftRules.length > 0
     ? `\nDRIFT SEEDS ACTIVE TODAY (mandatory — bake these into the brief's visual_rules array verbatim):\n${driftRules.map((r) => `- ${r}`).join("\n")}`
     : "";

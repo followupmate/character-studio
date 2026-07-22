@@ -40,7 +40,7 @@ export type MomentFamily =
 // Per-day magnetism intensity (currently used by lived_moments; the shape is
 // generic so other tiers can adopt it later without a schema change).
 export type MagnetismLevel = "soft" | "playful" | "flirty" | "sensual";
-export type DriftSeedKind = "recurring_stranger" | "timestamp_mismatch" | "impossible_weather_memory" | "location_drop" | "golden_hour_moment" | "hotel_morning";
+export type DriftSeedKind = "timestamp_mismatch" | "impossible_weather_memory" | "location_drop" | "golden_hour_moment" | "hotel_morning";
 export interface DriftSeed { kind: DriftSeedKind; detail?: string }
 
 export interface Character {
