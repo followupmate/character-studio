@@ -65,7 +65,7 @@ When the environment includes repeating high-frequency textures (escalator tread
 
 Common failure: woman on escalator → image gen renders the escalator treads in sharp detail and dissolves the subject's torso/legs into vertical streaks. To prevent: explicitly state "subject in sharp foreground, escalator treads in soft background, no texture overlap with subject."
 
-If a drift seed (Marseille Stranger) is active, the background figure stands at deep background (10m+ behind subject), NEVER on the same surface (escalator step, walkway) as the subject.
+Any ambient background people stay at deep background (soft, out of focus, well behind the subject), NEVER on the same surface (escalator step, walkway) or sharpness as the subject.
 
 SKIN AND FACE REALISM (CRITICAL for close-up / portrait archetypes):
 When the slot is emotional_close or any frame where the face fills more than ~30% of the frame, the prompt MUST specify natural realism, otherwise the gen defaults to "AI beauty" (over-smoothed skin, perfect symmetry, plastic appearance):
@@ -97,10 +97,13 @@ NO INVENTION RULE (CRITICAL — violation produces wrong images):
 The frame may contain ONLY:
 - garments listed in CHARACTER INVARIANTS wardrobe and scene brief wardrobe_lock (exhaustive — if not listed, not worn)
 - environment details listed in scene brief location_constraints
-- the Marseille Stranger ONLY when explicitly flagged via drift seed
+- ambient background people, but ONLY as blurred/anonymous background life (see AMBIENT BACKGROUND LIFE below)
 - props from ALLOWED PROPS list — and ONLY if the archetype demands one (see above)
 
 If the scene logically would benefit from an object that is not listed, you MUST leave it out. A sparser frame is correct; an invented object is wrong.
+
+AMBIENT BACKGROUND LIFE (allowed — makes public places feel real):
+In a public place (café, gym, street, shop, beach, transit) a few blurred, anonymous, out-of-focus people MAY appear as deep-background ambient life. Hard limits for identity safety: NEVER a second sharp or recognizable face, never a foreground companion, never anyone touching / talking to / posing with the subject. They are soft shapes well behind her; she is the single clear main character. In private locations (her home, bedroom, bathroom) she is alone — no other people.
 
 EXPLICITLY DO NOT ADD (common confabulation):
 - plastic bags, paper bags, shopping bags, takeaway bags
@@ -108,8 +111,8 @@ EXPLICITLY DO NOT ADD (common confabulation):
 - phones, earbuds, watches, sunglasses (unless in wardrobe)
 - jewelry beyond what's listed
 - branded items, logos, shop signs, posters with text
-- background people (the Marseille Stranger appears ONLY when drift seed says so)
-- pets, vehicles, secondary characters
+- a SECOND sharp/recognizable face, a foreground companion, or any secondary CHARACTER (ambient blurred background people are fine per the rule above; a clear second person is not)
+- pets, vehicles
 - ENVIRONMENT FURNITURE not listed in spatial_setup: benches, tables, chairs, market stalls, fruit crates / boxes, vendor counters, racks, displays, second rooms visible through doorways
 - A different location than the one named in spatial_setup. All 8 slots happen at the SAME micro-location. If an archetype's framing suggests a different setting, choose an angle within the current setup instead of jumping to a new place.
 
@@ -497,10 +500,6 @@ function sacredBlock(sacred: Record<string, unknown> | null): string {
   if (Array.isArray(env) && env.length > 0) {
     lines.push(`- Recurring environments: ${env.map(String).join("; ")}`);
   }
-  const stranger = (sacred as { marseille_stranger?: { prompt_injection?: string } }).marseille_stranger;
-  if (stranger?.prompt_injection) {
-    lines.push(`- Background figure (ONLY if drift seed recurring_stranger is active in this batch — otherwise NO background figure): ${stranger.prompt_injection}`);
-  }
   const anatomy = (sacred as { anatomy_anchors?: Record<string, string> }).anatomy_anchors;
   if (anatomy && typeof anatomy === "object" && Object.keys(anatomy).length > 0) {
     const parts = Object.entries(anatomy).map(([k, v]) => `${k}: ${v}`);
@@ -590,6 +589,7 @@ function captionBody(args: BuildArgs): string {
 LOCATION: ${args.sceneBriefJson.spatial_setup ?? args.sceneBriefDoctrine.split(".")[0]}
 LIGHTING: ${args.sceneBriefJson.lighting_state}, ${args.sceneBriefJson.time_of_day}
 ${propLine}
+BACKGROUND PEOPLE: in a public place a few blurred, anonymous, out-of-focus people may appear as deep-background ambient life — NEVER a second sharp or recognizable face, never a foreground companion; she is the single clear subject. In private places (home, bedroom, bathroom) she is alone.
 NO RENDERED TEXT: never ask the generator to draw any text, letters, words, caption, on-screen hook or watermark — it scribbles. Any hook text is added later as a real overlay; leave clean negative space instead.
 SLOT: ${args.slot.slot} — ${args.slot.framing}`;
 }
