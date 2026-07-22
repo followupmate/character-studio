@@ -138,14 +138,25 @@ const LUXE_CAR_SLOTS: Set<SlotName> = new Set([
   "carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5",
 ]);
 
-// LIVED_MOMENTS framing addendum — appended to the subject-bearing discovery slots
-// on lived_moments days. The default discovery cover forces a locked "face forward,
-// eyes to camera" portrait, which reads as posed and catalogue-like. lived_moments
-// wants the opposite: a caught-mid-moment candid where she is clearly present but
-// living the scene, not presenting to the lens. Face stays clearly visible (a
-// face-away cover makes the video model invent a new face), just not locked to it.
+// Tier-neutral depth/composition addendum — appended to every subject-bearing slot on
+// EVERY tier. This is the "build the environment" lever pulled out of lived_moments so all
+// tiers benefit: it fixes flat, backdrop-against-a-wall frames by forcing real foreground/
+// midground/background layering. It stays lock-safe — depth is built ONLY from what the
+// scene brief already locked, so it never conflicts with the slot-prompt NO-INVENTION rule.
+const DEPTH_FRAMING =
+  " DEPTH & COMPOSITION: build the frame with depth using ONLY what the scene lock already contains — separate foreground / midground / background and shoot across or past the locked surfaces and objects so the space reads three-dimensional, never flat against a blank backdrop. Do NOT invent furniture, props or elements the scene lock excludes; if the location is intentionally sparse, get depth from angle, distance and natural layers instead of adding things.";
+const DEPTH_SLOTS: Set<SlotName> = new Set([
+  "reel_start_frame", "reel_video", "story_bts",
+  "carousel_1", "carousel_2", "carousel_3", "carousel_4", "carousel_5",
+]);
+
+// LIVED_MOMENTS framing addendum — the candid, off-duty behaviour specific to this tier
+// (depth is handled by the shared DEPTH_FRAMING above). The default discovery cover forces a
+// locked "face forward, eyes to camera" portrait, which reads as posed and catalogue-like.
+// lived_moments wants the opposite: caught mid-moment, present but not presenting. Face stays
+// clearly visible (a face-away cover makes the video model invent a new face), just not locked to it.
 const LIVED_MOMENTS_FRAMING =
-  " LIVED-MOMENT: caught mid-action, not posed — she is DOING the moment (mid-sip, mid-laugh, reaching, turning, glancing away), face clearly visible but she may look off-camera rather than straight into the lens. Frame slightly wider so the real environment reads with DEPTH: her in the foreground, plus a LAYERED background softly behind her — furniture, a second table or surface, shelves, plants, a window with something beyond it, warm lived-in clutter. Name 2–3 concrete background elements so the space feels populated and real, never an empty wall or a bare sterile corner. Add one real in-use prop in the foreground (a cup, a phone, a towel, keys, a pet). Slightly off-centre. Natural light, clean and well-exposed. Believable phone snapshot a friend took in a real place, not a studio portrait against a blank backdrop. Do NOT put more than one full face in frame.";
+  " LIVED-MOMENT: caught mid-action, not posed — she is DOING the moment (mid-sip, mid-laugh, reaching, turning, glancing away), face clearly visible but she may look off-camera rather than straight into the lens. Slightly off-centre, one real in-use prop only if the lock allows one. Believable phone snapshot a friend took in a real place, not a studio portrait. Do NOT put more than one full face in frame.";
 const LIVED_MOMENTS_SLOTS: Set<SlotName> = new Set([
   "reel_start_frame", "reel_video", "story_bts",
 ]);
@@ -163,17 +174,13 @@ export function dailySlots(
   const livedMoments = tier === "lived_moments";
 
   if (!discoveryMode) {
-    if (luxeCar) {
-      return DAILY_SLOTS.map((s) =>
-        LUXE_CAR_SLOTS.has(s.slot) ? { ...s, framing: s.framing + LUXE_CAR_FRAMING } : s
-      );
-    }
-    if (livedMoments) {
-      return DAILY_SLOTS.map((s) =>
-        LIVED_MOMENTS_SLOTS.has(s.slot) ? { ...s, framing: s.framing + LIVED_MOMENTS_FRAMING } : s
-      );
-    }
-    return DAILY_SLOTS;
+    return DAILY_SLOTS.map((s) => {
+      let framing = s.framing;
+      if (DEPTH_SLOTS.has(s.slot)) framing += DEPTH_FRAMING;
+      if (luxeCar && LUXE_CAR_SLOTS.has(s.slot)) framing += LUXE_CAR_FRAMING;
+      if (livedMoments && LIVED_MOMENTS_SLOTS.has(s.slot)) framing += LIVED_MOMENTS_FRAMING;
+      return framing === s.framing ? s : { ...s, framing };
+    });
   }
 
   return DAILY_SLOTS
@@ -184,6 +191,7 @@ export function dailySlots(
         if (s.slot === "reel_start_frame") framing += ` FORMAT — ${reelFormat.label}: ${reelFormat.coverCue}`;
         else if (s.slot === "reel_video") framing += ` FORMAT — ${reelFormat.label}: ${reelFormat.videoDirective}`;
       }
+      if (DEPTH_SLOTS.has(s.slot)) framing += DEPTH_FRAMING;
       if (luxeCar && LUXE_CAR_SLOTS.has(s.slot)) framing += LUXE_CAR_FRAMING;
       if (livedMoments && LIVED_MOMENTS_SLOTS.has(s.slot)) framing += LIVED_MOMENTS_FRAMING;
       return framing === s.framing ? s : { ...s, framing };
