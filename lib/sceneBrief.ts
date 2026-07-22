@@ -92,21 +92,24 @@ export async function generateSceneBrief({ storyScene, character, recentBriefs, 
   // Tier-neutral environment-building instruction (all tiers). Fixes flat, backdrop-against-a-
   // wall locks by requiring real depth and by enumerating the background layers that ARE present,
   // so the slot prompts can build three-dimensional composition without inventing anything.
-  // Density is calibrated per tier/mood (a café is populated; an intimate bedroom stays minimal).
-  const environmentDepth = `\nENVIRONMENT DEPTH (all tiers): lock a location that has real depth and layers, not a flat backdrop. In spatial_setup and location_constraints, name the foreground, midground and background elements that ARE present, so the slot prompts can build three-dimensional composition without inventing anything downstream. Match the density to the tier and mood — a café, kitchen or gym is populated and layered; an intimate bedroom or an open beach stays minimal but STILL has depth (a window, a lamp, curtains, the horizon, soft background). Never lock an empty, sterile or minimalist frame with nothing behind the subject.`;
-  // lived_moments is "Magnetic Everyday Life" — it wants populated, lived-in spaces with
+  // Density is calibrated per tier/mood (a café is dense with objects; an intimate bedroom stays minimal).
+  // Depth is built from OBJECTS and natural layers, never from background people — those are banned in the
+  // downstream slot-prompt contract (only a deliberate drift seed adds one figure).
+  const environmentDepth = `\nENVIRONMENT DEPTH (all tiers): lock a location that has real depth and layers, not a flat backdrop. In spatial_setup and location_constraints, name the foreground, midground and background elements that ARE present, so the slot prompts can build three-dimensional composition without inventing anything downstream. Match the density to the tier and mood — a café, kitchen or gym is dense with objects and layered surfaces; an intimate bedroom or an open beach stays minimal but STILL has depth (a window, a lamp, curtains, the horizon, soft background). Build depth from OBJECTS, surfaces and natural layers ONLY — never from background people (background people are excluded downstream unless a drift seed adds one). Never lock an empty, sterile or minimalist frame with nothing behind the subject.`;
+  // lived_moments is "Magnetic Everyday Life" — it wants rich, lived-in spaces with
   // real background depth, the opposite of the sparse "empty micro-location" bias baked into
   // the spatial_setup instruction below. Put the richness INTO the lock: when the elements are
   // enumerated in spatial_setup / location_constraints, the slot prompts are allowed to show
-  // them, so depth is legitimate and the NO-INVENTION rule is never broken.
+  // them, so depth is legitimate and the NO-INVENTION rule is never broken. Depth comes from
+  // objects and natural layers, never from background people (banned downstream, drift seed aside).
   const livedMomentsBrief = storyScene.tier === "lived_moments"
     ? `\nLIVED_MOMENTS ENVIRONMENT (overrides the "sparse micro-location" bias in spatial_setup for THIS brief):
-This location must feel like a real, populated, lived-in everyday place with visual DEPTH — not an empty corner or a bare wall. In spatial_setup AND location_constraints, lock a LAYERED space and enumerate its background elements explicitly, e.g.:
-- café → nearby occupied-looking tables, a counter with cups, a pastry case, a window to the street, hanging plants
+This location must feel like a real, lived-in everyday place with visual DEPTH — not an empty corner or a bare wall. In spatial_setup AND location_constraints, lock a LAYERED space and enumerate its background elements explicitly, e.g.:
+- café → nearby empty tables and chairs, a counter with cups, a pastry case, a window to the street, hanging plants
 - kitchen → counter with everyday items, open shelves, a window, a fruit bowl
 - living room → sofa, a low table, shelves with books, a lamp, a plant
 - bedroom → unmade bed, a nightstand, a window with curtains, a chair with clothes
-Because these elements are named in the lock, the slot prompts are ALLOWED to show them — that is intended. Still ONE micro-location and still exhaustive, but exhaustive about a RICH space: list what IS there across foreground + midground + background so every slot has real depth. Genuinely sparse outdoor locations (beach, pool, open street) get their depth from distance and natural layers (horizon, water, people far off) rather than furniture — do not force furniture where it would not exist. Never lock an empty, sterile or minimalist frame for this tier.`
+Because these elements are named in the lock, the slot prompts are ALLOWED to show them — that is intended. Still ONE micro-location and still exhaustive, but exhaustive about a RICH space: list what IS there across foreground + midground + background so every slot has real depth. Build this depth from OBJECTS, furniture and natural layers, NOT from background people (background people are excluded downstream unless a drift seed adds one). Genuinely sparse outdoor locations (beach, pool, open street) get their depth from distance and natural layers (horizon, water, a distant coastline, dunes, the sky) rather than furniture — do not force furniture where it would not exist. Never lock an empty, sterile or minimalist frame for this tier.`
     : "";
   const driftRules = driftRulesForBrief(storyScene.drift_seeds, character.sacred_details);
   const driftText = driftRules.length > 0
