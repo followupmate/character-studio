@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
+import type { MomentFamily } from "@/types";
 
-type TierName = "everyday_life" | "wellness_fitness" | "intimate_aesthetic" | "luxe_car" | "lifestyle_travel";
+type TierName = "everyday_life" | "wellness_fitness" | "intimate_aesthetic" | "luxe_car" | "lived_moments" | "lifestyle_travel";
 
 export interface StylingProfile {
   id: string;
@@ -12,6 +13,8 @@ export interface StylingProfile {
   makeup: string;
   /** which tiers this profile fits best */
   tier_affinity: TierName[];
+  /** lived_moments only: which sub-worlds this profile fits (optional) */
+  family_affinity?: MomentFamily[];
   /** rough time of day preference — scene brief may adapt */
   time_affinity: Array<"morning" | "midday" | "golden_hour" | "evening" | "any">;
   cooldown_days: number;
@@ -27,7 +30,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "soft undone waves, slightly tousled, lived-in",
     jewelry: "thin gold chain, small gold studs",
     makeup: "bare or near-bare — clean skin, light mascara, balm lip",
-    tier_affinity: ["everyday_life", "intimate_aesthetic"],
+    tier_affinity: ["everyday_life", "intimate_aesthetic", "lived_moments"],
+    family_affinity: ["home_private", "pets_spontaneous"],
     time_affinity: ["morning", "evening"],
     cooldown_days: 4,
   },
@@ -39,7 +43,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "relaxed waves or a soft claw-clip half-up",
     jewelry: "thin gold chain, small hoops",
     makeup: "fresh, minimal — glowy skin, tinted lip",
-    tier_affinity: ["everyday_life", "intimate_aesthetic"],
+    tier_affinity: ["everyday_life", "intimate_aesthetic", "lived_moments"],
+    family_affinity: ["home_private"],
     time_affinity: ["morning", "evening", "any"],
     cooldown_days: 4,
   },
@@ -51,7 +56,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "natural waves, a little movement",
     jewelry: "thin gold chain, small hoops, optional simple watch",
     makeup: "natural — skin tint, mascara, warm lip",
-    tier_affinity: ["everyday_life"],
+    tier_affinity: ["everyday_life", "lived_moments"],
+    family_affinity: ["city_transit", "pets_spontaneous", "home_private"],
     time_affinity: ["midday", "golden_hour", "any"],
     cooldown_days: 4,
   },
@@ -63,9 +69,50 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "soft waves, effortless",
     jewelry: "thin gold chain, small studs",
     makeup: "fresh-faced — glow, mascara, tinted balm",
-    tier_affinity: ["everyday_life"],
+    tier_affinity: ["everyday_life", "lived_moments"],
+    family_affinity: ["city_transit", "home_private"],
     time_affinity: ["morning", "midday"],
     cooldown_days: 4,
+  },
+  // ── LIVED MOMENTS (Magnetic Everyday Life — human, varied) ─
+  {
+    id: "oversized_tee_home",
+    label: "Oversized tee at home",
+    vibe: "That-girl-at-home. A single oversized tee, bare legs, effortless and quietly magnetic. Iconic relatable look.",
+    outfit: "oversized soft cotton t-shirt (white or washed grey) worn long over bare legs, sleeves loose; barefoot or slouchy socks",
+    hair: "undone waves, a little messy, lived-in",
+    jewelry: "thin gold chain, small studs",
+    makeup: "bare — clean glow, light mascara, balm",
+    tier_affinity: ["lived_moments", "everyday_life"],
+    family_affinity: ["home_private", "pets_spontaneous"],
+    time_affinity: ["morning", "evening", "any"],
+    cooldown_days: 5,
+  },
+  {
+    id: "robe_morning",
+    label: "Robe morning",
+    vibe: "Fresh-out-of-the-shower morning. A soft robe, mirror light, unhurried and naturally alluring.",
+    outfit: "soft white or cream waffle / terry robe worn loose, slipping slightly at one shoulder; simple underlayer",
+    hair: "damp or air-dried, pushed back or in a soft towel-tousle",
+    jewelry: "none or a single thin chain",
+    makeup: "fresh, dewy, near-bare",
+    tier_affinity: ["lived_moments", "intimate_aesthetic"],
+    family_affinity: ["home_private"],
+    time_affinity: ["morning"],
+    cooldown_days: 6,
+  },
+  {
+    id: "going_out_casual",
+    label: "Going-out casual",
+    vibe: "Getting-ready energy — casual-chic for a night with friends. Relatable and warm, not full glam.",
+    outfit: "fitted tank or a simple slip top + straight jeans or a mini skirt, an oversized blazer or leather jacket worn open; boots or heels",
+    hair: "smooth blowout or effortless waves",
+    jewelry: "layered thin gold, small hoops",
+    makeup: "soft evening — warm eye, glossy lip",
+    tier_affinity: ["lived_moments"],
+    family_affinity: ["friends_fun", "city_transit"],
+    time_affinity: ["evening", "golden_hour"],
+    cooldown_days: 6,
   },
   // ── WELLNESS / FITNESS ────────────────────────────────────
   {
@@ -113,7 +160,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "VS bombshell waves — voluminous, loose, high-shine",
     jewelry: "delicate gold — layered thin chains, small drop earrings",
     makeup: "glamorous — defined eye, bronzed glow, glossy nude lip",
-    tier_affinity: ["intimate_aesthetic", "lifestyle_travel"],
+    tier_affinity: ["intimate_aesthetic", "lifestyle_travel", "lived_moments"],
+    family_affinity: ["friends_fun"],
     time_affinity: ["golden_hour", "evening"],
     cooldown_days: 6,
   },
@@ -125,7 +173,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "tousled bombshell waves",
     jewelry: "one simple chain, tiny gold earrings",
     makeup: "bronzed, glossy, sun-warmed",
-    tier_affinity: ["intimate_aesthetic", "lifestyle_travel"],
+    tier_affinity: ["intimate_aesthetic", "lifestyle_travel", "lived_moments"],
+    family_affinity: ["vacation_beach_water"],
     time_affinity: ["midday", "golden_hour"],
     cooldown_days: 6,
   },
@@ -150,7 +199,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "sleek high-shine blowout or a polished low bun",
     jewelry: "fine gold layers, small drop earrings",
     makeup: "polished glam — smoked liner, bronzed cheek, glossy nude lip",
-    tier_affinity: ["luxe_car"],
+    tier_affinity: ["luxe_car", "lived_moments"],
+    family_affinity: ["friends_fun"],
     time_affinity: ["evening"],
     cooldown_days: 6,
   },
@@ -175,7 +225,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "salt-textured beach waves",
     jewelry: "thin gold body chain, layered anklet, two thin rings",
     makeup: "sunkissed bare — bronzer, mascara, gloss",
-    tier_affinity: ["lifestyle_travel"],
+    tier_affinity: ["lifestyle_travel", "lived_moments"],
+    family_affinity: ["vacation_beach_water"],
     time_affinity: ["midday", "golden_hour"],
     cooldown_days: 6,
   },
@@ -187,7 +238,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "soft loose waves, effortless",
     jewelry: "thin necklace, small hoops",
     makeup: "fresh — light coverage, defined lashes, warm lip",
-    tier_affinity: ["lifestyle_travel"],
+    tier_affinity: ["lifestyle_travel", "lived_moments"],
+    family_affinity: ["vacation_beach_water", "city_transit"],
     time_affinity: ["morning", "midday", "golden_hour"],
     cooldown_days: 6,
   },
@@ -199,7 +251,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
     hair: "slick low bun, smooth crown",
     jewelry: "oversized sunglasses (no brand), thin gold chain",
     makeup: "clean resort — light, natural, healthy",
-    tier_affinity: ["lifestyle_travel"],
+    tier_affinity: ["lifestyle_travel", "lived_moments"],
+    family_affinity: ["vacation_beach_water"],
     time_affinity: ["midday", "golden_hour"],
     cooldown_days: 7,
   },
@@ -219,7 +272,8 @@ export const STYLING_PROFILES: StylingProfile[] = [
 
 export async function pickStylingProfile(
   characterId: string,
-  tier: string
+  tier: string,
+  family?: MomentFamily | null
 ): Promise<StylingProfile> {
   // Load recently used profiles (last 21 days)
   const { data: recentPlans } = await supabase
@@ -249,13 +303,33 @@ export async function pickStylingProfile(
   };
 
   const tierKey = tier as TierName;
-  const preferred = STYLING_PROFILES.filter(
-    (p) => !isInCooldown(p) && p.tier_affinity.includes(tierKey)
-  );
-  // Fallback: any profile matching the tier (ignore cooldown), then any not in cooldown, then anything.
-  const tierAny = STYLING_PROFILES.filter((p) => p.tier_affinity.includes(tierKey));
-  const any = STYLING_PROFILES.filter((p) => !isInCooldown(p));
-  const pool = preferred.length > 0 ? preferred : tierAny.length > 0 ? tierAny : any.length > 0 ? any : STYLING_PROFILES;
+  const tierMatch = (p: StylingProfile) => p.tier_affinity.includes(tierKey);
+  const familyMatch = (p: StylingProfile) => !!family && (p.family_affinity?.includes(family) ?? false);
+
+  // Cascade of pools, most-specific first. For lived_moments the day's family
+  // leads (so a beach day gets beachwear, a home day gets home looks); otherwise
+  // it's the original tier-based cascade. Each step falls through if empty.
+  const cascade: Array<(p: StylingProfile) => boolean> = family
+    ? [
+        (p) => !isInCooldown(p) && tierMatch(p) && familyMatch(p), // tier + family, fresh
+        (p) => tierMatch(p) && familyMatch(p),                     // tier + family, ignore cooldown
+        (p) => familyMatch(p),                                     // family only
+        (p) => !isInCooldown(p) && tierMatch(p),                   // tier only, fresh
+        (p) => tierMatch(p),                                       // tier only
+        (p) => !isInCooldown(p),                                   // anything fresh
+      ]
+    : [
+        (p) => !isInCooldown(p) && tierMatch(p),
+        (p) => tierMatch(p),
+        (p) => !isInCooldown(p),
+      ];
+
+  let pool: StylingProfile[] = [];
+  for (const pred of cascade) {
+    pool = STYLING_PROFILES.filter(pred);
+    if (pool.length > 0) break;
+  }
+  if (pool.length === 0) pool = STYLING_PROFILES;
 
   return pool[Math.floor(Math.random() * pool.length)];
 }

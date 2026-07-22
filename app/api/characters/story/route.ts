@@ -7,8 +7,13 @@ import {
   pickDriftSeeds,
   tierGuidance,
   driftSeedGuidance,
+  pickMomentFamily,
+  pickMagnetismLevel,
+  getLastMomentFamily,
   StoryTier,
   ContentPhase,
+  MomentFamily,
+  MagnetismLevel,
 } from "@/lib/storyTier";
 import { Character, StoryDay } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
@@ -29,8 +34,10 @@ function buildSystemPrompt(args: {
   historyText: string;
   lifeContext?: string; // life_layer: continuity guidance from yesterday's life_state + active events
   discoveryMode?: boolean; // discovery_mode: reach-first caption/hook editorial
+  family?: MomentFamily | null; // lived_moments: today's world
+  magnetism?: MagnetismLevel | null; // lived_moments: today's intensity
 }): string {
-  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism } = args;
   const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
@@ -49,7 +56,7 @@ ${sacred ? `\nSACRED DETAILS (invariant world objects and rules):\n${JSON.string
 
 ${VOICE_DOCTRINE}
 ${discoveryMode ? `\n${DISCOVERY_DOCTRINE}\n` : ""}
-${tierGuidance(tier)}
+${tierGuidance(tier, { family, magnetism })}
 
 ${driftSeedGuidance(driftSeeds)}
 ${lifeContext ? `\n${lifeContext}\n` : ""}
@@ -160,7 +167,12 @@ export async function GET() {
       }
 
       const discoveryMode = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "discovery_mode");
-      const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext, discoveryMode });
+
+      // lived_moments only: pick today's world (anti-repeat vs the last lived_moments day) + magnetism.
+      const family = tier === "lived_moments" ? pickMomentFamily(await getLastMomentFamily(char.id)) : null;
+      const magnetism = tier === "lived_moments" ? pickMagnetismLevel() : null;
+
+      const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext, discoveryMode, family, magnetism });
 
       const msg = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
@@ -188,6 +200,8 @@ export async function GET() {
           emotional_beat: story.emotional_beat,
           scene: story.scene,
           tier,
+          ...(family ? { moment_family: family } : {}),
+          ...(magnetism ? { magnetism_level: magnetism } : {}),
           drift_seeds: driftSeeds,
           next_hint: story.next_hint,
           ig_caption: story.ig_caption,

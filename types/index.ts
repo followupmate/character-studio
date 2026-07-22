@@ -11,7 +11,35 @@ export type EmotionalBeat =
 export type SlotChannel = "feed" | "reel" | "story";
 export type GenerationStatus = "pending" | "generating" | "completed" | "failed" | "retrying";
 export type BatchStatus = "planned" | "generating" | "ready" | "partial_failed" | "published" | "failed";
-export type StoryTier = "grounded_routine" | "cinematic_melancholy" | "incidental_wrongness" | "entropy" | "lifestyle_travel" | "intimate_aesthetic" | "everyday_life" | "wellness_fitness";
+// Canonical StoryTier — single source of truth (lib/storyTier.ts re-exports this).
+// ACTIVE tiers are the only ones the rotation picks (see TIER_WEIGHTS); the rest
+// are HISTORICAL — kept so already-stored story_days (and the DB tier CHECK) still
+// type-check and read, but never re-enter the active rotation.
+export type StoryTier =
+  // active
+  | "lived_moments"
+  | "everyday_life"
+  | "wellness_fitness"
+  | "intimate_aesthetic"
+  | "luxe_car"
+  // historical (readable only, not re-selected)
+  | "lifestyle_travel"
+  | "grounded_routine"
+  | "cinematic_melancholy"
+  | "incidental_wrongness"
+  | "entropy";
+
+// lived_moments sub-worlds — one is chosen per lived_moments day.
+export type MomentFamily =
+  | "home_private"
+  | "friends_fun"
+  | "vacation_beach_water"
+  | "pets_spontaneous"
+  | "city_transit";
+
+// Per-day magnetism intensity (currently used by lived_moments; the shape is
+// generic so other tiers can adopt it later without a schema change).
+export type MagnetismLevel = "soft" | "playful" | "flirty" | "sensual";
 export type DriftSeedKind = "recurring_stranger" | "timestamp_mismatch" | "impossible_weather_memory" | "location_drop" | "golden_hour_moment" | "hotel_morning";
 export interface DriftSeed { kind: DriftSeedKind; detail?: string }
 
@@ -50,6 +78,8 @@ export interface StoryDay {
   emotional_beat: EmotionalBeat | null;
   scene: Record<string, unknown> | null;
   tier: StoryTier | null;
+  moment_family: MomentFamily | null; // set only on lived_moments days
+  magnetism_level: MagnetismLevel | null; // set only on lived_moments days (for now)
   drift_seeds: DriftSeed[] | null;
   next_hint: string | null;
   ig_caption: string | null;
