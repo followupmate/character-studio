@@ -145,7 +145,7 @@ const LUXE_CAR_SLOTS: Set<SlotName> = new Set([
 // living the scene, not presenting to the lens. Face stays clearly visible (a
 // face-away cover makes the video model invent a new face), just not locked to it.
 const LIVED_MOMENTS_FRAMING =
-  " LIVED-MOMENT: caught mid-action, not posed — she is DOING the moment (mid-sip, mid-laugh, reaching, turning, glancing away), face clearly visible but she may look off-camera rather than straight into the lens. Frame slightly wider so the real environment reads: 2–3 concrete surroundings from the scene plus one real in-use prop (a cup, a phone, a towel, keys, a pet). Slightly off-centre. Natural light, clean and well-exposed. Believable phone snapshot a friend took, not a studio portrait.";
+  " LIVED-MOMENT: caught mid-action, not posed — she is DOING the moment (mid-sip, mid-laugh, reaching, turning, glancing away), face clearly visible but she may look off-camera rather than straight into the lens. Frame slightly wider so the real environment reads with DEPTH: her in the foreground, plus a LAYERED background softly behind her — furniture, a second table or surface, shelves, plants, a window with something beyond it, warm lived-in clutter. Name 2–3 concrete background elements so the space feels populated and real, never an empty wall or a bare sterile corner. Add one real in-use prop in the foreground (a cup, a phone, a towel, keys, a pet). Slightly off-centre. Natural light, clean and well-exposed. Believable phone snapshot a friend took in a real place, not a studio portrait against a blank backdrop. Do NOT put more than one full face in frame.";
 const LIVED_MOMENTS_SLOTS: Set<SlotName> = new Set([
   "reel_start_frame", "reel_video", "story_bts",
 ]);
