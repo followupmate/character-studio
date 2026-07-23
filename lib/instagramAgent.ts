@@ -59,10 +59,10 @@ export async function runInstagramAgent(input: RunInstagramAgentInput): Promise<
   if (!isEnabled() || !input.text?.trim()) return;
 
   const dryRun = isDryRun();
-  const conversation = await loadConversation(input.contactId);
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
+    const conversation = await loadConversation(input.contactId);
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 350,
