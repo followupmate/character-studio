@@ -6,6 +6,10 @@ import {
   getInstagramEventType,
   verifyInstagramSignature,
 } from "@/lib/instagramWebhook";
+import {
+  markInstagramWebhookFailed,
+  processStoredInstagramWebhook,
+} from "@/lib/instagramEventStore";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -48,18 +52,33 @@ export async function POST(req: Request) {
 
   const eventKey = buildInstagramEventKey(rawBody);
   const eventType = getInstagramEventType(payload);
+  const { data: storedEvent, error } = await supabase
+    .from("chs_ig_webhook_events")
+    .insert({
+      event_key: eventKey,
+      event_type: eventType,
+      payload,
+      status: "pending",
+    })
+    .select("id")
+    .single();
 
-  const { error } = await supabase.from("chs_ig_webhook_events").insert({
-    event_key: eventKey,
-    event_type: eventType,
-    payload,
-    status: "pending",
-  });
+  if (error?.code === "23505") {
+    return NextResponse.json({ success: true, duplicate: true });
+  }
 
-  if (error && error.code !== "23505") {
-    console.error("[instagram-webhook] storage failed", error.message);
+  if (error || !storedEvent?.id) {
+    console.error("[instagram-webhook] storage failed", error?.message ?? "missing event id");
     return NextResponse.json({ success: false, error: "Webhook storage failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, duplicate: error?.code === "23505" });
+  try {
+    const result = await processStoredInstagramWebhook(storedEvent.id as string, payload);
+    return NextResponse.json({ success: true, duplicate: false, ...result });
+  } catch (processingError) {
+    const message = processingError instanceof Error ? processingError.message : String(processingError);
+    console.error("[instagram-webhook] processing failed", message);
+    await markInstagramWebhookFailed(storedEvent.id as string, message);
+    return NextResponse.json({ success: false, error: "Webhook processing failed" }, { status: 500 });
+  }
 }
