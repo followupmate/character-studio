@@ -63,22 +63,39 @@ export async function POST(req: Request) {
     .select("id")
     .single();
 
-  if (error?.code === "23505") {
-    return NextResponse.json({ success: true, duplicate: true });
-  }
+  let webhookEventId = storedEvent?.id as string | undefined;
+  let duplicate = false;
 
-  if (error || !storedEvent?.id) {
+  if (error?.code === "23505") {
+    duplicate = true;
+    const { data: existingEvent, error: lookupError } = await supabase
+      .from("chs_ig_webhook_events")
+      .select("id,status")
+      .eq("event_key", eventKey)
+      .single();
+
+    if (lookupError || !existingEvent?.id) {
+      console.error("[instagram-webhook] duplicate lookup failed", lookupError?.message ?? "missing event");
+      return NextResponse.json({ success: false, error: "Webhook lookup failed" }, { status: 500 });
+    }
+
+    if (existingEvent.status === "processed" || existingEvent.status === "ignored") {
+      return NextResponse.json({ success: true, duplicate: true, retried: false });
+    }
+
+    webhookEventId = existingEvent.id as string;
+  } else if (error || !webhookEventId) {
     console.error("[instagram-webhook] storage failed", error?.message ?? "missing event id");
     return NextResponse.json({ success: false, error: "Webhook storage failed" }, { status: 500 });
   }
 
   try {
-    const result = await processStoredInstagramWebhook(storedEvent.id as string, payload);
-    return NextResponse.json({ success: true, duplicate: false, ...result });
+    const result = await processStoredInstagramWebhook(webhookEventId, payload);
+    return NextResponse.json({ success: true, duplicate, retried: duplicate, ...result });
   } catch (processingError) {
     const message = processingError instanceof Error ? processingError.message : String(processingError);
     console.error("[instagram-webhook] processing failed", message);
-    await markInstagramWebhookFailed(storedEvent.id as string, message);
+    await markInstagramWebhookFailed(webhookEventId, message);
     return NextResponse.json({ success: false, error: "Webhook processing failed" }, { status: 500 });
   }
 }
