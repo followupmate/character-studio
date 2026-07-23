@@ -27,7 +27,31 @@ function asRecord(value: unknown): UnknownRecord | null {
 }
 
 function asString(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
+  if (typeof value === "string" && value.length > 0) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
+function parseDmEnvelope(envelopeValue: unknown): ParsedInstagramEvent | null {
+  const envelope = asRecord(envelopeValue);
+  if (!envelope) return null;
+
+  const sender = asRecord(envelope.sender);
+  const message = asRecord(envelope.message);
+  const contactId = sender ? asString(sender.id) : null;
+  const platformMessageId = message ? asString(message.mid) : null;
+  const text = message ? asString(message.text) : null;
+
+  if (!contactId || !platformMessageId || !text) return null;
+
+  return {
+    kind: "dm",
+    contactId,
+    platformMessageId,
+    text,
+    timestamp: asString(envelope.timestamp),
+    raw: envelopeValue,
+  };
 }
 
 export function parseInstagramEvents(payload: unknown): ParsedInstagramEvent[] {
@@ -37,8 +61,17 @@ export function parseInstagramEvents(payload: unknown): ParsedInstagramEvent[] {
 
   for (const entryValue of entries) {
     const entry = asRecord(entryValue);
-    const changes = entry && Array.isArray(entry.changes) ? entry.changes : [];
+    if (!entry) continue;
 
+    // Real Instagram DM deliveries use entry.messaging[].
+    const messaging = Array.isArray(entry.messaging) ? entry.messaging : [];
+    for (const envelopeValue of messaging) {
+      const dm = parseDmEnvelope(envelopeValue);
+      if (dm) parsed.push(dm);
+    }
+
+    // Meta's dashboard field test and comment deliveries use entry.changes[].
+    const changes = Array.isArray(entry.changes) ? entry.changes : [];
     for (const changeValue of changes) {
       const change = asRecord(changeValue);
       const field = change ? asString(change.field) : null;
@@ -46,21 +79,9 @@ export function parseInstagramEvents(payload: unknown): ParsedInstagramEvent[] {
       if (!field || !value) continue;
 
       if (field === "messages") {
-        const sender = asRecord(value.sender);
-        const message = asRecord(value.message);
-        const contactId = sender ? asString(sender.id) : null;
-        const platformMessageId = message ? asString(message.mid) : null;
-        const text = message ? asString(message.text) : null;
-        if (!contactId || !platformMessageId || !text) continue;
-
-        parsed.push({
-          kind: "dm",
-          contactId,
-          platformMessageId,
-          text,
-          timestamp: asString(value.timestamp),
-          raw: changeValue,
-        });
+        const dm = parseDmEnvelope(value);
+        if (dm) parsed.push(dm);
+        continue;
       }
 
       if (field === "comments") {
