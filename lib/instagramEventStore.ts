@@ -1,10 +1,12 @@
 import { supabase } from "@/lib/supabase";
 import { parseInstagramEvents } from "@/lib/instagramEventParser";
+import { runInstagramAgent } from "@/lib/instagramAgent";
 
 export type InstagramEventProcessingResult = {
   parsed: number;
   stored: number;
   duplicates: number;
+  agentRuns: number;
 };
 
 export async function processStoredInstagramWebhook(
@@ -14,6 +16,7 @@ export async function processStoredInstagramWebhook(
   const events = parseInstagramEvents(payload);
   let stored = 0;
   let duplicates = 0;
+  let agentRuns = 0;
 
   if (events.length === 0) {
     const { error } = await supabase
@@ -25,7 +28,7 @@ export async function processStoredInstagramWebhook(
       .eq("id", webhookEventId);
 
     if (error) throw new Error(`Unable to mark webhook ignored: ${error.message}`);
-    return { parsed: 0, stored: 0, duplicates: 0 };
+    return { parsed: 0, stored: 0, duplicates: 0, agentRuns: 0 };
   }
 
   for (const event of events) {
@@ -62,6 +65,17 @@ export async function processStoredInstagramWebhook(
     }
     if (messageError) throw new Error(`Unable to store Instagram message: ${messageError.message}`);
     stored += 1;
+
+    await runInstagramAgent({
+      webhookEventId,
+      contactId: event.contactId,
+      sourceType: event.kind,
+      text: event.text,
+    });
+
+    if (process.env.IG_AGENT_ENABLED === "true" && event.text?.trim()) {
+      agentRuns += 1;
+    }
   }
 
   const { error: eventError } = await supabase
@@ -76,7 +90,7 @@ export async function processStoredInstagramWebhook(
 
   if (eventError) throw new Error(`Unable to mark webhook processed: ${eventError.message}`);
 
-  return { parsed: events.length, stored, duplicates };
+  return { parsed: events.length, stored, duplicates, agentRuns };
 }
 
 export async function markInstagramWebhookFailed(webhookEventId: string, errorMessage: string): Promise<void> {
