@@ -304,6 +304,17 @@ function SidebarContent({
         </div>
         <div className="text-muted/60">chs_ · Supabase · Vercel</div>
         <div className="text-muted/60">Soul 2 · Seedance 2.0</div>
+        <div className="mt-2 pt-2 border-t border-border flex flex-wrap gap-x-3 gap-y-1">
+          <Link href="/privacy" className="text-muted/60 hover:text-accent transition-colors">
+            Privacy
+          </Link>
+          <Link href="/terms" className="text-muted/60 hover:text-accent transition-colors">
+            Terms
+          </Link>
+          <Link href="/data-deletion" className="text-muted/60 hover:text-accent transition-colors">
+            Data Deletion
+          </Link>
+        </div>
       </motion.div>
     </>
   );
