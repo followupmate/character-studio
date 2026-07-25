@@ -141,13 +141,17 @@ function errDetail(r: { status: number; data: Record<string, unknown>; path?: st
 // ── Media upload (3-step multipart) ────────────────────────────
 
 // The part-url endpoint answers with the presigned URL as a bare plain-text string
-// (verified live) — not a JSON object. Kept tolerant of a JSON-quoted string or an
-// object wrapper in case the API shape shifts. Exported for tests.
-export function extractPartUrl(bodyText: string): string | null {
+// (verified live) — not a JSON object. Kept tolerant of a JSON-quoted string, an
+// array of URLs (a "list part urls" route), or an object wrapper. Exported for tests.
+export function extractPartUrl(bodyText: string, partIndex = 0): string | null {
   const text = bodyText.trim();
   try {
     const parsed: unknown = JSON.parse(text);
     if (typeof parsed === "string" && parsed.startsWith("http")) return parsed;
+    if (Array.isArray(parsed)) {
+      const u = parsed[partIndex] ?? parsed[0];
+      return typeof u === "string" && u.startsWith("http") ? u : null;
+    }
     if (parsed && typeof parsed === "object") {
       const o = parsed as Record<string, unknown>;
       const u = o.url ?? o.uploadUrl ?? o.signedUrl;
@@ -157,6 +161,27 @@ export function extractPartUrl(bodyText: string): string | null {
     if (text.startsWith("http")) return text;
   }
   return null;
+}
+
+// The exact part-url route is not discoverable from the docs portal, and prod showed
+// GET {sessionBase}/{uploadId}/parts/{n} is a hard 404 even though the endpoint exists
+// (the MCP reaches it and garbage upload IDs get a structured 400 back). Candidates in
+// likelihood order: "part-urls" matches the operation's generated name
+// ("…media_upload_part_urls") and its nullable partNumber path param; the rest are the
+// historical guesses. Each miss is one cheap 404 GET and the winner is logged + reused.
+const PART_URL_SUFFIXES: ReadonlyArray<(n: number) => string> = [
+  (n) => `part-urls/${n}`,
+  (n) => `parts/${n}/url`,
+  (n) => `part-url/${n}`,
+  (n) => `parts/${n}`,
+];
+export function buildPartUrlCandidates(sessionBase: string, uploadId: string, n: number): string[] {
+  const bases = [...new Set([sessionBase.replace(/\/$/, ""), "/media/uploads", "/medias/uploads"])];
+  const out: string[] = [];
+  for (const suffix of PART_URL_SUFFIXES) {
+    for (const base of bases) out.push(`${base}/${uploadId}/${suffix(n)}`);
+  }
+  return out;
 }
 
 export async function uploadImageFromUrl(sourceUrl: string, name: string): Promise<string> {
@@ -169,7 +194,8 @@ export async function uploadImageFromUrl(sourceUrl: string, name: string): Promi
 
   // 1. Create upload session. Live shape: { mediaUuid, uploadId, partSize, maxParts, totalParts }
   // — both ids top-level; anything else is an API change worth failing loudly on.
-  const create = await fvFirst("POST", ["/medias/uploads", "/medias/upload-sessions", "/media/uploads"], {
+  // Prod-verified: create succeeds at /media/uploads (singular), so it walks first.
+  const create = await fvFirst("POST", ["/media/uploads", "/medias/uploads", "/medias/upload-sessions"], {
     name: name.slice(0, 255),
     filename,
     mediaType: "image",
@@ -187,15 +213,38 @@ export async function uploadImageFromUrl(sourceUrl: string, name: string): Promi
     ? totalPartsRaw
     : Math.max(1, Math.ceil(buf.length / partSize));
 
-  // 2+3. Per part: presigned URL (path verified live: GET {sessionBase}/{uploadId}/parts/{n},
-  // body is the URL as plain text), then PUT the slice.
+  // 2+3. Per part: resolve the presigned URL (candidate walk on the first part, the
+  // winning path is logged and reused for the rest), then PUT the slice.
+  let resolvedPartPath: ((n: number) => string) | null = null;
   const parts: Array<{ PartNumber: number; ETag: string }> = [];
   for (let n = 1; n <= totalParts; n++) {
-    const partPath = `${sessionBase}/${uploadId}/parts/${n}`;
-    const part = await fv("GET", partPath);
-    if (!part.ok) throw new Error(`Fanvue part URL: ${errDetail({ ...part, path: partPath })}`);
-    const partUrl = extractPartUrl(part.text);
-    if (!partUrl) throw new Error(`Fanvue part URL: unexpected body ${part.text.slice(0, 200)}`);
+    let partUrl: string | null = null;
+    let partPath = "";
+    if (resolvedPartPath) {
+      partPath = resolvedPartPath(n);
+      const part = await fv("GET", partPath);
+      if (!part.ok) throw new Error(`Fanvue part URL: ${errDetail({ ...part, path: partPath })}`);
+      partUrl = extractPartUrl(part.text, n - 1);
+    } else {
+      const candidates = buildPartUrlCandidates(sessionBase, uploadId, n);
+      let last: { status: number; data: Record<string, unknown>; path: string } | null = null;
+      for (const candidate of candidates) {
+        const part = await fv("GET", candidate);
+        last = { status: part.status, data: part.data, path: candidate };
+        if (part.status === 404 || part.status === 405) continue;
+        if (!part.ok) throw new Error(`Fanvue part URL: ${errDetail(last)}`);
+        partUrl = extractPartUrl(part.text, n - 1);
+        if (partUrl) {
+          partPath = candidate;
+          const template = candidate.replace(`/${n}`, "/{n}");
+          resolvedPartPath = (m: number) => template.replace("/{n}", `/${m}`);
+          console.log(`[fanvue-upload] part-url path resolved: ${candidate}`);
+          break;
+        }
+      }
+      if (!partUrl) throw new Error(`Fanvue part URL: no candidate path worked, last ${errDetail(last!)}`);
+    }
+    if (!partUrl) throw new Error(`Fanvue part URL: unexpected body at ${partPath}`);
     console.log(`[fanvue-upload] part ${n}/${totalParts} via ${partPath}`);
 
     // Raw bytes only, NO extra headers. The presigned URL signs only the host header
@@ -214,10 +263,14 @@ export async function uploadImageFromUrl(sourceUrl: string, name: string): Promi
   }
 
   // 4. Complete the session (live response: { status: "processing" })
-  const complete = await fvFirst("PATCH", [`${sessionBase}/${uploadId}`, `${sessionBase}/${uploadId}/complete`], {
-    parts,
-  });
+  const completeBases = [...new Set([sessionBase, "/media/uploads", "/medias/uploads"])];
+  const complete = await fvFirst(
+    "PATCH",
+    completeBases.flatMap((base) => [`${base}/${uploadId}`, `${base}/${uploadId}/complete`]),
+    { parts }
+  );
   if (!complete.ok) throw new Error(`Fanvue complete upload: ${errDetail(complete)}`);
+  console.log(`[fanvue-upload] completed via ${complete.path}`);
 
   return mediaUuid;
 }
