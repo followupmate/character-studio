@@ -169,8 +169,8 @@ PART 1 — STRUCTURED JSON (machine-readable continuity lock).
 Valid JSON only, no markdown:
 {
   "camera_language": "one short phrase in plain words (e.g. 'static handheld 50mm' or 'slow dolly 35mm')",
-  "color_palette": ["3 to 5 simple color tokens (e.g. 'charcoal', 'fluorescent green', 'concrete grey')"],
-  "visual_rules": ["3 to 5 plain rules each in 3-7 words (e.g. 'no direct eye contact', 'no smiling', 'wardrobe never changed', 'no mirrors')"],
+  "color_palette": ["3 to 5 simple color tokens — pick the temperature that fits the tier and mood, warm or cool are equally valid (e.g. 'warm sand', 'soft green', 'golden light', 'charcoal', 'concrete grey')"],
+  "visual_rules": ["3 to 5 plain STRUCTURAL rules each in 3-7 words (e.g. 'wardrobe never changed', 'no mirrors', 'no legible text', 'one light source')"],
   "location_constraints": ["3 to 5 GEOMETRIC/SPATIAL constraints — describe what is WHERE in physical space. Examples: 'subject stands on north-side platform edge', 'escalator descends to her left at 30 degrees', 'concrete pillar 2m in front of her', 'fluorescent ceiling lights at 3m height', 'no signage or text visible in frame'. AVOID vague constraints like 'same lighting' — instead say 'overhead fluorescent fixtures every 3m'."],
   "spatial_setup": "ONE concrete sentence describing a SINGLE MICRO-LOCATION (max 10m × 10m radius) where ALL 8 slots are captured. Camera moves around within this micro-location; subject stays in this micro-location for the entire batch. PICK ONE entry from the character's sacred_details.recurring_environment — do not span multiple. Example: 'Shinagawa station underground passage between exits 2 and 3, concrete walls left and right, fluorescent strip lights overhead, descending escalator 5m to the right, no benches no stalls no vendors no shop fronts in frame.' Be physically possible — no escalators into walls, no stairs to nowhere. Be EXHAUSTIVE about what is and is NOT in this micro-location, so slot prompts cannot invent secondary furniture or environment elements (benches, tables, fruit crates, market stalls, signs, second rooms).",
   "wardrobe_lock": "EXHAUSTIVE list of garments, comma-separated. Format: 'charcoal wool coat (knee-length, late-90s cut), black trousers, black ankle boots, brown leather shoulder bag (worn strap), no jewelry, no scarf, no hat'. If a garment is not listed, it is NOT in the frame.",
@@ -187,11 +187,11 @@ Cover, in 4 short paragraphs of plain prose:
 1. The location, physically: where exactly, what surfaces and objects surround her, indoor or outdoor, urban or quiet
 2. The wardrobe: exact garments, fabric, fit — concrete
 3. The light: one source (e.g. "overhead fluorescent in convenience store"), direction, time of day, color temperature
-4. A short NO list for this day: 3 specific things prompts must avoid (e.g. "no mirrors", "no direct eye contact", "no smiling")
+4. A short NO list for this day: 3 specific STRUCTURAL things prompts must avoid (e.g. "no mirrors", "no legible text", "no second face in frame") — do not default to banning smiling or eye contact; only list those if the tier's mood genuinely calls for it
 
 REALISM (state once, plainly): this is a real photo taken on a phone — shot on an iPhone 16 Pro, candid, natural light, visible skin texture, no beauty filter, slightly imperfect framing. Not a studio render, not retouched.
 
-BANNED words in doctrine (image models reject them): ethereal, dreamy, moody, atmospheric, evocative, soulful, magical, poetic, gorgeous, stunning, beautiful, breathtaking, perfect, ineffable, otherworldly. Also banned: physiology terms (breathing rate, gaze drift, EMG, capillary), optical jargon (chromatic aberration, subsurface scattering, lens breathing), abstract measurements.
+BANNED words in doctrine (image models reject them): ethereal, dreamy, moody, atmospheric, evocative, soulful, magical, poetic, gorgeous, stunning, beautiful, breathtaking, perfect, ineffable, otherworldly. Also banned: physiology terms (breathing rate, gaze drift, EMG, capillary), optical jargon (chromatic aberration, subsurface scattering, lens breathing), abstract measurements. Also banned (they produce empty, sterile, catalogue frames): clean, minimalist, minimal, sterile, empty, bare, devoid of clutter, uncluttered, pristine, balanced exposure — describe the real, lived-in objects that ARE there instead.
 
 Write the way a real photographer writes a one-paragraph location note before a shoot.
 
