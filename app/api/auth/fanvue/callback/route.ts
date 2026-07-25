@@ -33,15 +33,19 @@ export async function GET(req: NextRequest) {
   if (expectedState && state !== expectedState) return page("State mismatch", "<p>Začni znova na /api/auth/fanvue</p>", false);
 
   const redirectUri = `${process.env.APP_URL?.replace(/\/$/, "")}/api/auth/fanvue/callback`;
+  // Fanvue app is configured for client_secret_basic: client_id:client_secret go
+  // in the HTTP Basic Authorization header, not the body.
+  const basicAuth = Buffer.from(`${process.env.FANVUE_CLIENT_ID!}:${process.env.FANVUE_CLIENT_SECRET!}`).toString("base64");
   const tokenRes = await fetch("https://auth.fanvue.com/oauth2/token", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${basicAuth}`,
+    },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,
-      client_id: process.env.FANVUE_CLIENT_ID!,
-      client_secret: process.env.FANVUE_CLIENT_SECRET!,
       code_verifier: verifier,
     }),
   });
