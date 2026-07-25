@@ -52,14 +52,18 @@ export async function getAccessToken(): Promise<string> {
 
   // Expired → refresh
   if (!row.refresh_token) throw new Error("Fanvue token expiroval a chýba refresh token — otvor /api/auth/fanvue znova");
+  // Fanvue app is configured for client_secret_basic: client_id:client_secret go
+  // in the HTTP Basic Authorization header, not the body.
+  const basicAuth = Buffer.from(`${process.env.FANVUE_CLIENT_ID!}:${process.env.FANVUE_CLIENT_SECRET!}`).toString("base64");
   const res = await fetch(TOKEN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${basicAuth}`,
+    },
     body: new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: row.refresh_token,
-      client_id: process.env.FANVUE_CLIENT_ID!,
-      client_secret: process.env.FANVUE_CLIENT_SECRET!,
     }),
   });
   const tok = await res.json().catch(() => ({})) as {
