@@ -12,9 +12,11 @@ import { supabase } from "@/lib/supabase";
 //   auth:  https://auth.fanvue.com/oauth2/auth + /oauth2/token (PKCE mandatory)
 //   POST  /chats/mass-messages — mass message (text, mediaUuids, price cents ≥300)
 //   POST  /posts               — create post (audience, text, mediaUuids, price)
-//   upload flow: POST create session → GET presigned part URL → PUT bytes → PATCH complete
-// The exact upload-session paths aren't published outside the docs portal, so each
-// step walks a small candidate list (404/405 → next).
+//   upload flow (shapes verified against the live API, 2026-07-25):
+//     POST  /medias/uploads                      → { mediaUuid, uploadId, partSize, maxParts, totalParts }
+//     GET   /medias/uploads/{uploadId}/parts/{n} → plain-text presigned S3 URL (NOT JSON)
+//     PUT   <presigned URL> (raw bytes, NO extra headers) → 200 + ETag header
+//     PATCH /medias/uploads/{uploadId} { parts: [{ PartNumber, ETag }] } → { status: "processing" }
 
 const BASE = "https://api.fanvue.com";
 const TOKEN_URL = "https://auth.fanvue.com/oauth2/token";
@@ -99,11 +101,13 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 // ── HTTP helpers ───────────────────────────────────────────────
+// `text` carries the full untruncated body — some endpoints (upload part-url)
+// answer with a plain string instead of JSON, and `data.raw` is truncated.
 async function fv(
   method: string,
   path: string,
   body?: unknown
-): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; text: string }> {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: { ...(await authHeaders()), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
@@ -112,7 +116,7 @@ async function fv(
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text.slice(0, 300) }; }
-  return { ok: res.ok, status: res.status, data };
+  return { ok: res.ok, status: res.status, data, text };
 }
 
 // Try path candidates in order; a 404/405 means "wrong path", anything else is the real answer.
@@ -120,8 +124,8 @@ async function fvFirst(
   method: string,
   paths: string[],
   body?: unknown
-): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; path: string }> {
-  let last: { ok: boolean; status: number; data: Record<string, unknown>; path: string } | null = null;
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; text: string; path: string }> {
+  let last: { ok: boolean; status: number; data: Record<string, unknown>; text: string; path: string } | null = null;
   for (const path of paths) {
     const r = await fv(method, path, body);
     last = { ...r, path };
@@ -135,6 +139,26 @@ function errDetail(r: { status: number; data: Record<string, unknown>; path?: st
 }
 
 // ── Media upload (3-step multipart) ────────────────────────────
+
+// The part-url endpoint answers with the presigned URL as a bare plain-text string
+// (verified live) — not a JSON object. Kept tolerant of a JSON-quoted string or an
+// object wrapper in case the API shape shifts. Exported for tests.
+export function extractPartUrl(bodyText: string): string | null {
+  const text = bodyText.trim();
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === "string" && parsed.startsWith("http")) return parsed;
+    if (parsed && typeof parsed === "object") {
+      const o = parsed as Record<string, unknown>;
+      const u = o.url ?? o.uploadUrl ?? o.signedUrl;
+      if (typeof u === "string" && u.startsWith("http")) return u;
+    }
+  } catch {
+    if (text.startsWith("http")) return text;
+  }
+  return null;
+}
+
 export async function uploadImageFromUrl(sourceUrl: string, name: string): Promise<string> {
   // 0. Pull the image bytes from our storage
   const img = await fetch(sourceUrl);
@@ -143,7 +167,8 @@ export async function uploadImageFromUrl(sourceUrl: string, name: string): Promi
   const ext = sourceUrl.split("?")[0].toLowerCase().endsWith(".jpg") ? "jpg" : "png";
   const filename = `${name.replace(/[^a-z0-9-_]+/gi, "-").slice(0, 60)}.${ext}`;
 
-  // 1. Create upload session
+  // 1. Create upload session. Live shape: { mediaUuid, uploadId, partSize, maxParts, totalParts }
+  // — both ids top-level; anything else is an API change worth failing loudly on.
   const create = await fvFirst("POST", ["/medias/uploads", "/medias/upload-sessions", "/media/uploads"], {
     name: name.slice(0, 255),
     filename,
@@ -151,30 +176,46 @@ export async function uploadImageFromUrl(sourceUrl: string, name: string): Promi
     sizeBytes: buf.length,
   });
   if (!create.ok) throw new Error(`Fanvue create upload session: ${errDetail(create)}`);
-  const uploadId = (create.data.uploadId ?? create.data.upload_id ?? (create.data as { session?: { uploadId?: string } }).session?.uploadId) as string | undefined;
-  const mediaUuid = (create.data.mediaUuid ?? create.data.media_uuid ?? (create.data as { media?: { uuid?: string } }).media?.uuid) as string | undefined;
+  const uploadId = typeof create.data.uploadId === "string" ? create.data.uploadId : undefined;
+  const mediaUuid = typeof create.data.mediaUuid === "string" ? create.data.mediaUuid : undefined;
   if (!uploadId || !mediaUuid) throw new Error(`Fanvue upload session: unexpected response ${JSON.stringify(create.data).slice(0, 300)}`);
   const sessionBase = create.path.replace(/\/$/, "");
+  const partSizeRaw = Number(create.data.partSize);
+  const partSize = Number.isFinite(partSizeRaw) && partSizeRaw > 0 ? partSizeRaw : buf.length;
+  const totalPartsRaw = Number(create.data.totalParts);
+  const totalParts = Number.isFinite(totalPartsRaw) && totalPartsRaw > 0
+    ? totalPartsRaw
+    : Math.max(1, Math.ceil(buf.length / partSize));
 
-  // 2. Presigned URL for part 1 (our images are far below the multipart 5MB minimum-part threshold)
-  const part = await fvFirst("GET", [
-    `${sessionBase}/${uploadId}/parts/1`,
-    `${sessionBase}/${uploadId}/parts/1/url`,
-    `${sessionBase}/${uploadId}/part-url/1`,
-  ]);
-  if (!part.ok) throw new Error(`Fanvue part URL: ${errDetail(part)}`);
-  const partUrl = (part.data.url ?? part.data.uploadUrl ?? part.data.signedUrl) as string | undefined;
-  if (!partUrl) throw new Error(`Fanvue part URL: unexpected response ${JSON.stringify(part.data).slice(0, 300)}`);
+  // 2+3. Per part: presigned URL (path verified live: GET {sessionBase}/{uploadId}/parts/{n},
+  // body is the URL as plain text), then PUT the slice.
+  const parts: Array<{ PartNumber: number; ETag: string }> = [];
+  for (let n = 1; n <= totalParts; n++) {
+    const partPath = `${sessionBase}/${uploadId}/parts/${n}`;
+    const part = await fv("GET", partPath);
+    if (!part.ok) throw new Error(`Fanvue part URL: ${errDetail({ ...part, path: partPath })}`);
+    const partUrl = extractPartUrl(part.text);
+    if (!partUrl) throw new Error(`Fanvue part URL: unexpected body ${part.text.slice(0, 200)}`);
+    console.log(`[fanvue-upload] part ${n}/${totalParts} via ${partPath}`);
 
-  // 3. PUT the bytes to S3, keep the ETag
-  const put = await fetch(partUrl, { method: "PUT", body: new Uint8Array(buf) });
-  if (!put.ok) throw new Error(`Fanvue S3 PUT failed ${put.status}`);
-  const etag = (put.headers.get("etag") ?? "").replace(/"/g, "");
-  if (!etag) throw new Error("Fanvue S3 PUT: no ETag returned");
+    // Raw bytes only, NO extra headers. The presigned URL signs only the host header
+    // (X-Amz-SignedHeaders=host) and bakes x-amz-checksum-crc32 into the signed query —
+    // verified live: a bare PUT returns 200 + ETag, while adding any x-amz-checksum-*
+    // header fails with 403 "There were headers present in the request which were not signed".
+    const chunk = buf.subarray((n - 1) * partSize, Math.min(n * partSize, buf.length));
+    const put = await fetch(partUrl, { method: "PUT", body: new Uint8Array(chunk) });
+    if (!put.ok) {
+      const s3Error = await put.text().catch(() => "");
+      throw new Error(`Fanvue S3 PUT failed ${put.status} (part ${n}/${totalParts}): ${s3Error.slice(0, 200)}`);
+    }
+    const etag = (put.headers.get("etag") ?? "").replace(/"/g, "");
+    if (!etag) throw new Error("Fanvue S3 PUT: no ETag returned");
+    parts.push({ PartNumber: n, ETag: etag });
+  }
 
-  // 4. Complete the session
+  // 4. Complete the session (live response: { status: "processing" })
   const complete = await fvFirst("PATCH", [`${sessionBase}/${uploadId}`, `${sessionBase}/${uploadId}/complete`], {
-    parts: [{ PartNumber: 1, ETag: etag }],
+    parts,
   });
   if (!complete.ok) throw new Error(`Fanvue complete upload: ${errDetail(complete)}`);
 
