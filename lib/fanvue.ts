@@ -12,11 +12,11 @@ import { supabase } from "@/lib/supabase";
 //   auth:  https://auth.fanvue.com/oauth2/auth + /oauth2/token (PKCE mandatory)
 //   POST  /chats/mass-messages — mass message (text, mediaUuids, price cents ≥300)
 //   POST  /posts               — create post (audience, text, mediaUuids, price)
-//   upload flow (shapes verified against the live API, 2026-07-25):
-//     POST  /medias/uploads                      → { mediaUuid, uploadId, partSize, maxParts, totalParts }
-//     GET   /medias/uploads/{uploadId}/parts/{n} → plain-text presigned S3 URL (NOT JSON)
+//   upload flow (verified in prod by a successful post, 2026-07-26):
+//     POST  /media/uploads                          → { mediaUuid, uploadId, partSize, maxParts, totalParts }
+//     GET   /media/uploads/{uploadId}/parts/{n}/url → plain-text presigned S3 URL (NOT JSON)
 //     PUT   <presigned URL> (raw bytes, NO extra headers) → 200 + ETag header
-//     PATCH /medias/uploads/{uploadId} { parts: [{ PartNumber, ETag }] } → { status: "processing" }
+//     PATCH /media/uploads/{uploadId} { parts: [{ PartNumber, ETag }] } → { status: "processing" }
 
 const BASE = "https://api.fanvue.com";
 const TOKEN_URL = "https://auth.fanvue.com/oauth2/token";
@@ -163,15 +163,14 @@ export function extractPartUrl(bodyText: string, partIndex = 0): string | null {
   return null;
 }
 
-// The exact part-url route is not discoverable from the docs portal, and prod showed
-// GET {sessionBase}/{uploadId}/parts/{n} is a hard 404 even though the endpoint exists
-// (the MCP reaches it and garbage upload IDs get a structured 400 back). Candidates in
-// likelihood order: "part-urls" matches the operation's generated name
-// ("…media_upload_part_urls") and its nullable partNumber path param; the rest are the
-// historical guesses. Each miss is one cheap 404 GET and the winner is logged + reused.
+// PROD-VERIFIED (2026-07-26, successful 3-image post): the part-url route is
+//   GET /media/uploads/{uploadId}/parts/{n}/url
+// so that suffix goes first and the happy path costs zero wasted requests. The rest stay
+// as fallbacks — they are only ever tried if the pinned route stops answering, and each
+// miss is one cheap 404 GET. The winner is logged and reused for the remaining parts.
 const PART_URL_SUFFIXES: ReadonlyArray<(n: number) => string> = [
-  (n) => `part-urls/${n}`,
   (n) => `parts/${n}/url`,
+  (n) => `part-urls/${n}`,
   (n) => `part-url/${n}`,
   (n) => `parts/${n}`,
 ];
