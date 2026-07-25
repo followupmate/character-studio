@@ -175,13 +175,22 @@ const PART_URL_SUFFIXES: ReadonlyArray<(n: number) => string> = [
   (n) => `part-url/${n}`,
   (n) => `parts/${n}`,
 ];
-export function buildPartUrlCandidates(sessionBase: string, uploadId: string, n: number): string[] {
+
+// One builder per candidate route. The winning builder is kept as-is and called again
+// for later parts — never derive the next path by string-replacing the part number in an
+// already-built path: an opaque uploadId can itself start with the part number (e.g.
+// "1abc…"), and replace() would rewrite the upload ID instead of the part segment.
+export function partUrlBuilders(sessionBase: string, uploadId: string): Array<(n: number) => string> {
   const bases = [...new Set([sessionBase.replace(/\/$/, ""), "/media/uploads", "/medias/uploads"])];
-  const out: string[] = [];
+  const out: Array<(n: number) => string> = [];
   for (const suffix of PART_URL_SUFFIXES) {
-    for (const base of bases) out.push(`${base}/${uploadId}/${suffix(n)}`);
+    for (const base of bases) out.push((n: number) => `${base}/${uploadId}/${suffix(n)}`);
   }
   return out;
+}
+
+export function buildPartUrlCandidates(sessionBase: string, uploadId: string, n: number): string[] {
+  return partUrlBuilders(sessionBase, uploadId).map((build) => build(n));
 }
 
 export async function uploadImageFromUrl(sourceUrl: string, name: string): Promise<string> {
@@ -226,9 +235,9 @@ export async function uploadImageFromUrl(sourceUrl: string, name: string): Promi
       if (!part.ok) throw new Error(`Fanvue part URL: ${errDetail({ ...part, path: partPath })}`);
       partUrl = extractPartUrl(part.text, n - 1);
     } else {
-      const candidates = buildPartUrlCandidates(sessionBase, uploadId, n);
       let last: { status: number; data: Record<string, unknown>; path: string } | null = null;
-      for (const candidate of candidates) {
+      for (const build of partUrlBuilders(sessionBase, uploadId)) {
+        const candidate = build(n);
         const part = await fv("GET", candidate);
         last = { status: part.status, data: part.data, path: candidate };
         if (part.status === 404 || part.status === 405) continue;
@@ -236,8 +245,7 @@ export async function uploadImageFromUrl(sourceUrl: string, name: string): Promi
         partUrl = extractPartUrl(part.text, n - 1);
         if (partUrl) {
           partPath = candidate;
-          const template = candidate.replace(`/${n}`, "/{n}");
-          resolvedPartPath = (m: number) => template.replace("/{n}", `/${m}`);
+          resolvedPartPath = build;
           console.log(`[fanvue-upload] part-url path resolved: ${candidate}`);
           break;
         }

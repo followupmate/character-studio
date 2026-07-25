@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPartUrlCandidates, extractPartUrl } from "@/lib/fanvue";
+import { buildPartUrlCandidates, extractPartUrl, partUrlBuilders } from "@/lib/fanvue";
 
 // Real shape of the live response (2026-07-25): the presigned URL as a bare string.
 const PRESIGNED =
@@ -50,6 +50,17 @@ describe("buildPartUrlCandidates", () => {
     expect(c).toContain("/media/uploads/abc_def.123/parts/1");
     // no duplicates when sessionBase equals a built-in base
     expect(new Set(c).size).toBe(c.length);
+  });
+
+  it("reuses the winning builder for later parts without touching the upload ID", () => {
+    // Regression: an opaque uploadId can start with the part number ("1abc…").
+    // Deriving part 2's path by string-replacing "/1" rewrote the upload ID instead.
+    const uploadId = "1abc_def.xyz";
+    const build = partUrlBuilders("/media/uploads", uploadId)[0];
+    expect(build(1)).toBe(`/media/uploads/${uploadId}/part-urls/1`);
+    expect(build(2)).toBe(`/media/uploads/${uploadId}/part-urls/2`);
+    expect(build(2)).toContain(`/${uploadId}/`);
+    expect(build(2)).not.toContain("/2abc_def.xyz/");
   });
 
   it("keeps an unknown session base as the first candidate base", () => {
