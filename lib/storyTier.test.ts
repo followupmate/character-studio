@@ -137,3 +137,47 @@ describe("guidance + label", () => {
     for (const l of MAGNETISM_LEVELS) expect(magnetismGuidance(l).length).toBeGreaterThan(20);
   });
 });
+
+// Locks the "warmth esprit" doctrine change. Baseline before it: 75% of lived_moments
+// briefs banned direct eye contact, 50% carried sterile wording, 100% pulled cold palette
+// tokens — for the tier that is meant to read warm and alive.
+describe("warmth esprit doctrine", () => {
+  const STERILE = /\b(clean|minimalist|sterile|uncluttered|pristine)\b/i;
+
+  it("lived_moments VISUAL asks for warmth, light and joy — not a clean/catalogue look", () => {
+    const g = tierGuidance("lived_moments");
+    const visual = g.split("VISUAL:")[1] ?? "";
+    expect(visual).toMatch(/warm/i);
+    expect(visual).toMatch(/smile|laughter|joy/i);
+    expect(visual).toMatch(/eye contact/i);
+    expect(visual).not.toMatch(STERILE);
+    // the framing guards that were correct stay in place
+    expect(visual).toMatch(/no empty environments/i);
+    expect(visual).toMatch(/no catalogue framing/i);
+  });
+
+  it("everyday_life offers warm light as an equal option, not only overcast", () => {
+    const g = tierGuidance("everyday_life");
+    expect(g).toMatch(/warm morning kitchen light/i);
+    expect(g).toMatch(/golden-hour/i);
+    // overcast survives as one option among several
+    expect(g).toMatch(/overcast/i);
+  });
+
+  it("leaves the measured conversion tier untouched: intimate_aesthetic stays cool and directional", () => {
+    const g = tierGuidance("intimate_aesthetic");
+    expect(g).toMatch(/the conversion tier/i);
+    expect(g).toMatch(/soft directional side light/i);
+    expect(g).toMatch(/suggestive yes — explicit NO/i);
+    // no warmth/joy language leaked in from the lived_moments rewrite
+    expect(g).not.toMatch(/let joy show/i);
+    expect(g).not.toMatch(/laughter/i);
+  });
+
+  it("luxe_car and wellness_fitness doctrine is unchanged by the warmth edit", () => {
+    expect(tierGuidance("luxe_car")).toMatch(/HER POSE IS THE HOOK/);
+    expect(tierGuidance("luxe_car")).not.toMatch(/let joy show/i);
+    expect(tierGuidance("wellness_fitness")).toMatch(/strongest reach driver/i);
+    expect(tierGuidance("wellness_fitness")).not.toMatch(/let joy show/i);
+  });
+});
