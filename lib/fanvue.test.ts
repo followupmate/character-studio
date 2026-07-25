@@ -42,11 +42,13 @@ describe("extractPartUrl", () => {
 });
 
 describe("buildPartUrlCandidates", () => {
-  it("tries part-urls first, walks both bases, and dedupes the session base", () => {
+  it("tries the prod-verified route first, walks both bases, and dedupes the session base", () => {
     const c = buildPartUrlCandidates("/media/uploads", "abc_def.123", 1);
-    expect(c[0]).toBe("/media/uploads/abc_def.123/part-urls/1");
-    expect(c[1]).toBe("/medias/uploads/abc_def.123/part-urls/1");
-    // the previously failing prod path is still present, but last in its group
+    // prod-verified 2026-07-26: /media/uploads/{uploadId}/parts/{n}/url
+    expect(c[0]).toBe("/media/uploads/abc_def.123/parts/1/url");
+    expect(c[1]).toBe("/medias/uploads/abc_def.123/parts/1/url");
+    // fallbacks still present, including the route that 404s in prod
+    expect(c).toContain("/media/uploads/abc_def.123/part-urls/1");
     expect(c).toContain("/media/uploads/abc_def.123/parts/1");
     // no duplicates when sessionBase equals a built-in base
     expect(new Set(c).size).toBe(c.length);
@@ -57,16 +59,16 @@ describe("buildPartUrlCandidates", () => {
     // Deriving part 2's path by string-replacing "/1" rewrote the upload ID instead.
     const uploadId = "1abc_def.xyz";
     const build = partUrlBuilders("/media/uploads", uploadId)[0];
-    expect(build(1)).toBe(`/media/uploads/${uploadId}/part-urls/1`);
-    expect(build(2)).toBe(`/media/uploads/${uploadId}/part-urls/2`);
+    expect(build(1)).toBe(`/media/uploads/${uploadId}/parts/1/url`);
+    expect(build(2)).toBe(`/media/uploads/${uploadId}/parts/2/url`);
     expect(build(2)).toContain(`/${uploadId}/`);
     expect(build(2)).not.toContain("/2abc_def.xyz/");
   });
 
   it("keeps an unknown session base as the first candidate base", () => {
     const c = buildPartUrlCandidates("/medias/upload-sessions", "id1", 3);
-    expect(c[0]).toBe("/medias/upload-sessions/id1/part-urls/3");
-    expect(c).toContain("/media/uploads/id1/part-urls/3");
+    expect(c[0]).toBe("/medias/upload-sessions/id1/parts/3/url");
+    expect(c).toContain("/media/uploads/id1/parts/3/url");
     expect(c).toContain("/medias/uploads/id1/parts/3");
   });
 });
