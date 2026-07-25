@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractPartUrl } from "@/lib/fanvue";
+import { buildPartUrlCandidates, extractPartUrl } from "@/lib/fanvue";
 
 // Real shape of the live response (2026-07-25): the presigned URL as a bare string.
 const PRESIGNED =
@@ -24,10 +24,38 @@ describe("extractPartUrl", () => {
     expect(extractPartUrl(JSON.stringify({ signedUrl: PRESIGNED }))).toBe(PRESIGNED);
   });
 
+  it("accepts an array of URLs and picks the requested part index", () => {
+    const second = PRESIGNED.replace("partNumber=1", "partNumber=2");
+    expect(extractPartUrl(JSON.stringify([PRESIGNED, second]), 0)).toBe(PRESIGNED);
+    expect(extractPartUrl(JSON.stringify([PRESIGNED, second]), 1)).toBe(second);
+    // out-of-range index falls back to the first element
+    expect(extractPartUrl(JSON.stringify([PRESIGNED]), 5)).toBe(PRESIGNED);
+  });
+
   it("rejects bodies that are not a URL", () => {
     expect(extractPartUrl("")).toBeNull();
     expect(extractPartUrl("not a url")).toBeNull();
     expect(extractPartUrl(JSON.stringify({ error: "denied" }))).toBeNull();
     expect(extractPartUrl(JSON.stringify({ url: 42 }))).toBeNull();
+    expect(extractPartUrl(JSON.stringify(["not-a-url"]))).toBeNull();
+  });
+});
+
+describe("buildPartUrlCandidates", () => {
+  it("tries part-urls first, walks both bases, and dedupes the session base", () => {
+    const c = buildPartUrlCandidates("/media/uploads", "abc_def.123", 1);
+    expect(c[0]).toBe("/media/uploads/abc_def.123/part-urls/1");
+    expect(c[1]).toBe("/medias/uploads/abc_def.123/part-urls/1");
+    // the previously failing prod path is still present, but last in its group
+    expect(c).toContain("/media/uploads/abc_def.123/parts/1");
+    // no duplicates when sessionBase equals a built-in base
+    expect(new Set(c).size).toBe(c.length);
+  });
+
+  it("keeps an unknown session base as the first candidate base", () => {
+    const c = buildPartUrlCandidates("/medias/upload-sessions", "id1", 3);
+    expect(c[0]).toBe("/medias/upload-sessions/id1/part-urls/3");
+    expect(c).toContain("/media/uploads/id1/part-urls/3");
+    expect(c).toContain("/medias/uploads/id1/parts/3");
   });
 });
