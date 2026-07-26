@@ -447,8 +447,14 @@ const DOCTRINES: Record<DoctrineKey, DoctrineSpec> = {
     photoOutputRules: CAPTION_PHOTO_OUTPUT,
     videoStyleHeader: CAPTION_VIDEO_HEADER,
     videoOutputRules: CAPTION_VIDEO_OUTPUT,
-    photoMaxTokens: 80,
-    videoMaxTokens: 100,
+    // The caption doctrine targets a 20–45 word caption, but the output also carries the
+    // "Model: Soul 2 🖼️ Image Prompt" prefix and the model regularly runs a little long.
+    // At 80/100 every single prompt was guillotined mid-word (verified in production:
+    // photos capped at ~300 chars, videos at ~410, none ending on a sentence, going back
+    // weeks). Brevity is enforced by the instruction, not by the cap — the cap only needs
+    // enough headroom for the model to finish its sentence.
+    photoMaxTokens: 180,
+    videoMaxTokens: 220,
   },
   cinematic: {
     photoStyleHeader: CINEMATIC_PHOTO_HEADER,
@@ -684,6 +690,15 @@ export async function generateSlotPrompt(args: BuildArgs): Promise<SlotPromptRes
   });
 
   const text = (msg.content[0] as { type: string; text: string }).text;
+
+  // A prompt cut off at the token ceiling loses its tail — usually the lighting and
+  // background detail, and any continuity lock that landed last. It still stores as
+  // "completed", so it stayed invisible for weeks. Make it loud instead of silent.
+  if ((msg as { stop_reason?: string }).stop_reason === "max_tokens") {
+    console.error(
+      `[slot-prompt] TRUNCATED at max_tokens — slot=${args.slot.slot} type=${args.slot.type} cap=${maxTokens + extraTokens} chars=${text.length}. Raise the doctrine's ${args.slot.type === "video" ? "videoMaxTokens" : "photoMaxTokens"}.`
+    );
+  }
 
   // Hook text: use pre-planned from carousel script, or extract from response (fallback)
   let hookText: string | null = null;
