@@ -59,6 +59,38 @@ function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | nu
   return rules;
 }
 
+// The styling profile is picked from the tier and the day's moment_family, which can
+// land on a category the day's actual location cannot carry — a vacation_beach_water
+// day whose story resolved to a gym pulled a beach_club profile, and the old rule
+// ("the styling category must be preserved") locked a bikini onto a weights floor.
+// The location wins now: the profile keeps its character (palette, fabrics, silhouette,
+// hair, jewellery, makeup) while the garments become what a real person would wear there.
+// Exported for tests.
+export function buildStylingRule(
+  profile: { label: string; vibe: string; outfit: string; hair: string; jewelry: string; makeup: string },
+  location: string
+): string {
+  return `\nSTYLING PROFILE FOR TODAY — MANDATORY OVERRIDE (replaces wardrobe_anchors for this batch):
+Label: ${profile.label}
+Vibe: ${profile.vibe}
+Outfit: ${profile.outfit}
+Hair: ${profile.hair}
+Jewelry: ${profile.jewelry}
+Makeup: ${profile.makeup}
+
+RULE: Use this profile as the wardrobe_lock, but THE LOCATION WINS. Dress her the way this
+person would actually be dressed at ${location} at that time of day.
+RULE: If the profile's category would be implausible in that place — beach club attire in a
+gym, a couture gown in a kitchen, swimwear on a city street — do NOT force it. Keep the
+profile's CHARACTER (its colour palette, fabrics, silhouette, hair, jewellery and makeup) and
+swap the garments for ones that belong in this location. Never lock an outfit a real person
+would not wear there; a believable everyday look always beats a styled-but-wrong one.
+RULE: Adapting to the location does NOT mean falling back to the generic silk slip dress +
+linen blazer from wardrobe_anchors. The slip dress is NOT today's look — stay recognisably
+within today's profile.
+Add the character constants from sacred_details (gold chain, earrings) as always-present accessories.`;
+}
+
 function safeJsonExtract(raw: string): SceneBriefJson {
   const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
   const first = cleaned.indexOf("{");
@@ -107,19 +139,7 @@ Because these elements are named in the lock, the slot prompts are ALLOWED to sh
     ? `\nDRIFT SEEDS ACTIVE TODAY (mandatory — bake these into the brief's visual_rules array verbatim):\n${driftRules.map((r) => `- ${r}`).join("\n")}`
     : "";
 
-  const stylingText2 = stylingProfile
-    ? `\nSTYLING PROFILE FOR TODAY — MANDATORY OVERRIDE (replaces wardrobe_anchors for this batch):
-Label: ${stylingProfile.label}
-Vibe: ${stylingProfile.vibe}
-Outfit: ${stylingProfile.outfit}
-Hair: ${stylingProfile.hair}
-Jewelry: ${stylingProfile.jewelry}
-Makeup: ${stylingProfile.makeup}
-
-RULE: Use this profile as the wardrobe_lock. Adapt minor details to fit the location (${storyScene.location}) and time of day, but the styling category must be preserved — if it says beach club, she is in beach club attire; if it says couture gown, she is in a gown.
-RULE: Do NOT revert to the generic silk slip dress + linen blazer from wardrobe_anchors. The slip dress is NOT today's look.
-Add the character constants from sacred_details (gold chain, earrings) as always-present accessories.`
-    : "";
+  const stylingText2 = stylingProfile ? buildStylingRule(stylingProfile, storyScene.location) : "";
 
   const rotationText = recentBriefs && recentBriefs.length > 0
     ? `\nWARDROBE + PROP ROTATION (mandatory — enforce visible variety day to day):
