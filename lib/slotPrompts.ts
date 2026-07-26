@@ -532,7 +532,11 @@ function commonBody(args: BuildArgs): string {
 ${args.sceneBriefDoctrine}
 
 STRUCTURED LOCK PARAMETERS (translate these into plain visual language):
-- Wardrobe lock (EXHAUSTIVE — these and only these garments): ${args.sceneBriefJson.wardrobe_lock}
+- Wardrobe lock (EXHAUSTIVE — these and only these garments): ${args.sceneBriefJson.wardrobe_lock}${
+    args.sceneBriefJson.pet_lock
+      ? `\n- Animal lock (the SAME individual animal in every slot it appears in — never change its breed, coat colour, pattern, size or count; if this slot shows no animal that is fine, but it must never be a DIFFERENT one): ${args.sceneBriefJson.pet_lock}`
+      : ""
+  }
 - Lighting state: ${args.sceneBriefJson.lighting_state}
 - Time of day: ${args.sceneBriefJson.time_of_day}
 - Weather implied: ${args.sceneBriefJson.weather_implied}

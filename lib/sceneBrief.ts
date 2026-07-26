@@ -8,6 +8,9 @@ export interface SceneBriefJson {
   location_constraints: string[];
   spatial_setup: string;
   wardrobe_lock: string;
+  // Optional: only present when an animal appears in the day's scene. Older briefs
+  // stored before this field existed simply omit it.
+  pet_lock?: string;
   allowed_props: string[];
   lighting_state: string;
   time_of_day: string;
@@ -193,6 +196,7 @@ Valid JSON only, no markdown:
   "visual_rules": ["3 to 5 plain STRUCTURAL rules each in 3-7 words (e.g. 'wardrobe never changed', 'no mirrors', 'no legible text', 'one light source')"],
   "location_constraints": ["3 to 5 GEOMETRIC/SPATIAL constraints — describe what is WHERE in physical space. Examples: 'subject stands on north-side platform edge', 'escalator descends to her left at 30 degrees', 'concrete pillar 2m in front of her', 'fluorescent ceiling lights at 3m height', 'no signage or text visible in frame'. AVOID vague constraints like 'same lighting' — instead say 'overhead fluorescent fixtures every 3m'."],
   "spatial_setup": "ONE concrete sentence describing a SINGLE MICRO-LOCATION (max 10m × 10m radius) where ALL 8 slots are captured. Camera moves around within this micro-location; subject stays in this micro-location for the entire batch. PICK ONE entry from the character's sacred_details.recurring_environment — do not span multiple. Example: 'Shinagawa station underground passage between exits 2 and 3, concrete walls left and right, fluorescent strip lights overhead, descending escalator 5m to the right, no benches no stalls no vendors no shop fronts in frame.' Be physically possible — no escalators into walls, no stairs to nowhere. Be EXHAUSTIVE about what is and is NOT in this micro-location, so slot prompts cannot invent secondary furniture or environment elements (benches, tables, fruit crates, market stalls, signs, second rooms).",
+  "pet_lock": "ONLY if an animal appears in today's scene — otherwise omit this key entirely. One EXHAUSTIVE description of that ONE individual animal, so every slot renders the SAME creature: species, breed, exact coat colour and pattern, eye colour, size/build, collar or no collar. Format: 'one cat — British Shorthair, solid blue-grey short coat, no markings, copper-orange eyes, stocky, no collar'. If a garment-level detail is not listed it is not there; same rule applies here. The animal never changes colour, breed, size or count between slots.",
   "wardrobe_lock": "EXHAUSTIVE list of garments, comma-separated. Format: 'charcoal wool coat (knee-length, late-90s cut), black trousers, black ankle boots, brown leather shoulder bag (worn strap), no jewelry, no scarf, no hat'. If a garment is not listed, it is NOT in the frame.",
   "allowed_props": ["DEFAULT IS EMPTY — output an empty array unless the spatial_setup explicitly contains a flat surface (table, desk, windowsill, counter) where a prop would naturally sit, AND the prop is in sacred_details.props. Spatial logic is mandatory: BATHROOM → empty array, no exceptions. BEDROOM without desk/table → empty array. HALLWAY / STAIRCASE / STREET / BEACH / POOL → empty array. TERRACE WITH TABLE or CAFÉ → one drink prop allowed (espresso cup OR wine/champagne — not both, not coffee AND book). HOTEL ROOM WITH DESK OR WINDOWSILL → book or key card only, no food or drink. BALCONY WITH RAILING, no table → sunglasses only if outdoor. Maximum 1 prop. If in doubt: empty array."],
   "lighting_state": "one light source, direction, color (e.g. 'overhead fluorescent, harsh, neutral white')",
