@@ -597,9 +597,16 @@ function captionBody(args: BuildArgs): string {
     ? `Prop (this slot only): ${args.sceneBriefJson.allowed_props[0]}`
     : "Hands: empty";
 
+  // The animal belongs to the day's world (a pets_spontaneous day IS the cat), so it has
+  // to reach the caption path too — the compact body used by the active doctrine does not
+  // carry visual_rules, so without this line the animal simply never appears.
+  const animalLine = args.sceneBriefJson.pet_lock
+    ? `\nANIMAL (the SAME individual whenever it appears — never a different breed, coat, colour or count; show it when this slot's framing plausibly includes it): ${args.sceneBriefJson.pet_lock}`
+    : "";
+
   return `OUTFIT (use exactly, no additions): ${args.sceneBriefJson.wardrobe_lock}
 LOCATION: ${args.sceneBriefJson.spatial_setup ?? args.sceneBriefDoctrine.split(".")[0]}
-LIGHTING: ${args.sceneBriefJson.lighting_state}, ${args.sceneBriefJson.time_of_day}
+LIGHTING: ${args.sceneBriefJson.lighting_state}, ${args.sceneBriefJson.time_of_day}${animalLine}
 ${propLine}
 BACKGROUND PEOPLE: in a public place a few blurred, anonymous, out-of-focus people may appear as deep-background ambient life — NEVER a second sharp or recognizable face, never a foreground companion; she is the single clear subject. In private places (home, bedroom, bathroom) she is alone.
 NO RENDERED TEXT: never ask the generator to draw any text, letters, words, caption, on-screen hook or watermark — it scribbles. Any hook text is added later as a real overlay; leave clean negative space instead.

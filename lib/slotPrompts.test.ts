@@ -40,6 +40,41 @@ describe("caption doctrine token budget", () => {
   });
 });
 
+// The active doctrine is "caption", which composes its system prompt from captionBody()
+// — a compact block that carries neither visual_rules nor the wardrobe/animal lock block
+// used by the other doctrines. #133 added the animal lock to commonBody() only, so on a
+// pets_spontaneous day the locked cat never reached the prompt and vanished from all
+// three slots, even though the brief described it and visual_rules said "cat stays on
+// counter throughout".
+describe("animal lock reaches the active caption path", () => {
+  const captionBody = src.slice(src.indexOf("function captionBody"), src.indexOf("function buildPhotoSystem"));
+
+  it("captionBody injects pet_lock", () => {
+    expect(captionBody).toContain("sceneBriefJson.pet_lock");
+    expect(captionBody).toMatch(/ANIMAL \(the SAME individual/);
+  });
+
+  it("actually interpolates the animal line into the returned prompt body", () => {
+    // Declaring the constant is not enough — it has to reach the template literal.
+    const returned = captionBody.slice(captionBody.indexOf("return `"));
+    expect(returned).toContain("${animalLine}");
+  });
+
+  it("keeps the identity constraint, not just the animal's presence", () => {
+    expect(captionBody).toMatch(/never a different breed, coat, colour or count/i);
+  });
+
+  it("stays absent when the day has no animal", () => {
+    // guarded by the pet_lock ternary — no stray "ANIMAL:" line on petless days
+    expect(captionBody).toMatch(/pet_lock\s*\?[\s\S]*?:\s*""/);
+  });
+
+  it("the other doctrines keep their own animal lock line", () => {
+    const commonBody = src.slice(src.indexOf("function commonBody"), src.indexOf("function captionBody"));
+    expect(commonBody).toContain("sceneBriefJson.pet_lock");
+  });
+});
+
 describe("truncation is reported", () => {
   it("logs loudly when a prompt hits the token ceiling", () => {
     expect(src).toContain('stop_reason === "max_tokens"');
