@@ -247,7 +247,7 @@ export function tierGuidance(
 Human first. Attractive always. Playful and flirtatious when it fits naturally. Each day shows ONE specific fragment of her real life across home, friends, travel, water, pets or the city — she feels like a person with a full life beyond the frame, not a series of model poses or a luxury-destination catalogue.
 
 MANDATORY every frame:
-- She is clearly present and the single main character, but her body and attention do NOT always face the camera.
+- She is clearly present and the single main character. Vary her attention ACROSS the batch rather than turning her away from the lens by default: some frames looking straight into the camera, others absorbed in what she is doing. When she is alone, a frame that reads as a photo she took of herself — direct, easy eye contact down the lens — is natural and welcome. Never leave her staring blankly past the camera at nothing.
 - One concrete moment and one action — doing, reacting to, or interacting with something. Not a generic lifestyle pose.
 - At least one SIGN OF REAL LIFE: a used object, an unfinished activity, food, a drink, luggage, wet hair, an open door, rumpled fabric, a pet, another person partly in frame, or something happening off-frame.
 - The environment is recognizable and meaningfully connected to the action.

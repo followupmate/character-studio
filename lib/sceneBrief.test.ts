@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { buildStylingRule } from "@/lib/sceneBrief";
 
 // The failure this guards against, observed in production on 2026-08-01: a
@@ -48,5 +49,30 @@ describe("buildStylingRule", () => {
 
   it("keeps the sacred-details accessories line", () => {
     expect(rule).toMatch(/sacred_details \(gold chain, earrings\)/);
+  });
+});
+
+// Production 2026-08-01: a pets_spontaneous day rendered a solid blue-grey British
+// Shorthair in one slot and a brown tabby in the next. Wardrobe and props were locked
+// exhaustively; the animal had no lock at all, so each slot invented its own cat.
+describe("pet_lock continuity", () => {
+  const sceneBriefSrc = readFileSync(new URL("./sceneBrief.ts", import.meta.url), "utf8");
+  const slotPromptsSrc = readFileSync(new URL("./slotPrompts.ts", import.meta.url), "utf8");
+
+  it("the brief schema asks for an exhaustive single-animal lock", () => {
+    expect(sceneBriefSrc).toContain('"pet_lock"');
+    expect(sceneBriefSrc).toMatch(/ONLY if an animal appears/i);
+    expect(sceneBriefSrc).toMatch(/breed, exact coat colour and pattern/i);
+    expect(sceneBriefSrc).toMatch(/never changes colour, breed, size or count between slots/i);
+  });
+
+  it("stays optional so briefs stored before the field still typecheck", () => {
+    expect(sceneBriefSrc).toMatch(/pet_lock\?: string/);
+  });
+
+  it("slot prompts carry the animal lock through to every slot", () => {
+    expect(slotPromptsSrc).toContain("sceneBriefJson.pet_lock");
+    expect(slotPromptsSrc).toMatch(/SAME individual animal in every slot/i);
+    expect(slotPromptsSrc).toMatch(/never be a DIFFERENT one/i);
   });
 });

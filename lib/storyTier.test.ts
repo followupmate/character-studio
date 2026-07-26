@@ -194,6 +194,18 @@ describe("warmth esprit doctrine", () => {
     expect(visual).toMatch(/no catalogue framing/i);
   });
 
+  it("does not push lived_moments away from the lens by default", () => {
+    const g = tierGuidance("lived_moments");
+    // Production 2026-08-01: alone at home in every frame, eyes off past the camera.
+    // The old MANDATORY line ("her body and attention do NOT always face the camera")
+    // read as a per-frame instruction instead of batch-level variety.
+    expect(g).not.toMatch(/attention do NOT always face the camera/i);
+    expect(g).toMatch(/Vary her attention ACROSS the batch/i);
+    expect(g).toMatch(/looking straight into the camera/i);
+    expect(g).toMatch(/photo she took of herself/i);
+    expect(g).toMatch(/Never leave her staring blankly past the camera/i);
+  });
+
   it("everyday_life offers warm light as an equal option, not only overcast", () => {
     const g = tierGuidance("everyday_life");
     expect(g).toMatch(/warm morning kitchen light/i);
