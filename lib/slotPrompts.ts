@@ -452,9 +452,11 @@ const DOCTRINES: Record<DoctrineKey, DoctrineSpec> = {
     // At 80/100 every single prompt was guillotined mid-word (verified in production:
     // photos capped at ~300 chars, videos at ~410, none ending on a sentence, going back
     // weeks). Brevity is enforced by the instruction, not by the cap — the cap only needs
-    // enough headroom for the model to finish its sentence.
+    // enough headroom for the model to finish its sentence. Measured after the first
+    // fix: photos land at 430-500 chars (~125 tokens), videos at 750-890 (~220) — the
+    // video captions carry motion, loop and tech lines, so 220 still clipped 3 of 5.
     photoMaxTokens: 180,
-    videoMaxTokens: 220,
+    videoMaxTokens: 400,
   },
   cinematic: {
     photoStyleHeader: CINEMATIC_PHOTO_HEADER,
