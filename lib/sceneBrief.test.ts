@@ -52,6 +52,47 @@ describe("buildStylingRule", () => {
   });
 });
 
+// The output looked drab and roughly a decade old — "80s bungalow kitchen", "IKEA
+// showroom", no colour. The brief said WHAT was in the room but never WHEN or in what
+// taste, and every worked example in the schema was industrial: a Shinagawa underground
+// passage, concrete pillars, fluorescent strip lights, a charcoal late-90s wool coat,
+// and a palette whose sample tokens were 'charcoal' and 'concrete grey'. Image models
+// anchor hard on worked examples, so that was the world being described.
+describe("era and taste", () => {
+  const src = readFileSync(new URL("./sceneBrief.ts", import.meta.url), "utf8");
+
+  it("states the era and taste positively, not only as bans", () => {
+    expect(src).toMatch(/ERA AND TASTE/);
+    expect(src).toMatch(/styled the way someone with taste actually lives today/i);
+    expect(src).toMatch(/There is real COLOUR in the frame/i);
+  });
+
+  it("names the dated defaults an image model falls back to", () => {
+    expect(src).toMatch(/1980s\/1990s builder kitchens/i);
+    expect(src).toMatch(/flat-pack showroom/i);
+    expect(src).toMatch(/quiet must never come out as grey, tired or institutional/i);
+  });
+
+  it("no longer anchors the schema on industrial worked examples", () => {
+    expect(src).not.toMatch(/Shinagawa station underground passage/);
+    expect(src).not.toMatch(/charcoal wool coat \(knee-length, late-90s cut\)/);
+    expect(src).not.toMatch(/overhead fluorescent, harsh, neutral white/);
+    expect(src).not.toMatch(/escalator descends to her left/);
+  });
+
+  it("actually reaches the system prompt, not just the file", () => {
+    // Same trap as the animal lock: declaring the block is worthless if it is never
+    // interpolated into the template that is sent to the model.
+    expect(src).toMatch(/const contemporaryWorld = /);
+    expect(src).toMatch(/\$\{contemporaryWorld\}/);
+  });
+
+  it("requires at least one real colour in the palette", () => {
+    expect(src).toMatch(/At least ONE must be an actual colour, not a neutral/i);
+    expect(src).toMatch(/never instead of one/i);
+  });
+});
+
 // Production 2026-08-01: a pets_spontaneous day rendered a solid blue-grey British
 // Shorthair in one slot and a brown tabby in the next. Wardrobe and props were locked
 // exhaustively; the animal had no lock at all, so each slot invented its own cat.
