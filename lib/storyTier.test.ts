@@ -10,6 +10,8 @@ import {
   pickMagnetismLevel,
   tierGuidance,
   tierLabel,
+  locationSpecFor,
+  MOMENT_FAMILY_LOCATIONS,
   momentFamilyGuidance,
   magnetismGuidance,
 } from "./storyTier";
@@ -135,6 +137,42 @@ describe("guidance + label", () => {
   it("every family and magnetism level produces non-empty guidance", () => {
     for (const f of MOMENT_FAMILIES) expect(momentFamilyGuidance(f).length).toBeGreaterThan(20);
     for (const l of MAGNETISM_LEVELS) expect(magnetismGuidance(l).length).toBeGreaterThan(20);
+  });
+});
+
+// Guards the location↔world binding. Production 2026-08-01: a vacation_beach_water day
+// resolved to "gym — free weights section" because the generic location spec offered
+// "gym free-weights area" as an example and nothing tied the location to the day's world.
+// The styling deck then followed the family and locked beach club attire onto a gym floor.
+describe("locationSpecFor", () => {
+  it("binds a lived_moments location to the day's world and bans the gym example", () => {
+    const spec = locationSpecFor("lived_moments", "vacation_beach_water");
+    expect(spec).toContain("HARD CONSTRAINT");
+    expect(spec).toContain("vacation_beach_water");
+    expect(spec).toMatch(/beach, towel on the sand/);
+    // the example that caused the incident must not be offered on a lived_moments day
+    expect(spec).not.toMatch(/gym free-weights area/);
+    expect(spec).toMatch(/no gym/i);
+  });
+
+  it("offers each family its own locations", () => {
+    for (const family of MOMENT_FAMILIES) {
+      const spec = locationSpecFor("lived_moments", family);
+      expect(spec).toContain(family);
+      expect(spec).toContain(MOMENT_FAMILY_LOCATIONS[family]);
+      expect(spec).not.toMatch(/gym free-weights area/);
+    }
+  });
+
+  it("leaves other tiers on the original tier-example spec", () => {
+    // wellness legitimately belongs in a gym — that menu must survive
+    expect(locationSpecFor("wellness_fitness", null)).toMatch(/gym free-weights area/);
+    expect(locationSpecFor("intimate_aesthetic", null)).toMatch(/her bedroom, unmade bed/);
+    expect(locationSpecFor("wellness_fitness", null)).not.toContain("HARD CONSTRAINT");
+  });
+
+  it("falls back to the generic spec when a lived_moments day has no family", () => {
+    expect(locationSpecFor("lived_moments", null)).not.toContain("HARD CONSTRAINT");
   });
 });
 

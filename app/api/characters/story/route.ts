@@ -6,6 +6,7 @@ import {
   pickTier,
   pickDriftSeeds,
   tierGuidance,
+  locationSpecFor,
   driftSeedGuidance,
   pickMomentFamily,
   pickMagnetismLevel,
@@ -68,7 +69,7 @@ ${historyText}
 OUTPUT FORMAT — valid JSON only. No markdown, no code blocks, no explanation.
 
 Required fields:
-- location: string (the specific micro-location for today's tier — everyday: "her apartment kitchen", "neighbourhood café corner table", "city sidewalk near home"; wellness: "boutique pilates studio", "gym free-weights area", "home workout corner"; intimate: "her bedroom, unmade bed", "bathroom mirror, morning"; travel: city + spot e.g. "Amalfi, hotel terrace". Be concrete and physically specific.)
+${locationSpecFor(tier, family)}
 - mood: string (1 to 3 words, warm or candid — "unhurried", "earned", "golden", "easy". Never "ethereal" / "vibrant" / "wanderlust")
 - narrative: 2 to 3 sentences obeying the voice doctrine — warm, candid, anchored to the moment
 - arc_position: one of: opening | rising | peak | turning | falling | quiet

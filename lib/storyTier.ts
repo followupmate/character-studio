@@ -199,6 +199,33 @@ export function momentFamilyGuidance(family: MomentFamily): string {
   return map[family];
 }
 
+// Concrete micro-locations that belong to each lived_moments world. Used to bind the
+// story's location field to the day's family: without this the generic location spec
+// offered examples from every other tier (including "gym free-weights area"), so a
+// vacation_beach_water day could legitimately resolve to a gym — and then the styling
+// deck, which follows the family, dressed her for the beach in it.
+export const MOMENT_FAMILY_LOCATIONS: Record<MomentFamily, string> = {
+  home_private:
+    '"her apartment kitchen", "her bedroom, unmade bed", "the living room couch by the window", "her bathroom mirror", "the balcony"',
+  friends_fun:
+    '"a restaurant table at dinner", "her apartment while getting ready to go out", "a bar counter", "a house party kitchen", "a neighbourhood café table with a friend"',
+  vacation_beach_water:
+    '"a beach, towel on the sand", "the hotel pool edge", "a boat deck", "a beach bar table", "a hotel room the morning before the pool"',
+  pets_spontaneous:
+    '"her kitchen counter with the cat on it", "her bed with the dog", "a park path on the morning walk", "the hallway coming back from a walk"',
+  city_transit:
+    '"the passenger seat of a car", "a taxi back seat", "an airport gate", "a train window seat", "a city sidewalk between two places", "a flower stall"',
+};
+
+// The `location` line of the story output spec. lived_moments days get a hard binding to
+// the day's world; every other tier keeps the original tier-example menu.
+export function locationSpecFor(tier: StoryTier, family?: MomentFamily | null): string {
+  if (tier === "lived_moments" && family) {
+    return `- location: string (HARD CONSTRAINT — the location MUST belong to TODAY'S WORLD (${family}) described above. Do NOT borrow a location from another world or another tier: no gym, no pilates or workout space, no bedroom-as-lingerie-set, unless that genuinely IS today's world. Pick one concrete micro-location from: ${MOMENT_FAMILY_LOCATIONS[family]} — or an equally specific place that unmistakably belongs to the same world. Be concrete and physically specific.)`;
+  }
+  return `- location: string (the specific micro-location for today's tier — everyday: "her apartment kitchen", "neighbourhood café corner table", "city sidewalk near home"; wellness: "boutique pilates studio", "gym free-weights area", "home workout corner"; intimate: "her bedroom, unmade bed", "bathroom mirror, morning"; travel: city + spot e.g. "Amalfi, hotel terrace". Be concrete and physically specific.)`;
+}
+
 // The chosen magnetism level, expanded into intensity direction.
 export function magnetismGuidance(level: MagnetismLevel): string {
   const map: Record<MagnetismLevel, string> = {
