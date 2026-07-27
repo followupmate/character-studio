@@ -206,6 +206,17 @@ describe("warmth esprit doctrine", () => {
     expect(g).toMatch(/Never leave her staring blankly past the camera/i);
   });
 
+  it("keeps expressed warmth contained, not a wide open-mouth laugh", () => {
+    const g = tierGuidance("lived_moments");
+    // Production 2026-08-02: "let joy show" with no ceiling on intensity produced a
+    // wide-open-mouth performative laugh on a quiet spontaneous-pet-moment day.
+    expect(g).not.toMatch(/Let joy show — a smile, laughter, easy eye contact, a spontaneous gesture or movement — whenever the moment allows it\./);
+    expect(g).toMatch(/CONTAINED and photographable/i);
+    expect(g).toMatch(/never a wide open-mouth laugh/i);
+    expect(g).toMatch(/never mugging or gurning/i);
+    expect(g).toMatch(/not performing delight at the lens/i);
+  });
+
   it("everyday_life offers warm light as an equal option, not only overcast", () => {
     const g = tierGuidance("everyday_life");
     expect(g).toMatch(/warm morning kitchen light/i);
