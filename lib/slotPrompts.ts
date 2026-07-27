@@ -601,7 +601,8 @@ function captionBody(args: BuildArgs): string {
   // to reach the caption path too — the compact body used by the active doctrine does not
   // carry visual_rules, so without this line the animal simply never appears.
   const animalLine = args.sceneBriefJson.pet_lock
-    ? `\nANIMAL (the SAME individual whenever it appears — never a different breed, coat, colour or count; show it when this slot's framing plausibly includes it): ${args.sceneBriefJson.pet_lock}`
+    ? `\nANIMAL (the SAME individual whenever it appears — never a different breed, coat, colour or count; show it when this slot's framing plausibly includes it): ${args.sceneBriefJson.pet_lock}
+ANIMAL WORDING (critical): always write the SPECIES noun in the caption — "a blue-grey British Shorthair cat", never just "a blue-grey British Shorthair". Image generators do not reliably know breed names and will draw the wrong species (a breed-only caption produced a dog on a cat day). Species first, breed as the qualifier.`
     : "";
 
   return `OUTFIT (use exactly, no additions): ${args.sceneBriefJson.wardrobe_lock}

@@ -64,6 +64,14 @@ describe("animal lock reaches the active caption path", () => {
     expect(captionBody).toMatch(/never a different breed, coat, colour or count/i);
   });
 
+  it("demands the species noun, not a breed-only caption", () => {
+    // Production: the caption said "blue-grey British Shorthair" with no species word
+    // and the generator drew a dog on a cat day. Breed names alone are unreliable.
+    expect(captionBody).toMatch(/ANIMAL WORDING/);
+    expect(captionBody).toMatch(/always write the SPECIES noun/i);
+    expect(captionBody).toMatch(/British Shorthair cat/);
+  });
+
   it("stays absent when the day has no animal", () => {
     // guarded by the pet_lock ternary — no stray "ANIMAL:" line on petless days
     expect(captionBody).toMatch(/pet_lock\s*\?[\s\S]*?:\s*""/);

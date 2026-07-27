@@ -255,7 +255,7 @@ MANDATORY every frame:
 
 ONE COHERENT MOMENT: the whole day stays in ONE event — same base location (or a logical move within it), same time of day, same outfit (or a natural progression), same mood, same visual tone, same weather. Do not jump between unrelated settings.
 
-VISUAL: warm, believable contemporary photography full of real light and life. Lean into warm natural light, alive but true-to-life color, and a lived-in space with real depth. Let joy show — a smile, laughter, easy eye contact, a spontaneous gesture or movement — whenever the moment allows it. Aspirational without looking staged. No empty environments, no repetitive solo posing, no catalogue framing.${REALISM_NOTE}`;
+VISUAL: warm, believable contemporary photography full of real light and life. Lean into warm natural light, alive but true-to-life color, and a lived-in space with real depth. Let warmth show — a soft smile, an amused half-smile, a quiet laugh caught mid-breath, easy eye contact, a small spontaneous gesture — whenever the moment allows it. Keep it CONTAINED and photographable: never a wide open-mouth laugh, never a big toothy grin held for the camera, never mugging or gurning. She is amused by something real, not performing delight at the lens. Aspirational without looking staged. No empty environments, no repetitive solo posing, no catalogue framing.${REALISM_NOTE}`;
     const parts = [base];
     if (extras?.family) parts.push(momentFamilyGuidance(extras.family));
     if (extras?.magnetism) parts.push(magnetismGuidance(extras.magnetism));
