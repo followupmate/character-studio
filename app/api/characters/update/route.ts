@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { characterId, photo_url, visual_tone, prompt_doctrine, styling_note, fanvue_link, feature_flag } = await req.json();
+    const { characterId, photo_url, visual_tone, prompt_doctrine, styling_note, fanvue_link, adult_content_verified, feature_flag } = await req.json();
     if (!characterId) {
       return NextResponse.json({ error: "Missing characterId" }, { status: 400 });
     }
@@ -14,6 +14,11 @@ export async function PATCH(req: NextRequest) {
     if (prompt_doctrine !== undefined) patch.prompt_doctrine = prompt_doctrine;
     if (styling_note !== undefined) patch.styling_note = styling_note;
     if (fanvue_link !== undefined) patch.fanvue_link = fanvue_link;
+    // adult_content_verified: explicit 18+ confirmation gate for content_level="explicit_adult"
+    // (fanvue_paid_continuation_v1). Manual only — set from the /fanvue Character Settings
+    // confirmation dialog, never inferred from backstory/prompt/appearance. Must be a real
+    // boolean, not just "truthy", so a stray non-boolean body value can't silently flip it on.
+    if (typeof adult_content_verified === "boolean") patch.adult_content_verified = adult_content_verified;
 
     // feature_flag: { flag: string, value: boolean } — merged into the jsonb
     // feature_flags column (read-modify-write to preserve the other flags).

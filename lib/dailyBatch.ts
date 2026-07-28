@@ -441,6 +441,13 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
         sexAppealStyle: situation?.sex_appeal_style,
         luxurySeduction: situation?.luxury_seduction,
         playfulHotWorld: situation?.playful_hot_world,
+        pipelineV1: isFlagOn(character.feature_flags, "fanvue_paid_continuation_v1"),
+        // validateFanvueSource() inputs (item 0) — a non-null situation always passed the
+        // story-generation retry loop's validation by construction (situation is only ever null
+        // for a flag-off/old row, or when SITUATION_MAX_ATTEMPTS was exhausted — both cases the
+        // gate must treat as unvalidated), so situationValidated collapses to situation !== null.
+        situation,
+        situationValidated: situation !== null,
       });
     } catch (err) {
       console.error("[fanvue-unlock]", err);

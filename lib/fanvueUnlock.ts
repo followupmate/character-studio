@@ -1,32 +1,39 @@
 import { supabase } from "@/lib/supabase";
 import type { StoryTier, MagnetismLevel } from "@/lib/storyTier";
 import { livedMomentsFanvueProbability } from "@/lib/storyTier";
-import type { SensualVisualLanguage, SexAppealStyle, LuxurySeduction } from "@/lib/situationPlanner";
+import type { SensualVisualLanguage, SexAppealStyle, LuxurySeduction, GenerativeSituation } from "@/lib/situationPlanner";
 import type { PlayfulHotWorldProfile } from "@/lib/playfulHotWorldConfig";
+import {
+  FANVUE_RULES,
+  situationTensionClause,
+  sensualVisualLanguageClause,
+  sexAppealStyleClause,
+  luxurySeductionClause,
+  playfulHotWorldClause,
+} from "@/lib/fanvuePrimitives";
+import type { TierRule, StoryDayLike, SituationFanvueTension } from "@/lib/fanvuePrimitives";
+import { buildFanvueContinuationPlan } from "@/lib/fanvueContinuation";
 
 // FANVUE LAYER (v1.1, flag: fanvue_drafts) — turn an IG scene into a monetization DRAFT (chs_fanvue_unlocks).
 // Pure DB write, post-batch, NEVER auto-publishes and NEVER calls the Fanvue MCP. The draft proposes an
 // intensity (soft/medium/strong) that the user approves later. IG stays public-safe; the stronger framing
 // lives only on the draft row. The IG CTA is decoupled and rate-limited to ~25–35% of outputs.
+//
+// fanvue_paid_continuation_v1 (flag, requires fanvue_drafts): when on, maybeCreateFanvueUnlock writes
+// a structured continuation_plan (source tease/paid promise/content level/6-shot arc, see
+// lib/fanvueContinuation.ts) instead of a flat fanvue_prompt. Flag off = byte-identical legacy row —
+// see lib/fanvueUnlock.test.ts and lib/fanvueContinuation.test.ts.
 
-interface TierRule {
-  probability: number;
-  intensity: "soft" | "medium" | "strong";
-  unlock: "subscription" | "ppv" | "bundle";
-  price: number;
-  series: string[];
-}
-
-// Partial — historical tiers (grounded_routine, …) and any unlisted tier fall
-// back to everyday_life at the lookup below. lived_moments modulates its own
-// probability by magnetism level (see maybeCreateFanvueUnlock).
-const FANVUE_RULES: Partial<Record<StoryTier, TierRule>> = {
-  intimate_aesthetic: { probability: 0.85, intensity: "strong", unlock: "subscription", price: 9.99, series: ["Room 407", "After Hours", "Silk & Skin"] },
-  luxe_car:           { probability: 0.80, intensity: "strong", unlock: "subscription", price: 9.99, series: ["Night Drive", "Passenger Princess", "After Dark"] },
-  lived_moments:      { probability: 0.50, intensity: "medium", unlock: "subscription", price: 7.99, series: ["Off Duty", "The Rest of the Day", "Behind the Moment"] },
-  wellness_fitness:   { probability: 0.45, intensity: "medium", unlock: "subscription", price: 7.99, series: ["Body Diary", "Locker Room", "Post-Workout"] },
-  lifestyle_travel:   { probability: 0.55, intensity: "medium", unlock: "ppv",          price: 8.99, series: ["Pool Heat", "Room with a View", "Beach Heat"] },
-  everyday_life:      { probability: 0.25, intensity: "soft",   unlock: "subscription", price: 6.99, series: ["White Shirt Morning", "Soft Home", "Slow Sunday"] },
+// Re-exported so every existing `import { X } from "@/lib/fanvueUnlock"` call site (including
+// lib/fanvueUnlock.test.ts) keeps working unchanged after these moved to lib/fanvuePrimitives.ts.
+export type { TierRule, StoryDayLike, SituationFanvueTension };
+export {
+  FANVUE_RULES,
+  situationTensionClause,
+  sensualVisualLanguageClause,
+  sexAppealStyleClause,
+  luxurySeductionClause,
+  playfulHotWorldClause,
 };
 
 const IG_CTAS = ["the full set is inside", "the rest is on fanvue", "uncut version inside", "you only get the rest somewhere else"];
@@ -50,29 +57,6 @@ async function shouldAttachIgCta(characterId: string): Promise<boolean> {
   return Math.random() < 0.30;
 }
 
-interface StoryDayLike {
-  tier: string | null;
-  moment_family?: string | null;
-  magnetism_level?: string | null;
-  location: string | null;
-  mood: string | null;
-  ig_caption: string | null;
-  hook_text: string | null;
-}
-
-// open_life_generation_v1 — advisory context only. When provided, threads the SAME event's
-// continuation/withheld_element into the prompt so it stays causally linked to today's
-// situation instead of a randomly-injected lingerie/bedroom variant. "none" never suppresses
-// the existing probability-gated draft mechanism below — it only means no continuation clause
-// is added to the prompt text.
-export interface SituationFanvueTension {
-  potential: "none" | "soft" | "clear" | "strong";
-  continuation?: string | null;
-  withheld_element?: string | null;
-}
-
-// Extracted as a pure function specifically so it's unit-testable without Supabase (house
-// convention: DB-touching code stays untested, pure helpers next to it are tested directly).
 export function buildFanvuePrompt(
   series: string,
   storyDay: StoryDayLike,
@@ -84,31 +68,11 @@ export function buildFanvuePrompt(
   luxurySeduction?: LuxurySeduction,
   playfulHotWorld?: PlayfulHotWorldProfile
 ): string {
-  const situationClause =
-    situationTension && situationTension.potential !== "none" && situationTension.continuation
-      ? ` ${situationTension.continuation}${situationTension.withheld_element ? ` (withheld from Instagram: ${situationTension.withheld_element})` : ""}`
-      : "";
-  // sensual_visual_language_v1 — the FULL object, not just wardrobe/body: gesture_or_action,
-  // camera_relationship and exposure_boundary carry the continuation forward too, so the Fanvue
-  // set stays visually/behaviorally continuous with today's IG moment, not a randomly bolder swap.
-  const sensualClause = sensualVisualLanguage
-    ? ` Sensual continuity: ${sensualVisualLanguage.wardrobe_signal}, emphasis on ${sensualVisualLanguage.body_emphasis}. She is ${sensualVisualLanguage.gesture_or_action}. Camera relationship: ${sensualVisualLanguage.camera_relationship}. Boundary: ${sensualVisualLanguage.exposure_boundary}.`
-    : "";
-  // sex_appeal_style_v1 (iteration 3) — same "thread the full declared style forward" pattern as
-  // sensualClause above, one layer deeper (archetype/silhouette/leg visibility/facial energy/mode).
-  const sexAppealClause = sexAppealStyle
-    ? ` Style continuity: ${sexAppealStyle.outfit_archetype}, silhouette focus on ${sexAppealStyle.silhouette_focus}, legs ${sexAppealStyle.leg_visibility}. Facial energy: ${sexAppealStyle.facial_energy}. Seduction mode: ${sexAppealStyle.seduction_mode}.`
-    : "";
-  // luxury_seduction_v1 (iteration 4) — same "thread the full declared style forward" pattern,
-  // one layer deeper (fashion direction/material/accessories/footwear/pose/body geometry/status).
-  const luxuryClause = luxurySeduction
-    ? ` Luxury continuity: ${luxurySeduction.fashion_direction}, in ${luxurySeduction.material_language}, with ${luxurySeduction.accessory_language} and ${luxurySeduction.footwear}. Pose: ${luxurySeduction.pose_archetype}. Body line: ${luxurySeduction.body_geometry}. Status context: ${luxurySeduction.social_status_signal}.`
-    : "";
-  // playful_hot_world_v1 (iteration 5) — same "thread forward" pattern, carrying the day's vibe
-  // (mood/vitality/social pulse/season) so the Fanvue set stays tonally continuous.
-  const playfulClause = playfulHotWorld
-    ? ` Vibe continuity: ${playfulHotWorld.mood_temperature} mood, ${playfulHotWorld.vitality_level} energy, ${playfulHotWorld.social_pulse} pulse, ${playfulHotWorld.seasonality} season.`
-    : "";
+  const situationClause = situationTensionClause(situationTension);
+  const sensualClause = sensualVisualLanguageClause(sensualVisualLanguage);
+  const sexAppealClause = sexAppealStyleClause(sexAppealStyle);
+  const luxuryClause = luxurySeductionClause(luxurySeduction);
+  const playfulClause = playfulHotWorldClause(playfulHotWorld);
   return `Soul set for "${series}". Continue the SAME real moment as today (${storyDay.location ?? "scene"}${storyDay.moment_family ? `, ${storyDay.moment_family}` : ""}) — a more private/relaxed continuation of it, NOT a new lingerie/bedroom set.${situationClause}${sensualClause}${sexAppealClause}${luxuryClause}${playfulClause} ${wardrobe ? `Wardrobe: ${wardrobe}. ` : ""}Intensity ${intensity} — within Fanvue's tasteful adult range, no explicit unless approved. Keep faithful Vivienne identity.`;
 }
 
@@ -123,13 +87,23 @@ export async function maybeCreateFanvueUnlock(args: {
   sexAppealStyle?: SexAppealStyle;
   luxurySeduction?: LuxurySeduction;
   playfulHotWorld?: PlayfulHotWorldProfile;
+  // fanvue_paid_continuation_v1 flag state — defaults to off (legacy row shape). Never flips
+  // content_level to explicit_adult on its own; defaultContentLevel() inside
+  // buildFanvueContinuationPlan can only produce premium_sensual/erotic_tease automatically.
+  pipelineV1?: boolean;
+  // validateFanvueSource() inputs (item 0) — the full source situation and whether it passed
+  // validation. Only meaningful/consumed when pipelineV1 is true; forwarded verbatim into
+  // buildFanvueContinuationPlan, which is undefined-safe (missing situation = conservative,
+  // blocks-for-intimate_aesthetic direction, never a silent bypass).
+  situation?: GenerativeSituation | null;
+  situationValidated?: boolean;
 }): Promise<{ created: boolean; id?: string }> {
   const tier = (args.storyDay.tier ?? "everyday_life") as StoryTier;
   const rule = FANVUE_RULES[tier] ?? FANVUE_RULES.everyday_life!;
 
   // lived_moments modulates its Fanvue probability by the day's magnetism level
   // (soft .30 → sensual .95; ≈0.4925 average, 0.50 fallback for old null rows).
-  // Its draft intensity follows too.
+  // Its draft intensity follows too. Unchanged by pipelineV1 — tier weights don't change.
   const magnetism = (args.storyDay.magnetism_level ?? null) as MagnetismLevel | null;
   const probability =
     tier === "lived_moments"
@@ -154,6 +128,45 @@ export async function maybeCreateFanvueUnlock(args: {
   const wardrobe = typeof args.sceneBriefJson?.wardrobe_lock === "string" ? (args.sceneBriefJson.wardrobe_lock as string) : "";
 
   const attachCta = await shouldAttachIgCta(args.characterId);
+  const ig_cta = attachCta ? pick(IG_CTAS) : null;
+
+  if (args.pipelineV1) {
+    const plan = buildFanvueContinuationPlan({
+      tier,
+      series,
+      storyDay: args.storyDay,
+      wardrobe,
+      magnetism,
+      situationTension: args.situationFanvueTension,
+      sensualVisualLanguage: args.sensualVisualLanguage,
+      sexAppealStyle: args.sexAppealStyle,
+      luxurySeduction: args.luxurySeduction,
+      playfulHotWorld: args.playfulHotWorld,
+      situation: args.situation,
+      situationValidated: args.situationValidated,
+    });
+    const row = {
+      character_id: args.characterId,
+      story_day_id: args.storyDayId,
+      daily_plan_id: args.dailyPlanId,
+      unlock_type: plan.commercial.mode,
+      series_name: series,
+      title: `${series} — ${descriptor}`.slice(0, 120),
+      teaser_text: args.storyDay.hook_text || (args.storyDay.ig_caption ?? "").slice(0, 80) || descriptor,
+      sales_copy: plan.paid_promise,
+      suggested_price: plan.commercial.price_eur,
+      intensity: plan.content_level === "premium_sensual" ? "medium" : "strong",
+      ig_cta,
+      fanvue_prompt: null,
+      content_level: plan.content_level,
+      continuation_plan: plan,
+      pipeline_version: "paid_continuation_v1" as const,
+      status: "draft" as const,
+    };
+    const { data, error } = await supabase.from("chs_fanvue_unlocks").insert(row).select("id").single();
+    if (error) return { created: false };
+    return { created: true, id: data.id as string };
+  }
 
   const row = {
     character_id: args.characterId,
@@ -166,8 +179,9 @@ export async function maybeCreateFanvueUnlock(args: {
     sales_copy: `Today's ${tier.replace("_", " ")} moment, the version Instagram won't let her post. ${series} — full set inside.`,
     suggested_price: rule.price,
     intensity, // PROPOSED — user approves/edits before use
-    ig_cta: attachCta ? pick(IG_CTAS) : null,
+    ig_cta,
     fanvue_prompt: buildFanvuePrompt(series, args.storyDay, wardrobe, intensity, args.situationFanvueTension, args.sensualVisualLanguage, args.sexAppealStyle, args.luxurySeduction, args.playfulHotWorld),
+    pipeline_version: "legacy" as const,
     status: "draft" as const,
   };
 

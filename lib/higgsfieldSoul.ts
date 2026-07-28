@@ -17,6 +17,20 @@ export function soulConfigured(): boolean {
   return !!c && c.includes(":");
 }
 
+// Item 11 — distinguishes WHY a Higgsfield call failed so callers can surface a clear, specific
+// banner instead of letting an invalid-credential 401/403 get buried among N generic per-shot
+// errors. Pure/deterministic — no network — so it's unit-testable without hitting the provider.
+// A MISSING credential is a separate, already-distinct case (soulConfigured()/the early
+// `!credentials` guard in generateSoulImage() below) — this function only classifies failures
+// that reached the provider, i.e. a credential was present but the provider rejected/flagged it.
+export type HiggsfieldFailureKind = "invalid_credential" | "nsfw" | "other";
+
+export function classifyHiggsfieldFailure(submitStatus?: number, jobStatus?: string): HiggsfieldFailureKind {
+  if (submitStatus === 401 || submitStatus === 403) return "invalid_credential";
+  if (jobStatus === "nsfw") return "nsfw";
+  return "other";
+}
+
 
 
 export async function generateSoulImage(opts: {
@@ -43,14 +57,21 @@ export async function generateSoulImage(opts: {
   let job = (await submit.json().catch(() => ({}))) as {
     status?: string; status_url?: string; images?: Array<{ url?: string }>; detail?: unknown;
   };
-  if (!submit.ok) throw new Error(`Higgsfield submit ${submit.status}: ${JSON.stringify(job).slice(0, 200)}`);
+  if (!submit.ok) {
+    // Item 11 — distinctly-prefixed message when the failure classifies as an invalid credential,
+    // so app/api/fanvue/generate-media/route.ts can grep for it and surface one clear banner
+    // instead of a generic per-shot error.
+    const kind = classifyHiggsfieldFailure(submit.status);
+    const prefix = kind === "invalid_credential" ? "Higgsfield credential invalid" : "Higgsfield submit";
+    throw new Error(`${prefix} (${submit.status}): ${JSON.stringify(job).slice(0, 200)}`);
+  }
 
   for (let i = 0; i < 45 && !["completed", "failed", "nsfw"].includes(job.status ?? ""); i++) {
     if (!job.status_url) break;
     await new Promise((r) => setTimeout(r, 2500));
     job = await (await fetch(job.status_url, { headers: { Authorization: auth } })).json();
   }
-  if (job.status === "nsfw") throw new Error("Higgsfield flagged NSFW");
+  if (classifyHiggsfieldFailure(undefined, job.status) === "nsfw") throw new Error("Higgsfield flagged NSFW");
   const srcUrl = job.images?.[0]?.url;
   if (!srcUrl) throw new Error(`Higgsfield: no image (status ${job.status ?? "unknown"})`);
 

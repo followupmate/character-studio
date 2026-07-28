@@ -28,10 +28,25 @@ export async function POST(req: Request) {
 
     const { data: unlock } = await supabase
       .from("chs_fanvue_unlocks")
-      .select("id, title, series_name, teaser_text, sales_copy, suggested_price, unlock_type, media_urls, fanvue_media_uuids, status")
+      .select("id, character_id, title, series_name, teaser_text, sales_copy, suggested_price, unlock_type, media_urls, fanvue_media_uuids, status, content_level")
       .eq("id", unlockId)
       .single();
     if (!unlock) return NextResponse.json({ error: "Unlock draft not found" }, { status: 404 });
+
+    // Item 10 — server-side adult gate, re-checked at the LAST point before real external
+    // publish (the audit found this route had zero content_level/adult_content_verified check at
+    // all — a row that reached explicit_adult could be published even if verification was
+    // subsequently revoked on the character). Never trusts the client; always re-fetches.
+    if (unlock.content_level === "explicit_adult") {
+      const { data: character } = await supabase
+        .from("chs_characters")
+        .select("adult_content_verified")
+        .eq("id", unlock.character_id)
+        .single();
+      if (!character?.adult_content_verified) {
+        return NextResponse.json({ error: "explicit_adult requires adult_content_verified=true on this character (Character Settings)" }, { status: 403 });
+      }
+    }
 
     const mediaUrls = (unlock.media_urls as string[] | null) ?? [];
     if (mediaUrls.length === 0) {
