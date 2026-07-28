@@ -43,6 +43,32 @@ export type MagnetismLevel = "soft" | "playful" | "flirty" | "sensual";
 export type DriftSeedKind = "timestamp_mismatch" | "impossible_weather_memory" | "location_drop" | "golden_hour_moment" | "hotel_morning";
 export interface DriftSeed { kind: DriftSeedKind; detail?: string }
 
+// ── open_life_generation_v1 (situation planner) — shared unions, single source of truth. ──
+// Re-exported from lib/sexualEnergyConfig.ts and lib/situationPlanner.ts the same way
+// StoryTier/MomentFamily/MagnetismLevel are re-exported from lib/storyTier.ts above.
+export type SexualEnergyLevel = "subtle" | "warm" | "playful" | "provocative" | "intimate";
+export type MagnetismReason =
+  | "physical_attraction"
+  | "playful_femininity"
+  | "private_access"
+  | "social_desirability"
+  | "body_confidence"
+  | "aspirational_lifestyle"
+  | "provocative_ambiguity"
+  | "intimate_curiosity"
+  | "adventurous_energy";
+export type ContinuityPhase = "standalone" | "setup" | "event" | "aftermath";
+export type FanvueTensionPotential = "none" | "soft" | "clear" | "strong";
+export type SocialContextMode = "alone" | "off_camera_person" | "ambient_public" | "partial_companion";
+
+// playful_hot_world_v1 — same "shared unions, re-exported from lib/" convention as above.
+export type MoodTemperature = "soft" | "warm" | "hot";
+export type VitalityLevel = "calm" | "alive" | "playful" | "electric";
+export type SocialPulse = "private" | "suggested_social" | "social" | "party_adjacent";
+export type Seasonality = "neutral" | "summer" | "high_summer";
+export type ColorEnergy = "muted" | "fresh" | "vivid";
+export type FunFactor = "low" | "medium" | "high";
+
 export interface Character {
   id: string;
   name: string;
@@ -106,7 +132,25 @@ export interface Media {
   generation_status: GenerationStatus | null;
   retry_count: number | null;
   last_error: string | null;
-  visual_signature: { palette: string; lens: string; movement: string } | null;
+  visual_signature: {
+    palette: string;
+    lens: string;
+    movement: string;
+    // open_life_generation_v1 — performance-logging tags, additive only (spec §15). Recorded
+    // for future engagement analysis; never read by getGrowthBias() or any auto-weighting logic.
+    situation_tags?: {
+      tier: string | null;
+      life_domain: string | null;
+      sexual_energy_level: string | null;
+      sexual_expression_family: string | null;
+      magnetism_reason: string | null;
+      fanvue_tension_potential: string | null;
+      visual_cliche: string | null;
+      activity_family: string | null;
+      location_family: string | null;
+      continuity_phase: string | null;
+    };
+  } | null;
   hook_text: string | null;
   created_at: string;
 }

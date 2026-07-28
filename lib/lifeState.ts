@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { ContinuityPhase } from "@/types";
 
 // LIFE LAYER (v1.1, flag: life_layer) — gives the persona a persistent, evolving day-to-day state so it
 // reads like a continuing life, not a series of pretty scenes. Stored as jsonb on chs_story_days.life_state
@@ -123,6 +124,54 @@ function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + "T12:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().split("T")[0];
+}
+
+function diffDays(a: string, b: string): number {
+  return Math.round((new Date(a + "T12:00:00Z").getTime() - new Date(b + "T12:00:00Z").getTime()) / 86400000);
+}
+
+// open_life_generation_v1 — LifeMicroEvent phase eligibility. Pure: given an active
+// chs_life_events row and a target date, which ContinuityPhase values are eligible today.
+// The Claude call then picks ONE (a day doesn't need to declare every phase). A LifeEvent with
+// ends_at === null is treated as a single-day event (the deck only leaves ends_at null for
+// 1-day picks — see EVENT_DECK below), so "aftermath" is only offered on the single day right
+// after starts_at, never indefinitely.
+export function microEventPhaseCandidates(event: LifeEvent, date: string): ContinuityPhase[] {
+  const spanEnd = event.ends_at ?? event.starts_at;
+  const isSingleDay = spanEnd === event.starts_at;
+  const dayAfterEnd = addDays(spanEnd, 1);
+
+  if (date < event.starts_at) return ["standalone"];
+
+  if (isSingleDay) {
+    if (date === event.starts_at) return ["event"];
+    if (date === dayAfterEnd) return ["aftermath"];
+    return ["standalone"];
+  }
+
+  if (date === event.starts_at) return ["setup", "event"];
+  if (date === spanEnd) return ["event", "aftermath"];
+  if (date === dayAfterEnd) return ["aftermath"];
+  if (diffDays(date, event.starts_at) > 0 && diffDays(spanEnd, date) > 0) return ["event"];
+  return ["standalone"];
+}
+
+// Appended to the story OUTPUT FORMAT only when open_life_generation_v1 is on AND an active
+// life event exists relevant to today — the same LLM call emits situation.active_micro_event.
+// Guidance only: aftermath must show via a physical consequence (reality_detail), never
+// narrated as text ("she reflects on last night" is banned; damp hair from last night's rain
+// is not).
+export function microEventOutputSpec(event: LifeEvent, phaseCandidates: ContinuityPhase[]): string {
+  return `- situation.active_micro_event: OPTIONAL object — include ONLY if today's situation genuinely continues "${event.title}" (started ${event.starts_at}${event.ends_at ? `, ends ${event.ends_at}` : ""}). Keys:
+    {
+      "life_event_id": "(reference only, do not invent one)",
+      "premise": "one clause — what this ongoing thing IS, in her own life terms",
+      "phase": "one of: ${phaseCandidates.join(" | ")}",
+      "social_implication": "OPTIONAL one clause, or omit",
+      "location_implication": "OPTIONAL one clause, or omit",
+      "unresolved_choice": "OPTIONAL one clause left open for a future day, or omit"
+    }
+    RULE: aftermath is shown through a physical consequence in reality_detail (damp hair, one shoe still by the door, an unopened suitcase) — never narrated in text ("she thinks back to..."). If today does not meaningfully continue this event, omit active_micro_event entirely.`;
 }
 
 // Occasionally spawn a new small life event (every ~3–5 days, mostly everyday/low-weight).

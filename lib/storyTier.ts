@@ -32,6 +32,16 @@ export const TIER_WEIGHTS: Record<string, number> = {
 
 const ALL_TIERS = Object.keys(TIER_WEIGHTS) as StoryTier[];
 
+// open_life_generation_v1: intimate_aesthetic's bedroom/bathroom-first framing produced a
+// single real IG result of ~207k views — a strong signal, but ONE data point. This flag
+// documents that the tier's underlying PRINCIPLE (proximity / magnetism / private-access
+// confidence) is product-validated as high-performing. It is explicitly NOT used to
+// auto-adjust TIER_WEIGHTS — raising this tier's rotation share stays a human decision
+// pending more signal (see lib/growthScore.ts getGrowthBias, which is untouched by this).
+export const TIER_VALIDATED_HIGH_PERFORMING: Partial<Record<StoryTier, boolean>> = {
+  intimate_aesthetic: true,
+};
+
 // growth_layer: optional per-tier additive weight delta. Each delta is clamped to ±0.10 and every tier
 // keeps a floor of 0.05 (exploration reserve), so a "winning" tier can never starve the others.
 export type TierBias = Partial<Record<StoryTier, number>>;
@@ -237,9 +247,24 @@ export function magnetismGuidance(level: MagnetismLevel): string {
   return `${map[level]} One or two natural magnetic details only (eye contact, a body line, a bare shoulder or leg, wet hair, an oversized tee, hair movement, a spontaneous gesture) — never all at once, and never by simply removing clothes.`;
 }
 
+// open_life_generation_v1: examples given below are inspiration, never a whitelist. Prefer
+// a new coherent situation not named in the examples when it is realistic for her, visually
+// renderable in one location, compatible with the selected tier and recent continuity, and
+// simple enough to understand from one image.
+const INSPIRATION_NOT_WHITELIST = `Examples above are inspiration, never a whitelist. Prefer a new coherent situation
+not named in the examples when it is realistic for her, visually renderable in one location,
+compatible with this tier and recent continuity, and simple enough to understand from one image.`;
+
 export function tierGuidance(
   tier: StoryTier,
-  extras?: { family?: MomentFamily | null; magnetism?: MagnetismLevel | null }
+  extras?: {
+    family?: MomentFamily | null;
+    magnetism?: MagnetismLevel | null;
+    // open_life_generation_v1 — additive only. Omitting this (or passing false) reproduces
+    // the exact pre-existing string for every tier; existing call sites are unaffected.
+    situationMode?: boolean;
+    sexualEnergyGuidance?: string; // precomputed by lib/sexualEnergyConfig.ts, passed in to avoid a module cycle
+  }
 ): string {
   if (tier === "lived_moments") {
     const base = `TIER: lived_moments — "Magnetic Everyday Life" (a varied, believable human life; she is LIVING it, not presenting it)
@@ -259,11 +284,16 @@ VISUAL: warm, believable contemporary photography full of real light and life. L
     const parts = [base];
     if (extras?.family) parts.push(momentFamilyGuidance(extras.family));
     if (extras?.magnetism) parts.push(magnetismGuidance(extras.magnetism));
+    if (extras?.situationMode) {
+      parts.push(`OPEN LIFE DOMAINS (broader than the five worlds above — pick whichever fits today's situation; a world can be revisited with a genuinely different life domain within it): nightlife and social events; beach, pool and water life; hotels and travel; home and private life (practical life as a supporting frame, never the whole point); wellness and body; fashion and self-presentation; movement and transit; friendship and celebration; playful or impulsive experiences; personal interests; unexpected everyday situations.
+${INSPIRATION_NOT_WHITELIST}`);
+      if (extras.sexualEnergyGuidance) parts.push(extras.sexualEnergyGuidance);
+    }
     return parts.join("\n\n");
   }
 
   if (tier === "everyday_life") {
-    return `TIER: everyday_life (relatable daily life, girlfriend energy, the life a follower wants to step into)
+    const base = `TIER: everyday_life (relatable daily life, girlfriend energy, the life a follower wants to step into)
 
 This is an ordinary day in her real life — the kind of content that builds parasocial closeness and pulls followers.
 
@@ -276,10 +306,24 @@ Scene must be:
 Wardrobe: casual and flattering — oversized knit over bare legs, fitted everyday tee + denim, loungewear set, a soft slip top. Comfortable but quietly attractive. She looks good without trying.
 
 Narrative tone: warm, personal, like a text to someone she likes. A small real detail. A soft hook that makes you want the next day.${REALISM_NOTE}`;
+    if (!extras?.situationMode) return base;
+    return `${base}
+
+OPEN LIFE GENERATION — the practical activity is a FRAME, never the point of the day. A day that
+is only chores has no magnetic reason to exist.
+AVOID: a full scene built around folding laundry with no other point.
+PREFER: folding laundry while on a call that reveals a decision she's making — the laundry is the
+frame, the call (or the decision, or who she's talking to, or what she says) is the point.
+AVOID: unpacking groceries and the scene ends there.
+PREFER: coming home late from dinner, kicking her shoes off at the door, and — still in her dress —
+unpacking strawberries and prosecco while someone photographs her from the hallway.
+${INSPIRATION_NOT_WHITELIST}
+
+${extras.sexualEnergyGuidance ?? ""}`;
   }
 
   if (tier === "wellness_fitness") {
-    return `TIER: wellness_fitness (body-confident, healthy, high-engagement — the strongest reach driver)
+    const base = `TIER: wellness_fitness (body-confident, healthy, high-engagement — the strongest reach driver)
 
 She is moving — gym, pilates, yoga, a wellness studio, a post-workout moment. This content is the top reach driver: athletic, body-flattering, aspirational-but-attainable.
 
@@ -292,10 +336,23 @@ Scene must be:
 Wardrobe: figure-flattering athleisure — fitted sports bra + high-waisted leggings, bike shorts + crop, a tank slipping off one shoulder, matching set. Confident, sporty, attractive. Show the body the way fitness creators do — strong and healthy, never crude.
 
 Narrative tone: confident, light, a little playful. Earned-glow energy.${REALISM_NOTE}`;
+    if (!extras?.situationMode) return base;
+    return `${base}
+
+BEYOND GYM/PILATES/YOGA — the body-confidence principle applies to any movement, not only a
+studio floor: swimming, paddleboard, dancing, mobility work, the drive to or from training, a
+wellness hotel, recovery after a late night, an IG-safe sauna or spa moment, physical activity by
+water, a spontaneous active plan. The sexual energy here comes from MOVEMENT, physical control and
+earned confidence — never from a fetishised framing of the body.
+${INSPIRATION_NOT_WHITELIST}
+
+${extras.sexualEnergyGuidance ?? ""}`;
   }
 
   if (tier === "intimate_aesthetic") {
-    return `TIER: intimate_aesthetic (the conversion tier — girlfriend fantasy that funnels to OnlyFans / Fanvue)
+    const SAFE_RULES = `SAFE RULES (account survival): suggestive yes — explicit NO. No nudity, no exposed nipples/genitals, no sexual acts, no pornographic framing. Lingerie/swimwear/implied-topless-from-behind are the ceiling. Anything past that gets the account banned and is generated nowhere in this pipeline.`;
+    if (!extras?.situationMode) {
+      return `TIER: intimate_aesthetic (the conversion tier — girlfriend fantasy that funnels to OnlyFans / Fanvue)
 
 This is the most suggestive tier and the one that converts followers into paying subscribers. Maximally alluring WITHIN Instagram's rules — provocation through confidence, skin, fabric and gaze, never through explicit content.
 
@@ -307,11 +364,39 @@ Scene must be:
 
 Narrative tone: direct, daring, self-possessed. The caption has an edge and a quiet invitation — the "come find the rest of this" energy that drives subscriptions, implied never stated.
 
-SAFE RULES (account survival): suggestive yes — explicit NO. No nudity, no exposed nipples/genitals, no sexual acts, no pornographic framing. Lingerie/swimwear/implied-topless-from-behind are the ceiling. Anything past that gets the account banned and is generated nowhere in this pipeline.${REALISM_NOTE}`;
+${SAFE_RULES}${REALISM_NOTE}`;
+    }
+    return `TIER: intimate_aesthetic (the conversion tier — girlfriend fantasy that funnels to OnlyFans / Fanvue)
+
+This is the most suggestive tier and the one that converts followers into paying subscribers. Maximally alluring WITHIN Instagram's rules — provocation through confidence, skin, fabric and gaze, never through explicit content.
+
+SITUATION FIRST, NOT LOCATION FIRST: do not open by picking a bedroom or bathroom and inventing a
+reason for it afterward. Start from a real context, decision or event — she is somewhere and doing
+something for a REASON that exists before the camera does. The visual sexuality is the SECOND step,
+derived from that situation, never the first.
+
+Inspiration for the RANGE, not a whitelist — invent your own within it: a hotel room before or
+after an event, a pool or private terrace at the end of the day, inside a boat cabin, the passenger
+seat of a car at night, her kitchen the morning after a night out, a balcony at 2am, stretching
+after a private wellness session, getting ready in front of the mirror before going out, the
+morning after — waking up in yesterday's clothes, choosing which photo to send someone, a changing
+room between outfits, a hotel corridor walking back to the room, a quiet moment on transit home.
+The bedroom or bathroom is one possible outcome of a situation, never the default starting point.
+
+MANDATORY every frame:
+- A concrete situation: what she is doing, and why, right now — not a pose waiting for a caption.
+- The sexual energy is EARNED by the situation (confidence, privacy, a decision she made, a mood)
+  — never just "she is attractive and alone near a bed."
+
+Narrative tone: direct, daring, self-possessed. The caption has an edge and a quiet invitation — the "come find the rest of this" energy that drives subscriptions, implied never stated.
+
+${SAFE_RULES}${REALISM_NOTE}
+
+${extras.sexualEnergyGuidance ?? ""}`;
   }
 
   if (tier === "luxe_car") {
-    return `TIER: luxe_car (night luxury / passenger-princess — the high-reach crossover: attractive + car/luxury culture)
+    const base = `TIER: luxe_car (night luxury / passenger-princess — the high-reach crossover: attractive + car/luxury culture)
 
 A cinematic night moment inside, or stepping out of, a high-end car. This tier fuses two audiences — her
 admirers and the luxury/car-culture crowd — which is what drives outsized reach. Premium and elegant, never trashy.
@@ -340,6 +425,17 @@ night and the lifestyle with the "come find the rest" edge that funnels to Fanvu
 
 SAFE RULES (account survival): suggestive yes — explicit NO. Lingerie/eveningwear + thigh-highs are the ceiling;
 no nudity, no exposed nipples/genitals. Anything past that gets the account banned.${REALISM_NOTE}`;
+    if (!extras?.situationMode) return base;
+    return `${base}
+
+DOMAIN + ENVIRONMENT + OVERLAY, NOT A STANDALONE LOCATION TIER: the car is the frame she is
+travelling through between real events — never the whole story. Ban generic passenger-seat posing
+with no reason, a logo or badge as the visual point, or "rich girl cosplay" divorced from any
+life context. She is going somewhere or coming from somewhere specific, and that destination or
+departure is part of what makes the moment mean something.
+${INSPIRATION_NOT_WHITELIST}
+
+${extras.sexualEnergyGuidance ?? ""}`;
   }
 
   if (tier === "lifestyle_travel") {

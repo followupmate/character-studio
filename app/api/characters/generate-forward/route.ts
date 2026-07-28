@@ -1,85 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { generateDailyBatch } from "@/lib/dailyBatch";
-import { claudeWithRetry } from "@/lib/generatePrompts";
-import {
-  pickTier,
-  pickDriftSeeds,
-  tierGuidance,
-  locationSpecFor,
-  driftSeedGuidance,
-  pickMomentFamily,
-  pickMagnetismLevel,
-  getLastMomentFamily,
-  StoryTier,
-  ContentPhase,
-  MomentFamily,
-  MagnetismLevel,
-} from "@/lib/storyTier";
-import { Character, StoryDay } from "@/types";
+import { StoryDay } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
-import { VOICE_DOCTRINE, DISCOVERY_DOCTRINE } from "@/lib/storyPrompt";
-import { getLatestLifeState, getActiveLifeEvents, lifeContextBlock, LIFE_OUTPUT_SPEC, maybeCreateLifeEvent } from "@/lib/lifeState";
-import { getGrowthBias } from "@/lib/growthScore";
+import { maybeCreateLifeEvent } from "@/lib/lifeState";
+import { generateStoryDayContent } from "@/lib/storyGeneration";
+import type { Character } from "@/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-function buildSystemPrompt(args: {
-  character: Character;
-  tier: StoryTier;
-  driftSeeds: ContentPhase[];
-  dayNumber: number;
-  historyText: string;
-  lifeContext?: string; // life_layer: continuity guidance from yesterday's life_state + active events
-  discoveryMode?: boolean; // discovery_mode: reach-first caption/hook editorial
-  family?: MomentFamily | null; // lived_moments: today's world
-  magnetism?: MagnetismLevel | null; // lived_moments: today's intensity
-}): string {
-  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism } = args;
-  const lifeOn = lifeContext !== undefined;
-  const personality = character.personality ?? {};
-  const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
-
-  return `You are the content director for ${character.name}.
-
-CHARACTER BACKSTORY (editorial truth — do not invent new facts, do not contradict):
-${character.backstory}
-
-VISUAL BRIEF:
-${character.visual_brief}
-
-PERSONALITY:
-${JSON.stringify(personality, null, 2)}
-${sacred ? `\nSACRED DETAILS (invariant world objects and rules):\n${JSON.stringify(sacred, null, 2)}` : ""}
-
-${VOICE_DOCTRINE}
-${discoveryMode ? `\n${DISCOVERY_DOCTRINE}\n` : ""}
-${tierGuidance(tier, { family, magnetism })}
-
-${driftSeedGuidance(driftSeeds)}
-${lifeContext ? `\n${lifeContext}\n` : ""}
-VOICE ANCHOR — read recent history ONLY to avoid repeating the same city or scene two days in a row.
-
-RECENT HISTORY (last 7 days, oldest first):
-${historyText}
-
-OUTPUT FORMAT — valid JSON only. No markdown, no code blocks, no explanation.
-
-Required fields:
-${locationSpecFor(tier, family)}
-- mood: string (1 to 3 words, warm or candid — "unhurried", "earned", "golden", "easy")
-- narrative: 2 to 3 sentences obeying the voice doctrine
-- arc_position: one of: opening | rising | peak | turning | falling | quiet
-- emotional_beat: one of: present | playful | sultry | golden | effortless | candid | intimate | wandering | languid | aspirational
-- scene: structured object with keys: time_of_day, weather, wardrobe, props (array), motifs (array), energy
-- next_hint: one sentence hint of tomorrow
-- ig_caption: 1 to 2 lines. lowercase. no hashtags. everyday: warm, one real detail. wellness: confident, earned-glow. intimate: daring with a quiet invitation ("woke up like this. stayed like this.", "you only get the rest of this somewhere else 😏"). travel: name place + observation.
-- hook_text: OPTIONAL 2-5 word overlay text for carousel (~35% of days only). everyday: "slow morning". wellness: "earned it". intimate: "do not disturb", "come find me". travel: location-punchy. Omit entirely if no strong hook.
-- hashtags: array of 10 strings without # (tier-appropriate lifestyle/wellness/aesthetic/niche/branded mix; avoid spammy adult tags that risk the account)
-${lifeOn ? LIFE_OUTPUT_SPEC + "\n" : ""}
-ALL text fields in English.`;
-}
 
 function errMsg(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -167,54 +96,14 @@ export async function POST(req: Request) {
             .order("day_number", { ascending: false })
             .limit(7);
 
-          const reversed = ((history as StoryDay[]) ?? []).slice().reverse();
-          const historyText =
-            reversed.length > 0
-              ? reversed.map((d) => `Day ${d.day_number}: ${d.location} — ${d.mood} — ${d.narrative}`).join("\n")
-              : "First day. No history yet.";
-
-          // GROWTH LAYER (flag-gated): gentle, capped tier bias (no-op until ≥10 reels w/ metrics).
-          const growthOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "growth_layer");
-          const tierBias = growthOn ? (await getGrowthBias(char.id))?.modifier : undefined;
-          const tier = await pickTier(char.id, 6, tierBias);
-          const driftSeeds = await pickDriftSeeds(char.id, dayNumber);
-
-          // LIFE LAYER (flag-gated): yesterday's life_state + active events as continuity guidance.
           const lifeOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "life_layer");
-          let lifeContext: string | undefined;
-          if (lifeOn) {
-            const [prevLife, activeEvents] = await Promise.all([
-              getLatestLifeState(char.id, targetDate),
-              getActiveLifeEvents(char.id, targetDate),
-            ]);
-            lifeContext = lifeContextBlock(prevLife, activeEvents);
-          }
 
-          const discoveryMode = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "discovery_mode");
-
-          // lived_moments only: pick today's world (anti-repeat vs the last lived_moments day) + magnetism.
-          const family = tier === "lived_moments" ? pickMomentFamily(await getLastMomentFamily(char.id)) : null;
-          const magnetism = tier === "lived_moments" ? pickMagnetismLevel() : null;
-
-          const system = buildSystemPrompt({ character: char, tier, driftSeeds, dayNumber, historyText, lifeContext, discoveryMode, family, magnetism });
-
-          const msg = await claudeWithRetry({
-            model: "claude-sonnet-4-6",
-            max_tokens: 1800,
-            system,
-            messages: [
-              { role: "user", content: `Day ${dayNumber}. Generate today's chapter. Pick a single emotional beat — do not blend.` },
-            ],
+          const { story, tier, driftSeeds, family, magnetism } = await generateStoryDayContent({
+            character: char,
+            dayNumber,
+            targetDate,
+            historyRows: (history as StoryDay[]) ?? [],
           });
-
-          const rawText = (msg.content[0] as { type: string; text: string }).text;
-          const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-          let story: Record<string, unknown>;
-          try {
-            story = JSON.parse(jsonText);
-          } catch {
-            throw new Error(`Story JSON parse failed. Claude returned: ${rawText.slice(0, 300)}`);
-          }
 
           const insertPayload: Record<string, unknown> = {
             character_id: char.id,

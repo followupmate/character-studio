@@ -43,6 +43,8 @@ interface GenerateArgs {
   recentBriefs?: Array<{ wardrobe_lock: string; allowed_props: string[] }>;
   stylingProfile?: StylingProfile;
   lifeNote?: string; // life_layer: short mood/energy continuity note (optional, never overrides tier)
+  situationContext?: string; // open_life_generation_v1: today's situation summary (sibling to lifeNote, never replaces it)
+  activityContext?: { activity: string; continuityPhase: string }; // sensual_visual_language_v1: passed through to buildStylingRule's ACTIVITY/PHASE WINS rule
 }
 
 function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | null): string[] {
@@ -71,7 +73,8 @@ function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | nu
 // Exported for tests.
 export function buildStylingRule(
   profile: { label: string; vibe: string; outfit: string; hair: string; jewelry: string; makeup: string },
-  location: string
+  location: string,
+  activityContext?: { activity: string; continuityPhase: string }
 ): string {
   return `\nSTYLING PROFILE FOR TODAY — MANDATORY OVERRIDE (replaces wardrobe_anchors for this batch):
 Label: ${profile.label}
@@ -90,7 +93,8 @@ swap the garments for ones that belong in this location. Never lock an outfit a 
 would not wear there; a believable everyday look always beats a styled-but-wrong one.
 RULE: Adapting to the location does NOT mean falling back to the generic silk slip dress +
 linen blazer from wardrobe_anchors. The slip dress is NOT today's look — stay recognisably
-within today's profile.
+within today's profile.${activityContext ? `
+RULE: the profile must also make sense for TODAY'S ACTIVITY (${activityContext.activity}) and moment (${activityContext.continuityPhase}) — adapt it the same way as the location rule above (keep palette/fabric/silhouette, swap the garment) if the category is implausible for what she is actually doing right now; never force a mismatched outfit just to hit a higher energy level.` : ""}
 Add the character constants from sacred_details (gold chain, earrings) as always-present accessories.`;
 }
 
@@ -106,7 +110,7 @@ function safeJsonExtract(raw: string): SceneBriefJson {
   }
 }
 
-export async function generateSceneBrief({ storyScene, character, recentBriefs, stylingProfile, lifeNote }: GenerateArgs): Promise<SceneBriefResult> {
+export async function generateSceneBrief({ storyScene, character, recentBriefs, stylingProfile, lifeNote, situationContext, activityContext }: GenerateArgs): Promise<SceneBriefResult> {
   const sacredText = character.sacred_details
     ? `SACRED DETAILS (invariant across all 7 assets — never change):\n${JSON.stringify(character.sacred_details, null, 2)}`
     : "";
@@ -150,7 +154,7 @@ Because these elements are named in the lock, the slot prompts are ALLOWED to sh
     ? `\nDRIFT SEEDS ACTIVE TODAY (mandatory — bake these into the brief's visual_rules array verbatim):\n${driftRules.map((r) => `- ${r}`).join("\n")}`
     : "";
 
-  const stylingText2 = stylingProfile ? buildStylingRule(stylingProfile, storyScene.location) : "";
+  const stylingText2 = stylingProfile ? buildStylingRule(stylingProfile, storyScene.location, activityContext) : "";
 
   const rotationText = recentBriefs && recentBriefs.length > 0
     ? `\nWARDROBE + PROP ROTATION (mandatory — enforce visible variety day to day):
@@ -192,6 +196,7 @@ Arc position: ${storyScene.arc_position}
 Emotional beat: ${storyScene.emotional_beat ?? storyScene.mood}
 Narrative: ${storyScene.narrative}
 ${lifeNote ? `Life continuity (let it subtly color mood/energy, not the tier): ${lifeNote}` : ""}
+${situationContext ? `Today's situation (open_life_generation_v1 — let it inform spatial_setup/wardrobe_lock naturally, never override SACRED DETAILS or the environment doctrine above): ${situationContext}` : ""}
 ${sceneJsonText}
 ${driftText}
 

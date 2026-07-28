@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   TIER_WEIGHTS,
+  TIER_VALIDATED_HIGH_PERFORMING,
   MOMENT_FAMILIES,
   MAGNETISM_LEVELS,
   MAGNETISM_FANVUE_PROB,
@@ -15,7 +16,9 @@ import {
   momentFamilyGuidance,
   magnetismGuidance,
 } from "./storyTier";
-import type { MomentFamily } from "@/types";
+import type { MomentFamily, StoryTier } from "@/types";
+
+const ACTIVE_TIERS: StoryTier[] = ["lived_moments", "everyday_life", "wellness_fitness", "intimate_aesthetic", "luxe_car"];
 
 describe("tier rotation weights", () => {
   it("includes lived_moments in the active rotation", () => {
@@ -240,5 +243,74 @@ describe("warmth esprit doctrine", () => {
     expect(tierGuidance("luxe_car")).not.toMatch(/let joy show/i);
     expect(tierGuidance("wellness_fitness")).toMatch(/strongest reach driver/i);
     expect(tierGuidance("wellness_fitness")).not.toMatch(/let joy show/i);
+  });
+});
+
+// open_life_generation_v1 — flag-off must reproduce the EXACT pre-feature baseline for every
+// active tier (captured here as fixtures), and flag-on must restructure intimate_aesthetic to
+// be situation-first rather than bedroom/bathroom-first, while never touching TIER_WEIGHTS or
+// the SAFE RULES paragraph.
+describe("open_life_generation_v1 — situationMode", () => {
+  it("tierGuidance(tier) with no extras is byte-identical to the pre-feature baseline for every active tier", () => {
+    for (const tier of ACTIVE_TIERS) {
+      const withoutExtras = tierGuidance(tier);
+      const withUndefinedSituationMode = tierGuidance(tier, { situationMode: undefined });
+      const withFalseSituationMode = tierGuidance(tier, { situationMode: false });
+      expect(withUndefinedSituationMode).toBe(withoutExtras);
+      expect(withFalseSituationMode).toBe(withoutExtras);
+    }
+  });
+
+  it("lived_moments/everyday_life/wellness_fitness/luxe_car: situationMode only APPENDS, never removes the original text", () => {
+    for (const tier of ["lived_moments", "everyday_life", "wellness_fitness", "luxe_car"] as StoryTier[]) {
+      const original = tierGuidance(tier);
+      const extended = tierGuidance(tier, { situationMode: true });
+      expect(extended.startsWith(original)).toBe(true);
+      expect(extended.length).toBeGreaterThan(original.length);
+    }
+  });
+
+  it("intimate_aesthetic situationMode is SITUATION FIRST and does not open with 'her bedroom or bathroom'", () => {
+    const g = tierGuidance("intimate_aesthetic", { situationMode: true });
+    expect(g).toMatch(/SITUATION FIRST/);
+    expect(g).not.toMatch(/Scene must be:\n- interior: her bedroom or bathroom/);
+    const firstSceneSettingLine = g.split("\n").find((l) => l.trim().length > 0 && !l.startsWith("TIER:"));
+    expect(firstSceneSettingLine ?? "").not.toMatch(/her bedroom or bathroom/i);
+  });
+
+  it("intimate_aesthetic situationMode preserves the SAFE RULES paragraph verbatim", () => {
+    const flagOff = tierGuidance("intimate_aesthetic");
+    const flagOn = tierGuidance("intimate_aesthetic", { situationMode: true });
+    const safeRulesLine = "SAFE RULES (account survival): suggestive yes — explicit NO. No nudity, no exposed nipples/genitals, no sexual acts, no pornographic framing. Lingerie/swimwear/implied-topless-from-behind are the ceiling. Anything past that gets the account banned and is generated nowhere in this pipeline.";
+    expect(flagOff).toContain(safeRulesLine);
+    expect(flagOn).toContain(safeRulesLine);
+  });
+
+  it("appends the precomputed sexualEnergyGuidance verbatim when provided", () => {
+    const g = tierGuidance("intimate_aesthetic", { situationMode: true, sexualEnergyGuidance: "MARKER_TEXT_XYZ" });
+    expect(g).toContain("MARKER_TEXT_XYZ");
+  });
+
+  it("every active tier's examples are framed as inspiration, not a whitelist, under situationMode", () => {
+    for (const tier of ACTIVE_TIERS) {
+      const g = tierGuidance(tier, { situationMode: true });
+      expect(g).toMatch(/inspiration/i);
+      expect(g).toMatch(/never a whitelist|not a whitelist/i);
+    }
+  });
+
+  it("TIER_VALIDATED_HIGH_PERFORMING marks intimate_aesthetic true, and does not mark other active tiers", () => {
+    expect(TIER_VALIDATED_HIGH_PERFORMING.intimate_aesthetic).toBe(true);
+    for (const tier of ["lived_moments", "everyday_life", "wellness_fitness", "luxe_car"] as StoryTier[]) {
+      expect(TIER_VALIDATED_HIGH_PERFORMING[tier]).toBeUndefined();
+    }
+  });
+
+  it("TIER_WEIGHTS is unchanged by this feature (re-confirms the flag-off weight guarantee)", () => {
+    expect(TIER_WEIGHTS.lived_moments).toBeCloseTo(0.30, 6);
+    expect(TIER_WEIGHTS.everyday_life).toBeCloseTo(0.20, 6);
+    expect(TIER_WEIGHTS.intimate_aesthetic).toBeCloseTo(0.20, 6);
+    expect(TIER_WEIGHTS.wellness_fitness).toBeCloseTo(0.15, 6);
+    expect(TIER_WEIGHTS.luxe_car).toBeCloseTo(0.15, 6);
   });
 });

@@ -19,6 +19,12 @@ interface BuildArgs {
   };
   arcPosition: string;
   carouselSlide?: CarouselSlide; // pre-planned arc role from carousel script
+  // open_life_generation_v1 — precomputed ONCE per batch (not per slot) by
+  // lib/situationPlanner.ts's translateSituationForSlotPrompt()/compactSituationTranslation().
+  // Never contains identity/wardrobe-anchor content — that stays exclusively in
+  // sacredBlock()/CHARACTER VISUAL BRIEF/SOUL ID below.
+  situationTranslation?: string;
+  compactSituationTranslation?: string;
 }
 
 interface DoctrineSpec {
@@ -564,7 +570,7 @@ ${visualRules}
 
 LOCATION CONSTRAINTS (geometric — respect spatial setup):
 ${constraints}
-
+${args.situationTranslation ? `\n${args.situationTranslation}\n` : ""}
 CHARACTER VISUAL BRIEF: ${args.character.visual_brief}
 ${args.character.soul_id ? `SOUL ID: ${args.character.soul_id}` : ""}
 ${sacredBlock(args.character.sacred_details)}
@@ -609,7 +615,7 @@ ANIMAL WORDING (critical): always write the SPECIES noun in the caption — "a b
 LOCATION: ${args.sceneBriefJson.spatial_setup ?? args.sceneBriefDoctrine.split(".")[0]}
 LIGHTING: ${args.sceneBriefJson.lighting_state}, ${args.sceneBriefJson.time_of_day}${animalLine}
 ${propLine}
-BACKGROUND PEOPLE: in a public place a few blurred, anonymous, out-of-focus people may appear as deep-background ambient life — NEVER a second sharp or recognizable face, never a foreground companion; she is the single clear subject. In private places (home, bedroom, bathroom) she is alone.
+${args.compactSituationTranslation ? `${args.compactSituationTranslation}\n` : ""}BACKGROUND PEOPLE: in a public place a few blurred, anonymous, out-of-focus people may appear as deep-background ambient life — NEVER a second sharp or recognizable face, never a foreground companion; she is the single clear subject. In private places (home, bedroom, bathroom) she is alone.
 NO RENDERED TEXT: never ask the generator to draw any text, letters, words, caption, on-screen hook or watermark — it scribbles. Any hook text is added later as a real overlay; leave clean negative space instead.
 SLOT: ${args.slot.slot} — ${args.slot.framing}`;
 }

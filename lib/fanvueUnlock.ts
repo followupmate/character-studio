@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import type { StoryTier, MagnetismLevel } from "@/lib/storyTier";
 import { livedMomentsFanvueProbability } from "@/lib/storyTier";
+import type { SensualVisualLanguage, SexAppealStyle, LuxurySeduction } from "@/lib/situationPlanner";
+import type { PlayfulHotWorldProfile } from "@/lib/playfulHotWorldConfig";
 
 // FANVUE LAYER (v1.1, flag: fanvue_drafts) — turn an IG scene into a monetization DRAFT (chs_fanvue_unlocks).
 // Pure DB write, post-batch, NEVER auto-publishes and NEVER calls the Fanvue MCP. The draft proposes an
@@ -58,12 +60,69 @@ interface StoryDayLike {
   hook_text: string | null;
 }
 
+// open_life_generation_v1 — advisory context only. When provided, threads the SAME event's
+// continuation/withheld_element into the prompt so it stays causally linked to today's
+// situation instead of a randomly-injected lingerie/bedroom variant. "none" never suppresses
+// the existing probability-gated draft mechanism below — it only means no continuation clause
+// is added to the prompt text.
+export interface SituationFanvueTension {
+  potential: "none" | "soft" | "clear" | "strong";
+  continuation?: string | null;
+  withheld_element?: string | null;
+}
+
+// Extracted as a pure function specifically so it's unit-testable without Supabase (house
+// convention: DB-touching code stays untested, pure helpers next to it are tested directly).
+export function buildFanvuePrompt(
+  series: string,
+  storyDay: StoryDayLike,
+  wardrobe: string,
+  intensity: "soft" | "medium" | "strong",
+  situationTension?: SituationFanvueTension,
+  sensualVisualLanguage?: SensualVisualLanguage,
+  sexAppealStyle?: SexAppealStyle,
+  luxurySeduction?: LuxurySeduction,
+  playfulHotWorld?: PlayfulHotWorldProfile
+): string {
+  const situationClause =
+    situationTension && situationTension.potential !== "none" && situationTension.continuation
+      ? ` ${situationTension.continuation}${situationTension.withheld_element ? ` (withheld from Instagram: ${situationTension.withheld_element})` : ""}`
+      : "";
+  // sensual_visual_language_v1 — the FULL object, not just wardrobe/body: gesture_or_action,
+  // camera_relationship and exposure_boundary carry the continuation forward too, so the Fanvue
+  // set stays visually/behaviorally continuous with today's IG moment, not a randomly bolder swap.
+  const sensualClause = sensualVisualLanguage
+    ? ` Sensual continuity: ${sensualVisualLanguage.wardrobe_signal}, emphasis on ${sensualVisualLanguage.body_emphasis}. She is ${sensualVisualLanguage.gesture_or_action}. Camera relationship: ${sensualVisualLanguage.camera_relationship}. Boundary: ${sensualVisualLanguage.exposure_boundary}.`
+    : "";
+  // sex_appeal_style_v1 (iteration 3) — same "thread the full declared style forward" pattern as
+  // sensualClause above, one layer deeper (archetype/silhouette/leg visibility/facial energy/mode).
+  const sexAppealClause = sexAppealStyle
+    ? ` Style continuity: ${sexAppealStyle.outfit_archetype}, silhouette focus on ${sexAppealStyle.silhouette_focus}, legs ${sexAppealStyle.leg_visibility}. Facial energy: ${sexAppealStyle.facial_energy}. Seduction mode: ${sexAppealStyle.seduction_mode}.`
+    : "";
+  // luxury_seduction_v1 (iteration 4) — same "thread the full declared style forward" pattern,
+  // one layer deeper (fashion direction/material/accessories/footwear/pose/body geometry/status).
+  const luxuryClause = luxurySeduction
+    ? ` Luxury continuity: ${luxurySeduction.fashion_direction}, in ${luxurySeduction.material_language}, with ${luxurySeduction.accessory_language} and ${luxurySeduction.footwear}. Pose: ${luxurySeduction.pose_archetype}. Body line: ${luxurySeduction.body_geometry}. Status context: ${luxurySeduction.social_status_signal}.`
+    : "";
+  // playful_hot_world_v1 (iteration 5) — same "thread forward" pattern, carrying the day's vibe
+  // (mood/vitality/social pulse/season) so the Fanvue set stays tonally continuous.
+  const playfulClause = playfulHotWorld
+    ? ` Vibe continuity: ${playfulHotWorld.mood_temperature} mood, ${playfulHotWorld.vitality_level} energy, ${playfulHotWorld.social_pulse} pulse, ${playfulHotWorld.seasonality} season.`
+    : "";
+  return `Soul set for "${series}". Continue the SAME real moment as today (${storyDay.location ?? "scene"}${storyDay.moment_family ? `, ${storyDay.moment_family}` : ""}) — a more private/relaxed continuation of it, NOT a new lingerie/bedroom set.${situationClause}${sensualClause}${sexAppealClause}${luxuryClause}${playfulClause} ${wardrobe ? `Wardrobe: ${wardrobe}. ` : ""}Intensity ${intensity} — within Fanvue's tasteful adult range, no explicit unless approved. Keep faithful Vivienne identity.`;
+}
+
 export async function maybeCreateFanvueUnlock(args: {
   characterId: string;
   storyDayId: string;
   dailyPlanId: string;
   storyDay: StoryDayLike;
   sceneBriefJson: Record<string, unknown> | null;
+  situationFanvueTension?: SituationFanvueTension;
+  sensualVisualLanguage?: SensualVisualLanguage;
+  sexAppealStyle?: SexAppealStyle;
+  luxurySeduction?: LuxurySeduction;
+  playfulHotWorld?: PlayfulHotWorldProfile;
 }): Promise<{ created: boolean; id?: string }> {
   const tier = (args.storyDay.tier ?? "everyday_life") as StoryTier;
   const rule = FANVUE_RULES[tier] ?? FANVUE_RULES.everyday_life!;
@@ -108,7 +167,7 @@ export async function maybeCreateFanvueUnlock(args: {
     suggested_price: rule.price,
     intensity, // PROPOSED — user approves/edits before use
     ig_cta: attachCta ? pick(IG_CTAS) : null,
-    fanvue_prompt: `Soul set for "${series}". Continue the SAME real moment as today (${args.storyDay.location ?? "scene"}${args.storyDay.moment_family ? `, ${args.storyDay.moment_family}` : ""}) — a more private/relaxed continuation of it, NOT a new lingerie/bedroom set. ${wardrobe ? `Wardrobe: ${wardrobe}. ` : ""}Intensity ${intensity} — within Fanvue's tasteful adult range, no explicit unless approved. Keep faithful Vivienne identity.`,
+    fanvue_prompt: buildFanvuePrompt(series, args.storyDay, wardrobe, intensity, args.situationFanvueTension, args.sensualVisualLanguage, args.sexAppealStyle, args.luxurySeduction, args.playfulHotWorld),
     status: "draft" as const,
   };
 

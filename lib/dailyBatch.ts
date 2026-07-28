@@ -15,6 +15,7 @@ import { isFlagOn } from "@/lib/featureFlags";
 import type { LifeState } from "@/lib/lifeState";
 import { maybeCreateFanvueUnlock } from "@/lib/fanvueUnlock";
 import { pickReelFormat, ReelFormat } from "@/lib/reelFormats";
+import { extractSituation, translateSituationForSlotPrompt, compactSituationTranslation, situationContextForSceneBrief, normalizeOutfitArchetypeFamily, normalizePoseArchetype, classifyOutfitCategory, GenerativeSituation } from "@/lib/situationPlanner";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek", "nano_banana", "caption"];
 
@@ -54,6 +55,50 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
 
   const driftSeedsForDay = (storyDay.drift_seeds as Array<{ kind: string; detail?: string }>) ?? [];
 
+  // open_life_generation_v1 — extracted once per batch (not per slot), from the same
+  // chs_story_days.scene.situation the story-generation retry loop validated. A null/missing
+  // situation (flag-off day, old row, or validation-exhausted day) is a safe no-op below.
+  const situation: GenerativeSituation | null = extractSituation(storyDay);
+  const situationTranslation = situation ? translateSituationForSlotPrompt(situation) : undefined;
+  const compactSituationTranslationText = situation ? compactSituationTranslation(situation) : undefined;
+  // sex_appeal_style_v1 (iteration 3, doplnenie #1) / luxury_seduction_v1 (iteration 4,
+  // architektonické rozhodnutie #6) — normalized independently of the flags (pure function of
+  // situation fields that are themselves undefined pre-iteration/flag-off, so this is a natural
+  // no-op then). luxury_seduction.fashion_direction is the PRIMARY source when present; falls
+  // back to sex_appeal_style.outfit_archetype otherwise. Used both to steer pickStylingProfile
+  // below AND as a deliverables-comparison tag (declared archetype family vs. actually-selected
+  // StylingProfile.id).
+  const outfitFamilyHint =
+    normalizeOutfitArchetypeFamily(situation?.luxury_seduction?.fashion_direction) ??
+    normalizeOutfitArchetypeFamily(situation?.sex_appeal_style?.outfit_archetype);
+  const poseFamilyHint = normalizePoseArchetype(situation?.luxury_seduction?.pose_archetype);
+  const situationTags: SituationTags | undefined = situation
+    ? {
+        tier: storyDay.tier ?? null,
+        life_domain: situation.life_domain ?? null,
+        sexual_energy_level: situation.sexual_energy.level ?? null,
+        sexual_expression_family: situation.sexual_energy.expression ?? null,
+        magnetism_reason: situation.magnetism_reason ?? null,
+        fanvue_tension_potential: situation.fanvue_tension.potential ?? null,
+        visual_cliche: situation.sexual_cliches?.[0] ?? null,
+        activity_family: situation.activity ?? null,
+        location_family: situation.visual_execution.location ?? null,
+        continuity_phase: situation.continuity_phase ?? null,
+        outfit_archetype_family: outfitFamilyHint,
+        styling_profile_id: null,
+        fashion_direction_family: outfitFamilyHint,
+        pose_archetype_family: poseFamilyHint,
+        luxury_level: situation.luxury_seduction?.luxury_level ?? null,
+        mood_temperature: situation.playful_hot_world?.mood_temperature ?? null,
+        vitality_level: situation.playful_hot_world?.vitality_level ?? null,
+        social_pulse: situation.playful_hot_world?.social_pulse ?? null,
+        seasonality: situation.playful_hot_world?.seasonality ?? null,
+        color_energy: situation.playful_hot_world?.color_energy ?? null,
+        fun_factor: situation.playful_hot_world?.fun_factor ?? null,
+        outfit_category: classifyOutfitCategory(outfitFamilyHint),
+      }
+    : undefined;
+
   const { data: existingPlan } = await supabase
     .from("chs_daily_plans")
     .select("*")
@@ -64,6 +109,10 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   let batchId: string;
   let sceneBriefJson: Record<string, unknown>;
   let sceneBriefDoctrine: string;
+  // sex_appeal_style_v1 (iteration 3, doplnenie #1/#5) — defaults to the reused plan's stored id
+  // when one exists (planComplete path never re-picks a profile); overwritten below once a fresh
+  // pick runs. Feeds situationTags.styling_profile_id for the deliverables comparison table.
+  let resolvedStylingProfileId: string | null = (existingPlan as { styling_profile?: string } | null)?.styling_profile ?? null;
 
   const planComplete =
     existingPlan &&
@@ -89,17 +138,43 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       .filter((b): b is import("@/lib/sceneBrief").SceneBriefJson => !!b && typeof b.wardrobe_lock === "string")
       .map((b) => ({ wardrobe_lock: b.wardrobe_lock, allowed_props: b.allowed_props ?? [] }));
 
+    // sensual_visual_language_v1 (iteration 2) — biases the magnetic wardrobe pool + soft
+    // time/weather compatibility filter (see lib/stylingDeck.ts's selectStylingSourcePool) and
+    // requires the concrete sensual_visual_language fields in validation. Hard-prerequisite on
+    // open_life_generation_v1 in spirit (situation must exist for there to be anything to bias by).
+    const sensualLanguageOn = isFlagOn(character.feature_flags, "sensual_visual_language_v1");
+    // sex_appeal_style_v1 (iteration 3) — hard-prerequisite on sensualLanguageOn, same triple-gate
+    // pattern as lib/storyGeneration.ts's sexAppealStyleOn.
+    const sexAppealStyleOn = sensualLanguageOn && isFlagOn(character.feature_flags, "sex_appeal_style_v1");
+    // luxury_seduction_v1 (iteration 4) — hard-prerequisite on sexAppealStyleOn, same
+    // quadruple-gate pattern as lib/storyGeneration.ts's luxurySeductionOn.
+    const luxurySeductionOn = sexAppealStyleOn && isFlagOn(character.feature_flags, "luxury_seduction_v1");
+
     // Pick styling profile for today (or reuse from existing plan)
     let stylingProfile: StylingProfile | undefined;
     if (planComplete && (existingPlan as { styling_profile?: string }).styling_profile) {
       const existingId = (existingPlan as { styling_profile: string }).styling_profile;
-      const { STYLING_PROFILES } = await import("@/lib/stylingDeck");
-      stylingProfile = STYLING_PROFILES.find((p) => p.id === existingId);
+      const { STYLING_PROFILES, MAGNETIC_STYLING_PROFILES, SEX_APPEAL_STYLING_PROFILES, LUXURY_SEDUCTION_STYLING_PROFILES } = await import("@/lib/stylingDeck");
+      stylingProfile =
+        STYLING_PROFILES.find((p) => p.id === existingId) ??
+        MAGNETIC_STYLING_PROFILES.find((p) => p.id === existingId) ??
+        SEX_APPEAL_STYLING_PROFILES.find((p) => p.id === existingId) ??
+        LUXURY_SEDUCTION_STYLING_PROFILES.find((p) => p.id === existingId);
     }
     if (!stylingProfile) {
-      stylingProfile = await pickStylingProfile(characterId, storyDay.tier ?? "lifestyle_travel", storyDay.moment_family ?? null);
+      stylingProfile = await pickStylingProfile(
+        characterId,
+        storyDay.tier ?? "lifestyle_travel",
+        storyDay.moment_family ?? null,
+        sensualLanguageOn,
+        situation ? { timeOfDay: situation.visual_execution.time_of_day, weather: situation.visual_execution.weather } : undefined,
+        sexAppealStyleOn,
+        sexAppealStyleOn ? outfitFamilyHint : undefined,
+        luxurySeductionOn
+      );
       // Persist after scene brief is saved (update below)
     }
+    resolvedStylingProfileId = stylingProfile.id;
 
     // LIFE LAYER (flag-gated): a short continuity note from today's persisted life_state.
     let lifeNote: string | undefined;
@@ -111,6 +186,14 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
         ls.recent_event ? `recently: ${ls.recent_event}` : null,
       ].filter(Boolean).join(", ") || undefined;
     }
+
+    // open_life_generation_v1 — sibling to lifeNote, never a replacement for it. Lets the scene
+    // brief's spatial_setup/wardrobe_lock reflect today's situation without touching SACRED
+    // DETAILS or the environment doctrine (see lib/sceneBrief.ts's situationContext handling).
+    // luxury_seduction_v1 (iteration 4, doplnenie #12) — situationContextForSceneBrief also
+    // appends social_status_signal (with an explicit "must be visually grounded" instruction)
+    // when present, giving it a chance to actually reach spatial_setup/allowed_props.
+    const situationContext = situation ? situationContextForSceneBrief(situation) : undefined;
 
     const brief = await generateSceneBrief({
       storyScene: {
@@ -133,6 +216,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       recentBriefs,
       stylingProfile,
       lifeNote,
+      situationContext,
+      activityContext: sensualLanguageOn && situation ? { activity: situation.activity, continuityPhase: situation.continuity_phase } : undefined,
     });
 
     sceneBriefJson = brief.json as unknown as Record<string, unknown>;
@@ -169,6 +254,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       batchId = newPlan.id;
     }
   }
+
+  if (situationTags) situationTags.styling_profile_id = resolvedStylingProfileId;
 
   const discoveryMode = isFlagOn(character.feature_flags, "discovery_mode");
   // Rotate a proven reel format per day (stable seed = day_number) in discovery mode.
@@ -261,6 +348,9 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           characterId,
           doctrine,
           carouselSlide: carouselSlideMap[slot.slot],
+          situationTranslation,
+          compactSituationTranslation: compactSituationTranslationText,
+          situationTags,
         })
       )
     );
@@ -301,6 +391,9 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           doctrine,
           carouselSlide: carouselSlideMap[slot.slot],
           isRetry: true,
+          situationTranslation,
+          compactSituationTranslation: compactSituationTranslationText,
+          situationTags,
         });
       })
     );
@@ -343,6 +436,11 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           hook_text: storyDay.hook_text ?? null,
         },
         sceneBriefJson: sceneBriefJson ?? null,
+        situationFanvueTension: situation?.fanvue_tension,
+        sensualVisualLanguage: situation?.sensual_visual_language,
+        sexAppealStyle: situation?.sex_appeal_style,
+        luxurySeduction: situation?.luxury_seduction,
+        playfulHotWorld: situation?.playful_hot_world,
       });
     } catch (err) {
       console.error("[fanvue-unlock]", err);
@@ -405,6 +503,49 @@ async function prereserveSlots(
   }
 }
 
+// open_life_generation_v1 — additive performance-logging tags merged into chs_media.visual_signature.
+// Never consumed by lib/growthScore.ts's getGrowthBias() or any auto-weighting logic (spec §15/§non-goals).
+interface SituationTags {
+  tier: string | null;
+  life_domain: string | null;
+  sexual_energy_level: string | null;
+  sexual_expression_family: string | null;
+  magnetism_reason: string | null;
+  fanvue_tension_potential: string | null;
+  visual_cliche: string | null;
+  activity_family: string | null;
+  location_family: string | null;
+  continuity_phase: string | null;
+  // sex_appeal_style_v1 (iteration 3, doplnenie #1/#5) — declared outfit family (normalized from
+  // situation.sex_appeal_style.outfit_archetype) vs. the StylingProfile.id actually selected by
+  // pickStylingProfile, for the deliverables comparison table.
+  outfit_archetype_family: string | null;
+  styling_profile_id: string | null;
+  // luxury_seduction_v1 (iteration 4) — same declared-vs-selected comparison, one layer deeper.
+  // fashion_direction_family mirrors outfit_archetype_family's value (luxury.fashion_direction
+  // takes precedence when present, falling back to sex_appeal_style.outfit_archetype).
+  fashion_direction_family: string | null;
+  pose_archetype_family: string | null;
+  luxury_level: string | null;
+  // playful_hot_world_v1 (iteration 5) — performance-logging only, never consumed by
+  // getGrowthBias/auto-weighting, same posture as every other situation_tags field.
+  mood_temperature: string | null;
+  vitality_level: string | null;
+  social_pulse: string | null;
+  seasonality: string | null;
+  color_energy: string | null;
+  fun_factor: string | null;
+  outfit_category: string | null;
+}
+
+function mergeVisualSignature(
+  base: { palette: string; lens: string; movement: string } | null,
+  situationTags?: SituationTags
+): (Record<string, unknown>) | null {
+  if (!situationTags) return base;
+  return { ...(base ?? {}), situation_tags: situationTags };
+}
+
 interface RunSlotArgs {
   slot: SlotSpec;
   archetypeId: string;
@@ -423,6 +564,10 @@ interface RunSlotArgs {
   doctrine: DoctrineKey;
   carouselSlide?: CarouselSlide;
   isRetry?: boolean;
+  // open_life_generation_v1 — precomputed once per batch, threaded to every slot.
+  situationTranslation?: string;
+  compactSituationTranslation?: string;
+  situationTags?: SituationTags;
 }
 
 async function runSlot(args: RunSlotArgs): Promise<void> {
@@ -446,13 +591,15 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
       character: args.character,
       arcPosition: args.arcPosition,
       carouselSlide: args.carouselSlide,
+      situationTranslation: args.situationTranslation,
+      compactSituationTranslation: args.compactSituationTranslation,
     });
 
     const { error: updErr } = await supabase
       .from("chs_media")
       .update({
         higgsfield_prompt: result.prompt,
-        visual_signature: result.visualSignature,
+        visual_signature: mergeVisualSignature(result.visualSignature, args.situationTags),
         hook_text: result.hookText ?? null,
         generation_status: "completed",
         last_error: null,
