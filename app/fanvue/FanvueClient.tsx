@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { CSSProperties } from "react";
 
 type ShotStep = "bridge" | "private_access" | "escalation" | "reveal" | "payoff" | "afterglow";
 type ContentLevel = "premium_sensual" | "erotic_tease" | "explicit_adult";
@@ -70,16 +71,17 @@ const CONTENT_LEVEL_STYLES: Record<ContentLevel, string> = {
   erotic_tease: "text-red-400 border-red-400/30 bg-red-400/10",
   explicit_adult: "text-muted2 border-border bg-surface-high",
 };
-const STEP_LABELS: Record<ShotStep, string> = {
-  bridge: "1 · Bridge",
-  private_access: "2 · Private access",
-  escalation: "3 · Escalation",
-  reveal: "4 · Reveal",
-  payoff: "5 · Payoff",
-  afterglow: "6 · Afterglow",
-};
-
 interface FunnelChar { id: string; name: string; fanvue_link: string | null; adult_content_verified?: boolean }
+
+// Shared visual primitives — same padding/border/background on every section card, so the page
+// reads as a consistent stack of sections instead of ad-hoc boxes. Purely presentational; no
+// change to data flow, field names, or workflow order.
+const CARD = "border border-border bg-[#050709] p-4 box-border";
+const CARD_ACCENT = (color: string) => `border ${color} bg-[#050709] p-4 box-border`;
+const SECTION_HEADING = "font-mono text-[11px] font-semibold text-ink uppercase tracking-[0.12em]";
+const FIELD_LABEL = "font-mono text-[9px] text-muted uppercase tracking-[0.08em]";
+const HELPER_TEXT = "font-mono text-[9px] text-muted2 leading-relaxed break-words";
+const PROMPT_TEXTAREA_STYLE: CSSProperties = { whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
 
 export default function FanvueClient({
   drafts,
@@ -123,6 +125,17 @@ export default function FanvueClient({
   const [uploadFiles, setUploadFiles] = useState<Record<string, File | null>>({});
   const [uploadPreviews, setUploadPreviews] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState<string | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+
+  async function copyUrl(key: string, url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(key);
+      setTimeout(() => setCopiedUrl((k) => (k === key ? null : k)), 1500);
+    } catch {
+      window.prompt("Kopíruj URL:", url);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/fanvue/health").then((r) => r.json()).then(setHealth).catch(() => {});
@@ -354,14 +367,15 @@ export default function FanvueClient({
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-4">
+    <div className="w-full overflow-x-hidden">
+    <div className="max-w-[1600px] w-full mx-auto p-5 box-border space-y-6">
       {/* Fanvue API status */}
       {health && (
-        <div className={`px-4 py-2.5 border font-mono text-[10px] flex items-center gap-3 flex-wrap ${
+        <div className={`px-4 py-3 border font-mono text-[10px] flex items-center gap-3 flex-wrap ${
           health.ok ? "bg-teal/5 border-teal/20 text-teal" : "bg-amber/5 border-amber/20 text-amber"
         }`}>
           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${health.ok ? "bg-teal" : "bg-amber"}`} />
-          <span className="flex-1 min-w-0">
+          <span className="flex-1 min-w-0 break-words">
             {health.ok
               ? "Fanvue API pripojené (OAuth) — publish je aktívny"
               : !health.configured
@@ -387,23 +401,24 @@ export default function FanvueClient({
         </div>
       )}
 
-      {/* Workflow explainer — shown once, applies to fanvue_paid_continuation_v1 cards below */}
-      <div className="bg-[#050709] border border-border p-3 font-mono text-[9px] text-muted2 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      {/* Workflow explainer — shown once, applies to fanvue_paid_continuation_v1 cards below.
+          Section order (unchanged): Instagram teaser -> paid promise -> copy -> content level ->
+          storyboard -> price -> publish. */}
+      <div className={`${CARD} font-mono text-[9px] text-muted2 flex flex-wrap items-center gap-x-1.5 gap-y-1`}>
         <span className="text-teal">Instagram teaser</span><span>→</span>
         <span>paid promise</span><span>→</span>
-        <span>approve content level</span><span>→</span>
-        <span>generate storyboard</span><span>→</span>
-        <span>generate set</span><span>→</span>
-        <span>review individual shots</span><span>→</span>
-        <span>approve price and copy</span><span>→</span>
+        <span>copy</span><span>→</span>
+        <span>content level</span><span>→</span>
+        <span>storyboard</span><span>→</span>
+        <span>price</span><span>→</span>
         <span className="text-accent">publish to Fanvue</span>
       </div>
 
       {/* IG → Fanvue funnel link + 18+ verification per character */}
       {funnelChars.length > 0 && (
-        <div className="bg-[#050709] border border-border p-4">
-          <p className="font-mono text-[9px] text-muted uppercase tracking-[0.15em] mb-1">// IG → Fanvue link + Character Settings</p>
-          <p className="font-mono text-[9px] text-muted2 leading-relaxed mb-3">
+        <div className={CARD}>
+          <p className={`${SECTION_HEADING} mb-1.5`}>IG → Fanvue link + Character Settings</p>
+          <p className={`${HELPER_TEXT} mb-3`}>
             Tento link patrí do IG bio (manuálne, raz) a engine ho automaticky pridáva ako link sticker na každú
             naplánovanú Story. „18+ verified“ je manuálne potvrdenie, že postava je jednoznačne dospelá — jediná
             podmienka, ktorá odomyká content_level „explicit_adult“ (nikdy sa neodvodzuje automaticky).
@@ -441,7 +456,12 @@ export default function FanvueClient({
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* Item 11 — single-column stack instead of a 2-col grid: the storyboard/shot rows below
+          need real width (prompt textareas, upload row, URL row) and were getting squeezed to
+          half the viewport whenever a second (often shorter "legacy") draft card landed next to
+          them. Stacking vertically gives the active draft its full width and simply moves any
+          other draft below it, instead of fighting it for horizontal room. */}
+      <div className="flex flex-col gap-6">
       {items.map((d) => {
         const day = d.story_day_id ? dayById[d.story_day_id] : undefined;
         const thumb = d.story_day_id ? thumbByDay[d.story_day_id] : undefined;
@@ -449,16 +469,16 @@ export default function FanvueClient({
 
         if (!isV1) {
           return (
-            <div key={d.id} className="bg-[#050709] border border-border p-4 flex flex-col gap-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
+            <div key={d.id} className={`${CARD} w-full flex flex-col gap-4`}>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 border border-muted/30 text-muted">legacy draft</span>
                   </div>
-                  <div className="font-mono text-[11px] text-ink uppercase tracking-[0.05em] mt-1">{d.series_name}</div>
+                  <div className={`${SECTION_HEADING} mt-1`}>{d.series_name}</div>
                   <div className="font-mono text-[10px] text-muted2 mt-0.5">{d.title}</div>
                 </div>
-                <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-2 py-0.5 border ${STATUS_STYLES[d.status ?? "draft"]}`}>{d.status}</span>
+                <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-2 py-0.5 border flex-shrink-0 ${STATUS_STYLES[d.status ?? "draft"]}`}>{d.status}</span>
               </div>
 
               <div className="flex flex-wrap gap-2 font-mono text-[9px] text-muted">
@@ -468,15 +488,15 @@ export default function FanvueClient({
                 {day && <span className="border border-border px-1.5 py-0.5">{day.tier} · {day.date}</span>}
               </div>
 
-              {d.teaser_text && <div className="font-mono text-[10px] text-teal">“{d.teaser_text}”</div>}
-              {d.sales_copy && <div className="font-mono text-[10px] text-muted2 leading-relaxed">{d.sales_copy}</div>}
-              <div className="font-mono text-[9px] text-muted">
-                IG CTA: {d.ig_cta ? <span className="text-amber">“{d.ig_cta}”</span> : <span className="text-muted/50">none (kept lifestyle)</span>}
+              {d.teaser_text && <div className="font-mono text-[10px] text-teal break-words">&ldquo;{d.teaser_text}&rdquo;</div>}
+              {d.sales_copy && <div className="font-mono text-[10px] text-muted2 leading-relaxed break-words" style={PROMPT_TEXTAREA_STYLE}>{d.sales_copy}</div>}
+              <div className="font-mono text-[9px] text-muted break-words">
+                IG CTA: {d.ig_cta ? <span className="text-amber">&ldquo;{d.ig_cta}&rdquo;</span> : <span className="text-muted/50">none (kept lifestyle)</span>}
               </div>
               {d.fanvue_prompt && (
                 <details className="font-mono text-[9px] text-muted2">
                   <summary className="cursor-pointer text-muted">fanvue prompt</summary>
-                  <p className="mt-1 leading-relaxed">{d.fanvue_prompt}</p>
+                  <p className="mt-1 leading-relaxed break-words" style={PROMPT_TEXTAREA_STYLE}>{d.fanvue_prompt}</p>
                 </details>
               )}
 
@@ -489,24 +509,32 @@ export default function FanvueClient({
               </button>
 
               {/* Generated set (step 1) */}
-              <div className="border border-border p-2.5 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[8px] text-muted uppercase tracking-[0.1em]">Set · {(d.media_urls ?? []).length} fotiek</span>
+              <div className="border border-border p-3 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className={FIELD_LABEL}>Set · {(d.media_urls ?? []).length} fotiek</span>
                   <button
                     onClick={() => generateSet(d.id)}
                     disabled={generating === d.id}
-                    className="font-mono text-[9px] uppercase bg-accent/10 border border-accent/30 text-accent px-2.5 py-1 hover:bg-accent/20 transition-colors disabled:opacity-50"
+                    className="font-mono text-[9px] uppercase bg-accent/10 border border-accent/30 text-accent px-2.5 py-1.5 hover:bg-accent/20 transition-colors disabled:opacity-50"
                   >
                     {generating === d.id ? "Generujem… (~2 min)" : (d.media_urls?.length ? "↻ Pregenerovať set" : "⚡ Vygeneruj set (3)")}
                   </button>
                 </div>
                 {(d.media_urls ?? []).length > 0 && (
-                  <div className="flex gap-1.5 overflow-x-auto">
+                  <div className="flex gap-2 flex-wrap">
                     {(d.media_urls ?? []).map((u, i) => (
-                      <a key={i} href={u} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={u} alt={`set ${i + 1}`} className="h-24 w-auto object-cover border border-border" />
-                      </a>
+                      <div key={i} className="flex flex-col gap-1">
+                        <a href={u} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt={`set ${i + 1}`} className="h-36 w-auto object-cover border border-border hover:border-teal/50 transition-colors" />
+                        </a>
+                        <button
+                          onClick={() => copyUrl(`legacy:${d.id}:${i}`, u)}
+                          className="font-mono text-[8px] uppercase border border-border text-muted px-1.5 py-0.5 hover:text-teal hover:border-teal/30 transition-colors"
+                        >
+                          {copiedUrl === `legacy:${d.id}:${i}` ? "✓ skopírované" : "Kopírovať URL"}
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -514,8 +542,9 @@ export default function FanvueClient({
 
               {/* Publish to Fanvue (step 2 — explicit, confirmed) */}
               {(d.media_urls ?? []).length > 0 && d.status !== "posted" && (
-                <div className="border border-teal/20 bg-teal/5 p-2.5 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
+                <div className={CARD_ACCENT("border-teal/30")}>
+                  <span className={`${FIELD_LABEL} block mb-2`}>Publish</span>
+                  <div className="flex items-center gap-2 flex-wrap mb-2.5">
                     <span className="font-mono text-[8px] text-muted uppercase tracking-[0.1em] flex-shrink-0">Cena €</span>
                     <input
                       type="number"
@@ -523,26 +552,31 @@ export default function FanvueClient({
                       step={0.5}
                       value={prices[d.id] ?? String(d.suggested_price ?? 0)}
                       onChange={(e) => setPrices((p) => ({ ...p, [d.id]: e.target.value }))}
-                      className="w-20 bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1 focus:outline-none focus:border-teal"
+                      className="w-24 bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal"
                     />
                     <span className="font-mono text-[8px] text-muted">0 = zadarmo · min platené €3</span>
                   </div>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => publish(d.id, "post")}
                       disabled={publishing === d.id}
-                      className="flex-1 font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal py-1.5 hover:bg-teal/20 transition-colors disabled:opacity-50"
+                      className="flex-1 min-w-[140px] font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal py-2 hover:bg-teal/20 transition-colors disabled:opacity-50"
                     >
                       {publishing === d.id ? "Publikujem…" : "→ Fanvue post"}
                     </button>
                     <button
                       onClick={() => publish(d.id, "mass_message")}
                       disabled={publishing === d.id}
-                      className="flex-1 font-mono text-[9px] uppercase bg-amber/10 border border-amber/30 text-amber py-1.5 hover:bg-amber/20 transition-colors disabled:opacity-50"
+                      className="flex-1 min-w-[140px] font-mono text-[9px] uppercase bg-amber/10 border border-amber/30 text-amber py-2 hover:bg-amber/20 transition-colors disabled:opacity-50"
                     >
                       {publishing === d.id ? "Posielam…" : "→ PPV správa subs"}
                     </button>
                   </div>
+                </div>
+              )}
+              {(d.media_urls ?? []).length > 0 && d.status === "posted" && (
+                <div className={CARD_ACCENT("border-accent/30")}>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-accent font-semibold">✓ POSTED</span>
                 </div>
               )}
 
@@ -556,11 +590,11 @@ export default function FanvueClient({
               )}
 
               {/* Intensity approval (engine proposes, you approve) */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-mono text-[8px] text-muted uppercase">set intensity:</span>
                 {(["soft", "medium", "strong"] as const).map((lvl) => (
                   <button key={lvl} onClick={() => update(d.id, { intensity: lvl })} disabled={busy === d.id}
-                    className={`font-mono text-[8px] uppercase px-1.5 py-0.5 border ${d.intensity === lvl ? INTENSITY_STYLES[lvl] + " border-current" : "text-muted border-border"}`}>
+                    className={`font-mono text-[8px] uppercase px-1.5 py-0.5 border transition-opacity ${d.intensity === lvl ? INTENSITY_STYLES[lvl] + " border-current opacity-100" : "text-muted border-border opacity-60 hover:opacity-90"}`}>
                     {lvl}
                   </button>
                 ))}
@@ -569,18 +603,20 @@ export default function FanvueClient({
               <div className="flex gap-2 mt-1">
                 {d.status !== "ready" && (
                   <button onClick={() => markReady(d.id)} disabled={busy === d.id}
-                    className="flex-1 font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal py-1.5 disabled:opacity-50">Mark ready</button>
+                    className="flex-1 font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal py-2 disabled:opacity-50">Mark ready</button>
                 )}
                 {d.status !== "archived" && (
                   <button onClick={() => update(d.id, { status: "archived" })} disabled={busy === d.id}
-                    className="font-mono text-[9px] uppercase border border-border text-muted px-3 py-1.5 disabled:opacity-50">Archive</button>
+                    className="font-mono text-[9px] uppercase border border-border text-muted px-3 py-2 disabled:opacity-50">Archive</button>
                 )}
               </div>
             </div>
           );
         }
 
-        // fanvue_paid_continuation_v1 card
+        // fanvue_paid_continuation_v1 card — this is the "active draft" production view: Instagram
+        // teaser -> paid promise -> copy -> content level -> storyboard -> price -> publish, in
+        // that order, unchanged.
         const plan = d.continuation_plan as ContinuationPlan;
         const charVerified = d.character_id ? !!adultVerified[d.character_id] : false;
         const mediaGenerated = (d.media_urls ?? []).length > 0;
@@ -588,122 +624,141 @@ export default function FanvueClient({
         const oauthOk = !!health?.ok;
         const canPublish = mediaGenerated && isReviewed && oauthOk && d.status !== "posted";
         const draftWarnings = warnings[d.id];
+        const resolvedPrice = Number(prices[d.id] ?? d.suggested_price ?? plan.commercial.price_eur);
 
         return (
-          <div key={d.id} className="bg-[#050709] border border-red-400/20 p-4 flex flex-col gap-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-1.5">
+          <div key={d.id} className="w-full border border-red-400/30 bg-[#050709] p-4 box-border flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-mono text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 border border-red-400/30 text-red-400">paid_continuation_v1</span>
                   <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 border ${CONTENT_LEVEL_STYLES[plan.content_level]}`}>{plan.content_level}</span>
                 </div>
-                <div className="font-mono text-[11px] text-ink uppercase tracking-[0.05em] mt-1">{d.series_name}</div>
+                <div className={`${SECTION_HEADING} mt-1`}>{d.series_name}</div>
                 <div className="font-mono text-[10px] text-muted2 mt-0.5">{d.title}</div>
               </div>
-              <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-2 py-0.5 border ${STATUS_STYLES[d.status ?? "draft"]}`}>{d.status}</span>
+              <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-2 py-0.5 border flex-shrink-0 ${STATUS_STYLES[d.status ?? "draft"]}`}>{d.status}</span>
             </div>
 
-            {/* Instagram source + thumbnail */}
-            <div className="border border-border p-2.5 flex gap-2.5 items-start">
-              {thumb && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={thumb} alt="Instagram source" className="h-16 w-16 object-cover border border-border flex-shrink-0" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="font-mono text-[8px] text-muted uppercase tracking-[0.1em]">Instagram ukazuje</div>
-                <div className="font-mono text-[10px] text-muted2 leading-relaxed">
-                  {day?.hook_text || day?.ig_caption || plan.source_tease}
+            {/* Section 1/7 — Instagram teaser (source + thumbnail) */}
+            <div className={CARD}>
+              <span className={`${SECTION_HEADING} block mb-2.5`}>Instagram teaser</span>
+              <div className="flex gap-3 items-start flex-wrap">
+                {thumb && (
+                  <a href={thumb} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={thumb} alt="Instagram source" className="h-32 w-32 object-cover border border-border hover:border-teal/50 transition-colors" />
+                  </a>
+                )}
+                <div className="min-w-0 flex-1" style={{ minWidth: 220 }}>
+                  <div className={FIELD_LABEL}>Instagram ukazuje</div>
+                  <div className={`${HELPER_TEXT} mt-0.5`}>
+                    {day?.hook_text || day?.ig_caption || plan.source_tease}
+                  </div>
+                  {day && <div className="font-mono text-[8px] text-muted mt-1">{day.tier} · {day.location} · {day.date}</div>}
+                  {/* Item 2 — source_tease editing (already wired server-side via savePlanField, only the JSX was missing) */}
+                  <textarea
+                    value={planDrafts[d.id]?.source_tease ?? plan.source_tease}
+                    onChange={(e) => setPlanDrafts((p) => ({ ...p, [d.id]: { ...p[d.id], source_tease: e.target.value } }))}
+                    rows={3}
+                    style={PROMPT_TEXTAREA_STYLE}
+                    className="w-full mt-2 bg-bg border border-border font-mono text-[10px] text-muted2 px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal min-h-[64px]"
+                  />
+                  <div className="flex justify-end mt-1.5">
+                    <button
+                      onClick={() => savePlanField(d.id, "source_tease")}
+                      disabled={busy === d.id}
+                      className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1 disabled:opacity-50 hover:text-teal hover:border-teal/30 transition-colors"
+                    >
+                      Uložiť source tease
+                    </button>
+                  </div>
                 </div>
-                {day && <div className="font-mono text-[8px] text-muted mt-1">{day.tier} · {day.location} · {day.date}</div>}
-                {/* Item 2 — source_tease editing (already wired server-side via savePlanField, only the JSX was missing) */}
-                <textarea
-                  value={planDrafts[d.id]?.source_tease ?? plan.source_tease}
-                  onChange={(e) => setPlanDrafts((p) => ({ ...p, [d.id]: { ...p[d.id], source_tease: e.target.value } }))}
-                  rows={2}
-                  className="w-full mt-1.5 bg-bg border border-border font-mono text-[9px] text-muted2 px-2 py-1 leading-relaxed focus:outline-none focus:border-teal resize-none"
-                />
-                <button
-                  onClick={() => savePlanField(d.id, "source_tease")}
-                  disabled={busy === d.id}
-                  className="mt-1 font-mono text-[8px] uppercase border border-border text-muted px-2 py-1 disabled:opacity-50"
-                >
-                  Uložiť source tease
-                </button>
               </div>
             </div>
 
             {/* Item 3 — fanvue_tension, previously only surfaced indirectly inside interpolated prompt text */}
             {day?.fanvue_tension && day.fanvue_tension.potential !== "none" && (
-              <div className="border border-amber/20 bg-amber/5 p-2.5 flex flex-col gap-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-[8px] text-amber uppercase tracking-[0.1em]">Fanvue tension</span>
+              <div className={CARD_ACCENT("border-amber/30 bg-amber/5")}>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-mono text-[9px] text-amber uppercase tracking-[0.1em] font-semibold">Fanvue tension</span>
                   <span className="font-mono text-[8px] uppercase px-1.5 py-0.5 border border-amber/30 text-amber">{day.fanvue_tension.potential}</span>
                 </div>
                 {day.fanvue_tension.continuation && (
-                  <div className="font-mono text-[9px] text-muted2 leading-relaxed">{day.fanvue_tension.continuation}</div>
+                  <div className={`${HELPER_TEXT} mt-1.5`}>{day.fanvue_tension.continuation}</div>
                 )}
                 {day.fanvue_tension.withheld_element && (
-                  <div className="font-mono text-[9px] text-amber leading-relaxed">withheld from IG: {day.fanvue_tension.withheld_element}</div>
+                  <div className="font-mono text-[9px] text-amber leading-relaxed break-words mt-1">withheld from IG: {day.fanvue_tension.withheld_element}</div>
                 )}
               </div>
             )}
 
-            {/* Paid promise + Fanvue tension */}
-            <div className="border border-teal/20 bg-teal/5 p-2.5 flex flex-col gap-1.5">
-              <div className="font-mono text-[8px] text-teal uppercase tracking-[0.1em]">Platiaci zákazník dostane</div>
+            {/* Section 2/7 — Paid promise */}
+            <div className={CARD_ACCENT("border-teal/30 bg-teal/5")}>
+              <span className={`${SECTION_HEADING} text-teal block mb-2`}>Paid promise · platiaci zákazník dostane</span>
               <textarea
                 value={planDrafts[d.id]?.paid_promise ?? plan.paid_promise}
                 onChange={(e) => setPlanDrafts((p) => ({ ...p, [d.id]: { ...p[d.id], paid_promise: e.target.value } }))}
-                rows={2}
-                className="w-full bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1.5 leading-relaxed focus:outline-none focus:border-teal resize-none"
+                rows={3}
+                style={PROMPT_TEXTAREA_STYLE}
+                className="w-full bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal min-h-[64px]"
               />
-              <button
-                onClick={() => savePlanField(d.id, "paid_promise")}
-                disabled={busy === d.id}
-                className="self-start font-mono text-[8px] uppercase bg-teal/10 border border-teal/30 text-teal px-2 py-1 disabled:opacity-50"
-              >
-                Uložiť
-              </button>
-              <div className="font-mono text-[8px] text-muted mt-1">{plan.same_event_continuity}</div>
+              <div className="flex justify-end mt-1.5">
+                <button
+                  onClick={() => savePlanField(d.id, "paid_promise")}
+                  disabled={busy === d.id}
+                  className="font-mono text-[8px] uppercase bg-teal/10 border border-teal/30 text-teal px-2.5 py-1 disabled:opacity-50 hover:bg-teal/20 transition-colors"
+                >
+                  Uložiť
+                </button>
+              </div>
+              <div className={`${HELPER_TEXT} mt-2`}>{plan.same_event_continuity}</div>
             </div>
 
-            {/* Item 1 — teaser/sales copy/IG CTA editing (route already supports these via EDITABLE; only the JSX was missing) */}
-            <div className="border border-border p-2.5 flex flex-col gap-1.5">
-              <span className="font-mono text-[8px] text-muted uppercase tracking-[0.1em]">Copy</span>
-              {(["teaser_text", "sales_copy", "ig_cta"] as const).map((field) => (
-                <div key={field} className="flex flex-col gap-1">
-                  <span className="font-mono text-[8px] text-muted">{field}</span>
-                  <div className="flex items-center gap-1.5">
-                    <input
+            {/* Section 3/7 — Copy (teaser text / sales copy / IG CTA). Item 1: route already supports
+                these via EDITABLE — only the JSX was missing. Full textareas (not single-line
+                inputs) so multi-line sales copy is actually readable while editing. */}
+            <div className={CARD}>
+              <span className={`${SECTION_HEADING} block mb-2.5`}>Copy</span>
+              <div className="flex flex-col gap-4">
+                {(["teaser_text", "sales_copy", "ig_cta"] as const).map((field) => (
+                  <div key={field} className="flex flex-col gap-1">
+                    <span className={FIELD_LABEL}>{field}</span>
+                    <textarea
                       value={copyDrafts[d.id]?.[field] ?? (d[field] ?? "")}
                       onChange={(e) => setCopyDrafts((c) => ({ ...c, [d.id]: { ...c[d.id], [field]: e.target.value } }))}
-                      className="flex-1 min-w-0 bg-bg border border-border font-mono text-[9px] text-ink px-2 py-1 focus:outline-none focus:border-teal"
+                      rows={3}
+                      style={PROMPT_TEXTAREA_STYLE}
+                      className="w-full bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal min-h-[64px]"
                     />
-                    <button
-                      onClick={() => saveCopyField(d.id, field)}
-                      disabled={busy === d.id}
-                      className="font-mono text-[8px] uppercase border border-border text-muted px-2 py-1 disabled:opacity-50 flex-shrink-0"
-                    >
-                      Uložiť
-                    </button>
+                    <div className="flex justify-end mt-1">
+                      <button
+                        onClick={() => saveCopyField(d.id, field)}
+                        disabled={busy === d.id}
+                        className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1 disabled:opacity-50 hover:text-teal hover:border-teal/30 transition-colors"
+                      >
+                        Uložiť
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
-            {/* Content level selector */}
-            <div className="flex flex-col gap-1">
-              <span className="font-mono text-[8px] text-muted uppercase tracking-[0.1em]">content level</span>
-              <div className="flex gap-1.5 flex-wrap">
+            {/* Section 4/7 — Content level selector */}
+            <div className={CARD}>
+              <span className={`${SECTION_HEADING} block mb-2.5`}>Content level</span>
+              <div className="flex gap-2 flex-wrap">
                 {(["premium_sensual", "erotic_tease", "explicit_adult"] as ContentLevel[]).map((lvl) => {
                   const disabled = busy === d.id || (lvl === "explicit_adult" && !charVerified);
+                  const active = plan.content_level === lvl;
                   return (
                     <button
                       key={lvl}
                       onClick={() => update(d.id, { contentLevel: lvl })}
                       disabled={disabled}
                       title={lvl === "explicit_adult" && !charVerified ? "Vyžaduje 18+ verified na tejto postave (viď sekcia Character Settings vyššie)" : undefined}
-                      className={`font-mono text-[8px] uppercase px-2 py-1 border ${plan.content_level === lvl ? CONTENT_LEVEL_STYLES[lvl] + " border-current" : "text-muted border-border"} disabled:opacity-40`}
+                      className={`font-mono text-[9px] uppercase px-3 py-1.5 border transition-all ${active ? CONTENT_LEVEL_STYLES[lvl] + " border-current font-semibold" : "text-muted border-border opacity-60 hover:opacity-90"} disabled:opacity-30`}
                     >
                       {lvl}
                     </button>
@@ -711,12 +766,12 @@ export default function FanvueClient({
                 })}
               </div>
               {plan.content_level === "erotic_tease" && (
-                <p className="font-mono text-[8px] text-red-400/80 leading-relaxed">
+                <p className={`${HELPER_TEXT} text-red-400/80 mt-2`}>
                   Strongest provider-safe paid set. Designed to maximize erotic value without triggering current NSFW blocking.
                 </p>
               )}
               {plan.content_level === "explicit_adult" && (
-                <p className="font-mono text-[8px] text-muted leading-relaxed">
+                <p className={`${HELPER_TEXT} mt-2`}>
                   Aktuálny provider (Higgsfield) tento content level nepodporuje — negeneruje sa automaticky. Nahraj set
                   manuálne (externe vytvorený a manuálne schválený) v jednotlivých shotoch nižšie.
                 </p>
@@ -724,228 +779,289 @@ export default function FanvueClient({
             </div>
 
             {/* Storyboard */}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[8px] text-muted uppercase tracking-[0.1em]">Storyboard · {plan.set_format} · {plan.shots.filter((s) => s.media_url).length}/{plan.shots.length} vygenerované</span>
+            {/* Section 5/7 — Storyboard */}
+            <div className={CARD}>
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+                <span className={SECTION_HEADING}>Storyboard · {plan.set_format} · {plan.shots.filter((s) => s.media_url).length}/{plan.shots.length} vygenerované</span>
                 {plan.content_level !== "explicit_adult" && (
                   <button
                     onClick={() => generateSet(d.id)}
                     disabled={generating === d.id}
-                    className="font-mono text-[9px] uppercase bg-accent/10 border border-accent/30 text-accent px-2.5 py-1 hover:bg-accent/20 transition-colors disabled:opacity-50"
+                    className="font-mono text-[9px] uppercase bg-accent/10 border border-accent/30 text-accent px-2.5 py-1.5 hover:bg-accent/20 transition-colors disabled:opacity-50"
                   >
                     {generating === d.id ? "Generujem set… (~2 min)" : "⚡ Vygeneruj celý set"}
                   </button>
                 )}
               </div>
 
-              {plan.shots.map((shot) => {
+              <div className="flex flex-col gap-4">
+              {plan.shots.map((shot, shotIndex) => {
                 const shotKey = `${d.id}:${shot.step}`;
                 const shotBusy = generating === shotKey;
                 const shotUploading = uploading === shotKey;
                 const preview = uploadPreviews[shotKey];
                 const promptRisk = promptRiskWarnings[shotKey];
+                const shotStatusColor = shot.status === "generated" || shot.status === "approved" ? "text-teal" : shot.status === "failed" ? "text-red-400" : "text-muted";
                 return (
-                  <div key={shot.step} className="border border-border p-2 flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[8px] text-ink uppercase tracking-[0.1em]">{STEP_LABELS[shot.step]}</span>
-                      <span className={`font-mono text-[8px] uppercase ${INTENSITY_STYLES[shot.intensity]}`}>{shot.intensity}</span>
-                      <span className="font-mono text-[8px] text-muted">{shot.status}</span>
+                  <div key={shot.step} className="border border-border p-3 flex flex-col gap-2.5">
+                    {/* Compact shot header: "1. BRIDGE   SOFT   GENERATED" */}
+                    <div className="flex items-center gap-3 flex-wrap pb-2 border-b border-border">
+                      <span className="font-mono text-[11px] font-semibold text-ink uppercase tracking-[0.08em]">
+                        {shotIndex + 1}. {shot.step.replace(/_/g, " ")}
+                      </span>
+                      <span className={`font-mono text-[9px] uppercase font-semibold ${INTENSITY_STYLES[shot.intensity]}`}>{shot.intensity}</span>
+                      <span className={`font-mono text-[9px] uppercase ${shotStatusColor}`}>{shot.status}</span>
                     </div>
-                    <textarea
-                      value={shotDrafts[shotKey] ?? shot.prompt}
-                      onChange={(e) => setShotDrafts((s) => ({ ...s, [shotKey]: e.target.value }))}
-                      rows={2}
-                      className="w-full bg-bg border border-border font-mono text-[9px] text-muted2 px-2 py-1 leading-relaxed focus:outline-none focus:border-teal resize-none"
-                    />
-                    {/* Item 7 — non-blocking duplicate-person-risk warning on the currently edited prompt */}
-                    {promptRisk && (
-                      <div className="font-mono text-[8px] text-amber leading-relaxed">⚠ {promptRisk}</div>
-                    )}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <button
-                        onClick={() => saveShotPrompt(d.id, shot.step)}
-                        disabled={busy === d.id}
-                        className="font-mono text-[8px] uppercase border border-border text-muted px-2 py-1 disabled:opacity-50"
-                      >
-                        Uložiť prompt
-                      </button>
-                      {/* Item 9 — generate is hidden only for explicit_adult (no provider supports it);
-                          real file upload + URL-attach fallback are now available for EVERY content level. */}
-                      {plan.content_level !== "explicit_adult" && (
-                        <button
-                          onClick={() => generateSet(d.id, shot.step)}
-                          disabled={shotBusy}
-                          className="font-mono text-[8px] uppercase bg-accent/10 border border-accent/30 text-accent px-2 py-1 disabled:opacity-50"
-                        >
-                          {shotBusy ? "Generujem…" : shot.media_url ? "↻ Pregenerovať shot" : "⚡ Generovať shot"}
-                        </button>
-                      )}
+
+                    {/* Preview + prompt side by side on wide screens, stacked on narrow */}
+                    <div className="flex gap-3 flex-wrap items-start">
                       {shot.media_url && (
-                        <a href={shot.media_url} target="_blank" rel="noopener noreferrer">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={shot.media_url} alt={shot.step} className="h-12 w-12 object-cover border border-border" />
-                        </a>
+                        <div className="flex flex-col gap-1 flex-shrink-0">
+                          <a href={shot.media_url} target="_blank" rel="noopener noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={shot.media_url} alt={shot.step} className="h-36 w-auto object-cover border border-border hover:border-teal/50 transition-colors" />
+                          </a>
+                          <div className="flex gap-1">
+                            <a
+                              href={shot.media_url} target="_blank" rel="noopener noreferrer"
+                              className="font-mono text-[8px] uppercase border border-border text-muted px-1.5 py-0.5 hover:text-teal hover:border-teal/30 transition-colors"
+                            >
+                              Otvoriť
+                            </a>
+                            <button
+                              onClick={() => copyUrl(shotKey, shot.media_url as string)}
+                              className="font-mono text-[8px] uppercase border border-border text-muted px-1.5 py-0.5 hover:text-teal hover:border-teal/30 transition-colors"
+                            >
+                              {copiedUrl === shotKey ? "✓ URL" : "Kopírovať URL"}
+                            </button>
+                          </div>
+                        </div>
                       )}
+
+                      <div className="flex-1 min-w-[260px] flex flex-col gap-2">
+                        {/* Item 7 spec — read-only-looking but editable prompt, full width, wraps text
+                            instead of behaving like one long unbroken line. */}
+                        <textarea
+                          value={shotDrafts[shotKey] ?? shot.prompt}
+                          onChange={(e) => setShotDrafts((s) => ({ ...s, [shotKey]: e.target.value }))}
+                          rows={4}
+                          style={PROMPT_TEXTAREA_STYLE}
+                          className="w-full bg-bg border border-border font-mono text-[9px] text-muted2 px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal min-h-[88px]"
+                        />
+                        {/* Item 7 — non-blocking duplicate-person-risk warning on the currently edited prompt */}
+                        {promptRisk && (
+                          <div className="font-mono text-[8px] text-amber leading-relaxed break-words">⚠ {promptRisk}</div>
+                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => saveShotPrompt(d.id, shot.step)}
+                            disabled={busy === d.id}
+                            className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1 disabled:opacity-50 hover:text-teal hover:border-teal/30 transition-colors"
+                          >
+                            Uložiť prompt
+                          </button>
+                          {/* Item 9 — generate is hidden only for explicit_adult (no provider supports it);
+                              real file upload + URL-attach fallback are now available for EVERY content level. */}
+                          {plan.content_level !== "explicit_adult" && (
+                            <button
+                              onClick={() => generateSet(d.id, shot.step)}
+                              disabled={shotBusy}
+                              className="font-mono text-[8px] uppercase bg-accent/10 border border-accent/30 text-accent px-2.5 py-1 disabled:opacity-50"
+                            >
+                              {shotBusy ? "Generujem…" : shot.media_url ? "↻ Pregenerovať shot" : "⚡ Generovať shot"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Item 9 — real file upload (primary path), with client-side preview */}
-                    <div className="flex items-center gap-1.5 flex-wrap border-t border-border pt-1.5 mt-0.5">
-                      <span className="font-mono text-[8px] text-muted flex-shrink-0">Nahrať súbor</span>
+                    <div className="flex items-center gap-2 flex-wrap border-t border-border pt-2.5">
+                      <span className="font-mono text-[8px] text-muted uppercase tracking-[0.08em] flex-shrink-0 w-full sm:w-auto">Nahrať súbor</span>
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
                         onChange={(e) => pickShotFile(d.id, shot.step, e.target.files?.[0] ?? null)}
-                        className="flex-1 min-w-[140px] font-mono text-[8px] text-muted2"
+                        className="flex-1 min-w-[180px] font-mono text-[8px] text-muted2"
                       />
                       {preview && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={preview} alt="náhľad" className="h-10 w-10 object-cover border border-border flex-shrink-0" />
+                        <img src={preview} alt="náhľad" className="h-12 w-12 object-cover border border-teal/50 flex-shrink-0" />
                       )}
                       <button
                         onClick={() => uploadShotFile(d.id, shot.step)}
                         disabled={shotUploading || !uploadFiles[shotKey]}
-                        className="font-mono text-[8px] uppercase bg-teal/10 border border-teal/30 text-teal px-2 py-1 disabled:opacity-50 flex-shrink-0"
+                        className="font-mono text-[8px] uppercase bg-teal/10 border border-teal/30 text-teal px-2.5 py-1.5 disabled:opacity-50 flex-shrink-0"
                       >
                         {shotUploading ? "Nahrávam…" : "↑ Nahrať a schváliť"}
                       </button>
                     </div>
 
                     {/* Item 9 — URL-attach kept as a clearly-labelled secondary fallback, not the primary path */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-[8px] text-muted flex-shrink-0">alebo</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-[8px] text-muted uppercase tracking-[0.08em] flex-shrink-0 w-full sm:w-auto">Pripojiť cez URL</span>
                       <input
                         type="url"
-                        placeholder="Pripojiť cez URL"
+                        placeholder="https://…"
                         value={manualUrl[shotKey] ?? ""}
                         onChange={(e) => setManualUrl((m) => ({ ...m, [shotKey]: e.target.value }))}
-                        className="flex-1 min-w-[120px] bg-bg border border-border font-mono text-[8px] text-ink px-1.5 py-1 focus:outline-none focus:border-teal"
+                        className="flex-1 min-w-[200px] bg-bg border border-border font-mono text-[9px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal"
                       />
+                      {manualUrl[shotKey] && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={manualUrl[shotKey]}
+                          alt="náhľad URL"
+                          className="h-12 w-12 object-cover border border-border flex-shrink-0"
+                          onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }}
+                          onLoad={(e) => { (e.target as HTMLImageElement).style.visibility = "visible"; }}
+                        />
+                      )}
                       <button
                         onClick={() => attachManualShot(d.id, shot.step)}
                         disabled={busy === d.id || !manualUrl[shotKey]}
-                        className="font-mono text-[8px] uppercase border border-border text-muted px-2 py-1 disabled:opacity-50 flex-shrink-0"
+                        className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1.5 disabled:opacity-50 flex-shrink-0"
                       >
-                        Pripojiť cez URL
+                        Pripojiť
                       </button>
                     </div>
                   </div>
                 );
               })}
+              </div>
             </div>
 
             {draftWarnings && draftWarnings.length > 0 && (
-              <div className="border border-amber/30 bg-amber/5 p-2 font-mono text-[8px] text-amber leading-relaxed">
+              <div className="border border-amber/30 bg-amber/5 p-2.5 font-mono text-[8px] text-amber leading-relaxed break-words">
                 ⚠ Paid-value check: {draftWarnings.join("; ")}
               </div>
             )}
             {/* Item 0 — source-eligibility warning, distinct from the paid-value check above */}
             {sourceWarnings[d.id] && sourceWarnings[d.id].length > 0 && (
-              <div className="border border-amber/30 bg-amber/5 p-2 font-mono text-[8px] text-amber leading-relaxed">
+              <div className="border border-amber/30 bg-amber/5 p-2.5 font-mono text-[8px] text-amber leading-relaxed break-words">
                 ⚠ Source eligibility: {sourceWarnings[d.id].join("; ")}
               </div>
             )}
 
-            {/* Commercial setup */}
-            <div className="border border-border p-2.5 flex flex-col gap-1.5">
-              <span className="font-mono text-[8px] text-muted uppercase tracking-[0.1em]">Commercial setup</span>
+            {/* Section 6/7 — Commercial setup (price lives here, unchanged) */}
+            <div className={CARD}>
+              <span className={`${SECTION_HEADING} block mb-2.5`}>Commercial setup</span>
               {/* Item 4 — real subscription/PPV/bundle switch (was previously a read-only label derived
                   from FANVUE_RULES[tier]). Overriding here patches unlock_type + continuation_plan.commercial.mode
                   in one transaction, independent of buildFanvueContinuationPlan/buildCommercialSetup. */}
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex gap-2 flex-wrap">
                 {(["subscription", "ppv", "bundle"] as const).map((mode) => (
                   <button
                     key={mode}
                     onClick={() => update(d.id, { commercialModeOverride: mode })}
                     disabled={busy === d.id}
-                    className={`font-mono text-[8px] uppercase px-2 py-1 border ${plan.commercial.mode === mode ? "text-teal border-teal" : "text-muted border-border"} disabled:opacity-40`}
+                    className={`font-mono text-[9px] uppercase px-2.5 py-1.5 border transition-all ${plan.commercial.mode === mode ? "text-teal border-teal font-semibold" : "text-muted border-border opacity-60 hover:opacity-90"} disabled:opacity-30`}
                   >
                     {mode}
                   </button>
                 ))}
               </div>
-              <p className="font-mono text-[8px] text-muted/70 leading-relaxed">
+              <p className={`${HELPER_TEXT} mt-2`}>
                 Zmena content levelu prebuduje celý plán (vrátane commercial.mode z tier baseline) a tento override sa stratí.
               </p>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[8px] text-muted flex-shrink-0">Cena €</span>
+              <div className="flex items-center gap-2 flex-wrap mt-2.5">
+                <span className="font-mono text-[8px] text-muted uppercase tracking-[0.08em] flex-shrink-0">Cena €</span>
                 <input
                   type="number"
                   min={0}
                   step={0.5}
                   value={prices[d.id] ?? String(d.suggested_price ?? plan.commercial.price_eur)}
                   onChange={(e) => setPrices((p) => ({ ...p, [d.id]: e.target.value }))}
-                  className="w-20 bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1 focus:outline-none focus:border-teal"
+                  className="w-24 bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal"
                 />
-                <button onClick={() => savePrice(d.id)} disabled={busy === d.id} className="font-mono text-[8px] uppercase border border-border text-muted px-2 py-1 disabled:opacity-50">
+                <button onClick={() => savePrice(d.id)} disabled={busy === d.id} className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1.5 disabled:opacity-50 hover:text-teal hover:border-teal/30 transition-colors">
                   Uložiť cenu
                 </button>
               </div>
-              <ul className="font-mono text-[8px] text-muted2 leading-relaxed list-disc pl-4">
+              <ul className="font-mono text-[8px] text-muted2 leading-relaxed list-disc pl-4 mt-2 break-words">
                 {plan.commercial.price_rationale.map((r, i) => <li key={i}>{r}</li>)}
               </ul>
-              <div className="font-mono text-[9px] text-muted mt-1">
-                IG CTA: {d.ig_cta ? <span className="text-amber">“{d.ig_cta}”</span> : <span className="text-muted/50">none (kept lifestyle)</span>}
+              <div className="font-mono text-[9px] text-muted mt-2 break-words">
+                IG CTA: {d.ig_cta ? <span className="text-amber">&ldquo;{d.ig_cta}&rdquo;</span> : <span className="text-muted/50">none (kept lifestyle)</span>}
               </div>
             </div>
 
-            {/* Publish checklist */}
-            <div className="border border-border p-2.5 flex flex-col gap-1.5 font-mono text-[9px]">
-              <span className="text-muted uppercase tracking-[0.1em] text-[8px]">Publish checklist</span>
-              <label className="flex items-center gap-1.5">
-                <span className={mediaGenerated ? "text-teal" : "text-muted"}>{mediaGenerated ? "✓" : "○"}</span> media generated
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" checked={isReviewed} onChange={(e) => setReviewed((r) => ({ ...r, [d.id]: e.target.checked }))} />
-                copy + shots reviewed
-              </label>
-              <label className="flex items-center gap-1.5">
-                <span className={oauthOk ? "text-teal" : "text-amber"}>{oauthOk ? "✓" : "○"}</span> OAuth / Fanvue API connected
-              </label>
+            {/* Section 7/7 — Publish. Visually separated with a stronger border; shows a summary of
+                price/mode/media count/readiness right next to the publish action, and a clear
+                POSTED state once published (with the publish buttons removed, not just disabled). */}
+            <div className={d.status === "posted" ? CARD_ACCENT("border-2 border-accent/40") : CARD_ACCENT("border-2 border-teal/40")}>
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+                <span className={SECTION_HEADING}>Publish</span>
+                {d.status === "posted" && (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-accent font-semibold border border-accent/40 px-2 py-0.5">✓ POSTED</span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 font-mono text-[9px] text-muted mb-3">
+                <span className="border border-border px-2 py-1">cena €{resolvedPrice.toFixed(2)}</span>
+                <span className="border border-border px-2 py-1">režim: {plan.commercial.mode}</span>
+                <span className="border border-border px-2 py-1">{(d.media_urls ?? []).length}/{plan.shots.length} médií</span>
+              </div>
+
+              <div className="flex flex-col gap-1.5 font-mono text-[9px] mb-3">
+                <label className="flex items-center gap-1.5">
+                  <span className={mediaGenerated ? "text-teal" : "text-muted"}>{mediaGenerated ? "✓" : "○"}</span> media generated
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" checked={isReviewed} onChange={(e) => setReviewed((r) => ({ ...r, [d.id]: e.target.checked }))} />
+                  copy + shots reviewed
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <span className={oauthOk ? "text-teal" : "text-amber"}>{oauthOk ? "✓" : "○"}</span> OAuth / Fanvue API connected
+                </label>
+              </div>
+
+              {/* Publish to Fanvue (step 2 — explicit, confirmed, gated by the checklist above).
+                  Buttons only render pre-publish; once posted, re-publish is not possible from here. */}
+              {d.status !== "posted" && (
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => publish(d.id, "post")}
+                    disabled={!canPublish || publishing === d.id}
+                    className="flex-1 min-w-[160px] font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal py-2 hover:bg-teal/20 transition-colors disabled:opacity-40"
+                  >
+                    {publishing === d.id ? "Publikujem…" : "→ Fanvue post"}
+                  </button>
+                  <button
+                    onClick={() => publish(d.id, "mass_message")}
+                    disabled={!canPublish || publishing === d.id}
+                    className="flex-1 min-w-[160px] font-mono text-[9px] uppercase bg-amber/10 border border-amber/30 text-amber py-2 hover:bg-amber/20 transition-colors disabled:opacity-40"
+                  >
+                    {publishing === d.id ? "Posielam…" : "→ PPV správa subs"}
+                  </button>
+                </div>
+              )}
+
+              {d.published_at && (
+                <div className="font-mono text-[9px] text-accent mt-2">
+                  ✓ Publikované na Fanvue · {new Date(d.published_at).toLocaleString("sk-SK")}
+                </div>
+              )}
+              {d.publish_error && (
+                <div className="font-mono text-[9px] text-red-400 leading-relaxed break-words mt-2">✗ {d.publish_error}</div>
+              )}
             </div>
 
-            {/* Publish to Fanvue (step 2 — explicit, confirmed, gated by the checklist above) */}
-            {d.status !== "posted" && (
-              <div className="flex gap-1.5">
-                <button
-                  onClick={() => publish(d.id, "post")}
-                  disabled={!canPublish || publishing === d.id}
-                  className="flex-1 font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal py-1.5 hover:bg-teal/20 transition-colors disabled:opacity-40"
-                >
-                  {publishing === d.id ? "Publikujem…" : "→ Fanvue post"}
-                </button>
-                <button
-                  onClick={() => publish(d.id, "mass_message")}
-                  disabled={!canPublish || publishing === d.id}
-                  className="flex-1 font-mono text-[9px] uppercase bg-amber/10 border border-amber/30 text-amber py-1.5 hover:bg-amber/20 transition-colors disabled:opacity-40"
-                >
-                  {publishing === d.id ? "Posielam…" : "→ PPV správa subs"}
-                </button>
-              </div>
-            )}
-
-            {d.published_at && (
-              <div className="font-mono text-[9px] text-accent">
-                ✓ Publikované na Fanvue · {new Date(d.published_at).toLocaleString("sk-SK")}
-              </div>
-            )}
-            {d.publish_error && (
-              <div className="font-mono text-[9px] text-red-400 leading-relaxed break-words">✗ {d.publish_error}</div>
-            )}
-
-            <div className="flex gap-2 mt-1">
+            <div className="flex gap-2 flex-wrap">
               {d.status !== "ready" && (
                 <button onClick={() => update(d.id, { status: "ready" })} disabled={busy === d.id}
-                  className="flex-1 font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal py-1.5 disabled:opacity-50">Mark ready</button>
+                  className="flex-1 min-w-[140px] font-mono text-[9px] uppercase bg-teal/10 border border-teal/30 text-teal py-2 disabled:opacity-50">Mark ready</button>
               )}
               {d.status !== "archived" && (
                 <button onClick={() => update(d.id, { status: "archived" })} disabled={busy === d.id}
-                  className="font-mono text-[9px] uppercase border border-border text-muted px-3 py-1.5 disabled:opacity-50">Archive</button>
+                  className="font-mono text-[9px] uppercase border border-border text-muted px-3 py-2 disabled:opacity-50">Archive</button>
               )}
             </div>
           </div>
         );
       })}
       </div>
+    </div>
     </div>
   );
 }
