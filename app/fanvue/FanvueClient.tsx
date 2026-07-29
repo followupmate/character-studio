@@ -469,17 +469,26 @@ export default function FanvueClient({
 
         if (!isV1) {
           return (
-            <div key={d.id} className={`${CARD} w-full flex flex-col gap-4`}>
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
+            <details key={d.id} className={`group ${CARD} w-full`}>
+              <summary className="flex items-start justify-between gap-2 flex-wrap cursor-pointer list-none">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-mono text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 border border-muted/30 text-muted">legacy draft</span>
+                    <span className="font-mono text-[9px] text-muted">${Number(d.suggested_price ?? 0).toFixed(2)} · {(d.media_urls ?? []).length} médií{day ? ` · ${day.date}` : ""}</span>
                   </div>
                   <div className={`${SECTION_HEADING} mt-1`}>{d.series_name}</div>
-                  <div className="font-mono text-[10px] text-muted2 mt-0.5">{d.title}</div>
+                  <div className="font-mono text-[10px] text-muted2 mt-0.5 truncate">{d.title}</div>
                 </div>
-                <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-2 py-0.5 border flex-shrink-0 ${STATUS_STYLES[d.status ?? "draft"]}`}>{d.status}</span>
-              </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-2 py-0.5 border flex-shrink-0 ${STATUS_STYLES[d.status ?? "draft"]}`}>{d.status}</span>
+                  <span className="font-mono text-[9px] text-muted">
+                    <span className="group-open:hidden">▸ rozbaliť</span>
+                    <span className="hidden group-open:inline">▾ zabaliť</span>
+                  </span>
+                </div>
+              </summary>
+
+              <div className="flex flex-col gap-4 pt-4">
 
               <div className="flex flex-wrap gap-2 font-mono text-[9px] text-muted">
                 <span className="border border-border px-1.5 py-0.5">{d.unlock_type}</span>
@@ -610,7 +619,8 @@ export default function FanvueClient({
                     className="font-mono text-[9px] uppercase border border-border text-muted px-3 py-2 disabled:opacity-50">Archive</button>
                 )}
               </div>
-            </div>
+              </div>
+            </details>
           );
         }
 
@@ -627,18 +637,27 @@ export default function FanvueClient({
         const resolvedPrice = Number(prices[d.id] ?? d.suggested_price ?? plan.commercial.price_eur);
 
         return (
-          <div key={d.id} className="w-full border border-red-400/30 bg-[#050709] p-4 box-border flex flex-col gap-5">
-            <div className="flex items-start justify-between gap-2 flex-wrap">
-              <div className="min-w-0">
+          <details key={d.id} className="group w-full border border-red-400/30 bg-[#050709] p-4 box-border">
+            <summary className="flex items-start justify-between gap-2 flex-wrap cursor-pointer list-none">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-mono text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 border border-red-400/30 text-red-400">paid_continuation_v1</span>
                   <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 border ${CONTENT_LEVEL_STYLES[plan.content_level]}`}>{plan.content_level}</span>
+                  <span className="font-mono text-[9px] text-muted">${resolvedPrice.toFixed(2)} · {(d.media_urls ?? []).length}/{plan.shots.length} médií{day ? ` · ${day.date}` : ""}</span>
                 </div>
                 <div className={`${SECTION_HEADING} mt-1`}>{d.series_name}</div>
-                <div className="font-mono text-[10px] text-muted2 mt-0.5">{d.title}</div>
+                <div className="font-mono text-[10px] text-muted2 mt-0.5 truncate">{d.title}</div>
               </div>
-              <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-2 py-0.5 border flex-shrink-0 ${STATUS_STYLES[d.status ?? "draft"]}`}>{d.status}</span>
-            </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className={`font-mono text-[8px] uppercase tracking-[0.1em] px-2 py-0.5 border flex-shrink-0 ${STATUS_STYLES[d.status ?? "draft"]}`}>{d.status}</span>
+                <span className="font-mono text-[9px] text-muted">
+                  <span className="group-open:hidden">▸ rozbaliť</span>
+                  <span className="hidden group-open:inline">▾ zabaliť</span>
+                </span>
+              </div>
+            </summary>
+
+            <div className="flex flex-col gap-5 pt-5">
 
             {/* Section 1/7 — Instagram teaser (source + thumbnail) */}
             <div className={CARD}>
@@ -1057,7 +1076,8 @@ export default function FanvueClient({
                   className="font-mono text-[9px] uppercase border border-border text-muted px-3 py-2 disabled:opacity-50">Archive</button>
               )}
             </div>
-          </div>
+            </div>
+          </details>
         );
       })}
       </div>
