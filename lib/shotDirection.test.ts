@@ -107,7 +107,10 @@ describe("translateSensualVisualLanguage / translateSexAppealStyle / translateLu
   it("maps playful_hot_world to lighting/camera-motion hints, never per-shot fields", () => {
     const result = translatePlayfulHotWorld(situation.playful_hot_world!);
     expect(result.lightingHint).toContain("warm");
-    expect(result.cameraMotion).toContain("energetic");
+    // Concrete cinematography terms (Kling's own prompting guide: vague words like "energetic"
+    // underperform specific direction like "handheld push-in") — assert on the mechanism, not a
+    // literal mood word.
+    expect(result.cameraMotion).toMatch(/push-in|dolly|handheld|tripod|drift/);
   });
 });
 
@@ -156,6 +159,32 @@ describe("buildShotDirections", () => {
       const rank = FRAMING_RANK[shot.framing];
       expect(rank).toBeGreaterThanOrEqual(last);
       last = rank;
+    }
+  });
+
+  it("wardrobe_state always names a color, even when the source situation data doesn't — the practical substitute for Soul HEX (web-UI-only, no API param)", () => {
+    // Real production finding: the exact same wardrobe_state string rendered charcoal-black in
+    // one independently-generated shot and tan/beige in another when the text named no color at
+    // all. All 6 shots share one wardrobe string (built once in buildShotDirections), so as long
+    // as that shared string names a color, every shot gets the same explicit anchor.
+    for (const shot of shots) {
+      expect(shot.wardrobe_state).toMatch(
+        /\b(black|white|red|blue|green|tan|beige|charcoal|grey|gray|brown|gold|silver|pink|purple|orange|yellow|cream|navy|burgundy|ivory|nude|rose|olive|maroon|copper|bronze)\b/i
+      );
+    }
+  });
+
+  it("does not append a fallback color when the situation data already names one", () => {
+    const withColor = baseSituation({
+      luxury_seduction: {
+        ...baseSituation().luxury_seduction!,
+        fashion_direction: "a sleek emerald green evening dress with a fitted bodice",
+      },
+    });
+    const withColorShots = buildShotDirections(withColor, "luxe_car");
+    for (const shot of withColorShots) {
+      expect(shot.wardrobe_state).toContain("emerald");
+      expect(shot.wardrobe_state).not.toContain("charcoal-black");
     }
   });
 });

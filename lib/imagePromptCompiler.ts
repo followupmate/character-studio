@@ -60,14 +60,21 @@ function capField(text: string, maxLen: number): string {
 // MAX_IMAGE_PROMPT_LENGTH even when every field is at its capped maximum (sum of caps + fixed
 // connector/punctuation overhead stays well under the 700-char budget, leaving headroom rather
 // than relying on the last-resort truncateAtSentenceBoundary below to claw back overflow).
+//
+// location/spatial were widened (and pose/wardrobe/bodyEmphasis trimmed to make room) after a
+// real production finding: Higgsfield Soul has no "Location ID" equivalent to Soul ID — the
+// official Soul ID writeup confirms it's deliberately environment-independent ("holds up across
+// dramatically different scenes... because it learned the character independently of any single
+// photo's context") — so environment continuity across independently-generated shots can only
+// come from the text itself, and the old budget gave it less room than wardrobe/pose.
 const FIELD_CAPS = {
   subject: 50,
   action: 42,
-  location: 52,
-  spatial: 58,
-  pose: 78,
-  bodyEmphasis: 32,
-  wardrobe: 88,
+  location: 65,
+  spatial: 92,
+  pose: 65,
+  bodyEmphasis: 24,
+  wardrobe: 72,
   facial: 48,
   cameraMotion: 22,
   lighting: 26,

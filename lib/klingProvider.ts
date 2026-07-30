@@ -22,9 +22,21 @@ const KLING_MODEL: Record<KlingTier, string> = {
   pro: "fal-ai/kling-video/v2.1/pro/image-to-video",
 };
 
+// Verified against the real @fal-ai/client generated types (node_modules/@fal-ai/client/src/types/
+// endpoints.d.ts, KlingVideoV2MasterImageToVideoInput / KlingVideoV16ProImageToVideoInput) rather
+// than guessed from docs — every Kling image-to-video variant exposes negative_prompt (default
+// "blur, distort, and low quality") and cfg_scale (default 0.5, higher = follows the text prompt
+// more literally). Kling's own prompting guide recommends a real negative_prompt field for exactly
+// this — distinct from embedding negated instructions in the descriptive prompt text itself, which
+// this session found actively primes bad output (see lib/imagePromptCompiler.ts's
+// BANNED_COLLAGE_TERMS comment).
+const DEFAULT_NEGATIVE_PROMPT = "blurry, distorted face, warped hands, extra limbs, flicker, sudden cut, low quality";
+
 export async function generateKlingVideo(opts: {
   imageUrl: string;
   prompt: string;
+  negativePrompt?: string;
+  cfgScale?: number;
   durationSeconds?: number;
   aspectRatio?: "9:16" | "16:9" | "1:1";
   tier?: KlingTier;
@@ -35,9 +47,14 @@ export async function generateKlingVideo(opts: {
   fal.config({ credentials: falApiKey });
 
   const falModel: string = KLING_MODEL[opts.tier ?? "pro"];
+  // duration is a closed enum ("5" | "10") on every Kling image-to-video variant we checked, not a
+  // free string — snap to the nearest allowed value instead of sending an unsupported one.
+  const duration = (opts.durationSeconds ?? 10) <= 7 ? "5" : "10";
   const input: Record<string, unknown> = {
     prompt: opts.prompt,
-    duration: String(opts.durationSeconds ?? 10),
+    negative_prompt: opts.negativePrompt ?? DEFAULT_NEGATIVE_PROMPT,
+    cfg_scale: opts.cfgScale ?? 0.6,
+    duration,
     aspect_ratio: opts.aspectRatio ?? "9:16",
     image_url: opts.imageUrl,
   };

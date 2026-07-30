@@ -13,8 +13,12 @@ import type { ShotDirection } from "@/lib/shotDirection";
 
 export type SeedanceFormat = "single_shot" | "multi_shot" | "continuous_pov";
 
-export const MAX_SINGLE_SHOT_PROMPT_LENGTH = 700;
-export const MAX_MULTI_SHOT_PROMPT_LENGTH = 1600;
+// Tightened from 700/1600: every real call this compiler feeds (lib/klingProvider.ts) is
+// image-to-video, and Kling's own prompting guide says a tight 60-100 word prompt outperforms a
+// maxed-out one — the source image already carries identity/wardrobe/lighting, so the prompt only
+// needs to carry movement + camera direction (see shotContentLines below).
+export const MAX_SINGLE_SHOT_PROMPT_LENGTH = 500;
+export const MAX_MULTI_SHOT_PROMPT_LENGTH = 1100;
 
 export interface SeedancePromptInput {
   format: SeedanceFormat;
@@ -54,30 +58,32 @@ function capField(text: string, maxLen: number): string {
   return slice.slice(0, cut).trim();
 }
 
-// Distributes a per-shot character budget across the 6 content fields (weighted toward
-// wardrobe/facial — the two fields ShotDirection tends to make longest) before joining into
-// lines, so a tight multi-shot budget shortens EVERY shot a little rather than dropping whole
-// lines from shots near the end.
-function shotContentLines(shot: ShotDirection, fieldBudget: number): string[] {
-  const usable = Math.max(0, fieldBudget - 40); // ~40 chars reserved for connectors/punctuation
-  const actionCap = Math.max(MIN_FIELD_LEN, Math.round(usable * 0.16));
-  const poseCap = Math.max(MIN_FIELD_LEN, Math.round(usable * 0.16));
-  const wardrobeCap = Math.max(MIN_FIELD_LEN, Math.round(usable * 0.24));
-  const facialCap = Math.max(MIN_FIELD_LEN, Math.round(usable * 0.2));
-  const motionCap = Math.max(12, Math.round(usable * 0.1));
-  const lightCap = Math.max(12, Math.round(usable * 0.07));
-  const atmosphereCap = Math.max(12, Math.round(usable * 0.07));
+// Every real call this compiler feeds is image-to-video (lib/klingProvider.ts always passes a
+// source image). Kling's own prompting guide is explicit about this case: "Drop Subject and Scene
+// descriptions since the image already supplies them" and lead with Subject Movement + Camera
+// Language instead — restating pose/wardrobe/lighting the source frame already shows wastes
+// budget and can compete with the image for what the model actually renders. So the video prompt
+// carries only what the image CAN'T show: what happens next, and how the camera moves.
+//
+// single_shot -> movement + camera only (2 lines). multi_shot/continuous_pov keep one short
+// wardrobe-delta line too, because that's the one thing carrying the escalation narrative across
+// the arc (bridge -> payoff) that a single static source frame can't otherwise convey.
+function shotContentLines(shot: ShotDirection, fieldBudget: number, includeWardrobeDelta: boolean): string[] {
+  const usable = Math.max(0, fieldBudget - 24); // reserved for connectors/punctuation
+  const actionCap = Math.max(MIN_FIELD_LEN, Math.round(usable * (includeWardrobeDelta ? 0.35 : 0.55)));
+  const motionCap = Math.max(14, Math.round(usable * 0.25));
+  const wardrobeCap = includeWardrobeDelta ? Math.max(MIN_FIELD_LEN, Math.round(usable * 0.3)) : 0;
 
   const action = capField(shot.visible_action.replace(/^she\s+/i, ""), actionCap);
-  const pose = capField(shot.pose, poseCap);
-  const wardrobe = capField(shot.wardrobe_state, wardrobeCap);
-  const facial = capField(shot.facial_expression, facialCap);
   const motion = capField(shot.camera_motion ?? "", motionCap);
-  const lighting = capField(shot.lighting, lightCap);
-  const atmosphere = capField(shot.atmosphere, atmosphereCap);
   const framingLine = `${shot.framing} shot, ${shot.camera_angle}${motion ? `, ${motion}` : ""}`;
 
-  return [`She ${action}.`, `${pose}, ${wardrobe}.`, `${facial}.`, `${framingLine}.`, `${lighting}, ${atmosphere}.`];
+  const lines = [`She ${action}.`, `${framingLine}.`];
+  if (includeWardrobeDelta) {
+    const wardrobe = capField(shot.wardrobe_state, wardrobeCap);
+    lines.push(`${wardrobe}.`);
+  }
+  return lines;
 }
 
 function truncateAtBoundary(text: string, maxLength: number): string {
@@ -146,7 +152,7 @@ export function compileSeedancePrompt(input: SeedancePromptInput): string {
     const front = `${header}\n\n${identityLine}`;
     const tail = `${SINGLE_SHOT_CLOSE_LOCK}\n\n${audioLine}`;
     const shotBudget = Math.max(80, cap - front.length - tail.length - 4);
-    const shotBlock = dedupeLines(shotContentLines(input.shots[0], shotBudget).join("\n"));
+    const shotBlock = dedupeLines(shotContentLines(input.shots[0], shotBudget, false).join("\n"));
     const assembled = `${dedupeLines(front)}\n\n${shotBlock}\n\n${dedupeLines(tail)}`.replace(/\n{3,}/g, "\n\n").trim();
     return assembled.length <= cap ? assembled : truncateAtBoundary(assembled, cap);
   }
@@ -169,7 +175,7 @@ export function compileSeedancePrompt(input: SeedancePromptInput): string {
   // lines from every shot after the first, leaving later shots with almost no direction. Two
   // genuinely identical shots are instead surfaced as a warning by checkShotConflicts(), not
   // silently resolved by deleting content.
-  const shotBlocks = input.shots.map((shot, i) => dedupeLines(`Shot ${i + 1}:\n${shotContentLines(shot, perShotBudget).join("\n")}`));
+  const shotBlocks = input.shots.map((shot, i) => dedupeLines(`Shot ${i + 1}:\n${shotContentLines(shot, perShotBudget, true).join("\n")}`));
 
   const assembled = [dedupeLines(front), ...shotBlocks, dedupeLines(tail)].join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
   return assembled.length <= cap ? assembled : truncateAtBoundary(assembled, cap);

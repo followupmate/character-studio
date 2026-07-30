@@ -121,6 +121,20 @@ describe("compileSeedancePrompt — single shot", () => {
     const prompt = compileSeedancePrompt(singleShotInput());
     expect(prompt.length).toBeLessThanOrEqual(MAX_SINGLE_SHOT_PROMPT_LENGTH);
   });
+
+  it("image-to-video: drops static wardrobe/pose/lighting text the source image already shows, leads with movement + camera", () => {
+    // Kling's own prompting guide (verified this session): for image-to-video, drop Subject and
+    // Scene descriptions and lead with Subject Movement + Camera Language instead. Every real
+    // call this compiler feeds is image-to-video (lib/klingProvider.ts), so single_shot must
+    // never restate wardrobe/pose/lighting the source frame already carries.
+    const shot = REAL_SHOTS[2]; // escalation — has a long, distinctive wardrobe_state in the fixture
+    const prompt = compileSeedancePrompt(singleShotInput(shot));
+    expect(prompt).not.toContain(shot.wardrobe_state.slice(0, 30));
+    expect(prompt).not.toContain(shot.pose.slice(0, 20));
+    expect(prompt).not.toContain(shot.lighting);
+    // still leads with the actual movement and names the camera framing
+    expect(prompt).toContain(shot.framing);
+  });
 });
 
 describe("compileSeedancePrompt — six-shot Fanvue video", () => {
@@ -137,6 +151,15 @@ describe("compileSeedancePrompt — six-shot Fanvue video", () => {
 
   it("stays within MAX_MULTI_SHOT_PROMPT_LENGTH", () => {
     expect(prompt.length).toBeLessThanOrEqual(MAX_MULTI_SHOT_PROMPT_LENGTH);
+  });
+
+  it("keeps a short wardrobe delta per shot (carries the escalation arc) but drops facial/lighting text", () => {
+    // multi_shot still starts from one static source image, but unlike single_shot it needs to
+    // carry the bridge->payoff escalation signal somehow — a short wardrobe-state line is the one
+    // thing that can't come from a single static frame. facial_expression/lighting/atmosphere are
+    // dropped entirely (the source image + Style: block already cover them).
+    expect(prompt).not.toContain(REAL_SHOTS[0].facial_expression);
+    expect(prompt).not.toContain(REAL_SHOTS[0].lighting);
   });
 });
 

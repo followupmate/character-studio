@@ -117,11 +117,16 @@ export function translateLuxurySeduction(ls: LuxurySeduction): { wardrobeHint: s
   };
 }
 
+// Specific cinematography terms, not vague mood words — Kling's own prompting guide is explicit
+// that "cinematic movement"/"dynamic"/"add motion" underperform concrete camera direction like
+// "slow dolly-in" or "handheld push-in with subtle shake" (verified via kling.ai's prompt guide,
+// mirrored by atlascloud.ai's summary of it). Named so the direction still varies by the day's
+// vitality level, just phrased the way the video model actually responds to.
 const VITALITY_CAMERA_MOTION: Record<PlayfulHotWorldProfile["vitality_level"], string> = {
-  calm: "slow, minimal camera movement",
-  alive: "gentle, natural movement",
-  playful: "quick, energetic movement",
-  electric: "quick, energetic movement, natural motion",
+  calm: "static tripod hold, minimal drift",
+  alive: "slow handheld drift, subtle natural sway",
+  playful: "gentle handheld push-in, natural sway",
+  electric: "handheld push-in, quick natural sway",
 };
 
 export function translatePlayfulHotWorld(phw: PlayfulHotWorldProfile): { lightingHint: string; cameraMotion: string } {
@@ -147,6 +152,20 @@ function pickFacialExpression(situation: GenerativeSituation): string {
     translateSexualEnergy(situation.sexual_energy).expressionHint
   );
 }
+// Higgsfield's Soul HEX color-lock (verified this session) is a web-UI-only feature — no
+// documented REST parameter exists for platform.higgsfield.ai, so it can't be called from our
+// direct API integration. This is the practical substitute: when the wardrobe text names no
+// color at all, independent per-shot generations pick their own — confirmed on a real production
+// set where the exact same wardrobe_state string rendered charcoal-black in one shot and
+// tan/beige in another. Only appends a color when none is already present; never overrides a
+// color the situation data actually specified.
+const COLOR_WORD_PATTERN = /\b(black|white|red|blue|green|tan|beige|charcoal|grey|gray|brown|gold|silver|pink|purple|orange|yellow|cream|navy|burgundy|ivory|nude|rose|olive|maroon|copper|bronze)\b/i;
+const FALLBACK_COLOR_ANCHOR = "deep charcoal-black";
+
+function ensureColorAnchored(wardrobeText: string): string {
+  return COLOR_WORD_PATTERN.test(wardrobeText) ? wardrobeText : `${wardrobeText}, ${FALLBACK_COLOR_ANCHOR}`;
+}
+
 function pickWardrobeState(situation: GenerativeSituation): string {
   // Single most concrete source only — never concatenate multiple layers into one run-on
   // description (§3/§5 doctrine: translate, don't merge; a real production draft showed this
@@ -154,12 +173,12 @@ function pickWardrobeState(situation: GenerativeSituation): string {
   // into one 500+ char sentence with no internal period, which blew the image-prompt budget and
   // silently truncated away facial_expression/framing/lighting entirely). luxury_seduction's
   // fashion_direction is the richest single "what she's wearing" concept when present.
-  return (
+  const raw =
     situation.luxury_seduction?.fashion_direction ??
     situation.sensual_visual_language?.wardrobe_signal ??
     situation.sex_appeal_style?.outfit_archetype ??
-    "fitted outfit consistent with the scene"
-  );
+    "fitted outfit consistent with the scene";
+  return ensureColorAnchored(raw);
 }
 function pickBodyEmphasis(situation: GenerativeSituation): string {
   return (
