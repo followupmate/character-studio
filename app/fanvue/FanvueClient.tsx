@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import type { CSSProperties } from "react";
@@ -82,6 +82,35 @@ const SECTION_HEADING = "font-mono text-[11px] font-semibold text-ink uppercase 
 const FIELD_LABEL = "font-mono text-[9px] text-muted uppercase tracking-[0.08em]";
 const HELPER_TEXT = "font-mono text-[9px] text-muted2 leading-relaxed break-words";
 const PROMPT_TEXTAREA_STYLE: CSSProperties = { whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
+
+// The same "Uložiť" button (label + disabled state + hover) was hand-copied at every save point
+// in this file (source tease, paid promise, copy fields, shot prompt). One small presentational
+// component instead of four near-identical inline <button> blocks — no behavior change.
+function SaveButton({
+  onClick,
+  disabled,
+  label = "Uložiť",
+  variant = "muted",
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  label?: string;
+  variant?: "muted" | "teal";
+}) {
+  const styles =
+    variant === "teal"
+      ? "bg-teal/10 border-teal/30 text-teal hover:bg-teal/20"
+      : "border-border text-muted hover:text-teal hover:border-teal/30";
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`font-mono text-[8px] uppercase border px-2.5 py-1 disabled:opacity-50 transition-colors ${styles}`}
+    >
+      {label}
+    </button>
+  );
+}
 
 export default function FanvueClient({
   drafts,
@@ -432,7 +461,7 @@ export default function FanvueClient({
                   value={links[c.id] ?? ""}
                   onChange={(e) => setLinks((l) => ({ ...l, [c.id]: e.target.value }))}
                   placeholder="https://www.fanvue.com/tvoj-handle"
-                  className="flex-1 min-w-[200px] bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 focus:outline-none focus:border-teal"
+                  className="flex-1 min-w-[200px] bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal/40"
                 />
                 <button
                   onClick={() => saveLink(c.id)}
@@ -561,7 +590,7 @@ export default function FanvueClient({
                       step={0.5}
                       value={prices[d.id] ?? String(d.suggested_price ?? 0)}
                       onChange={(e) => setPrices((p) => ({ ...p, [d.id]: e.target.value }))}
-                      className="w-24 bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal"
+                      className="w-24 bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal/40"
                     />
                     <span className="font-mono text-[8px] text-muted">0 = zadarmo · min platené €3</span>
                   </div>
@@ -681,16 +710,10 @@ export default function FanvueClient({
                     onChange={(e) => setPlanDrafts((p) => ({ ...p, [d.id]: { ...p[d.id], source_tease: e.target.value } }))}
                     rows={3}
                     style={PROMPT_TEXTAREA_STYLE}
-                    className="w-full mt-2 bg-bg border border-border font-mono text-[10px] text-muted2 px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal min-h-[64px]"
+                    className="w-full mt-2 bg-bg border border-border font-mono text-[10px] text-muted2 px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal/40 min-h-[64px]"
                   />
                   <div className="flex justify-end mt-1.5">
-                    <button
-                      onClick={() => savePlanField(d.id, "source_tease")}
-                      disabled={busy === d.id}
-                      className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1 disabled:opacity-50 hover:text-teal hover:border-teal/30 transition-colors"
-                    >
-                      Uložiť source tease
-                    </button>
+                    <SaveButton onClick={() => savePlanField(d.id, "source_tease")} disabled={busy === d.id} label="Uložiť source tease" />
                   </div>
                 </div>
               </div>
@@ -720,16 +743,10 @@ export default function FanvueClient({
                 onChange={(e) => setPlanDrafts((p) => ({ ...p, [d.id]: { ...p[d.id], paid_promise: e.target.value } }))}
                 rows={3}
                 style={PROMPT_TEXTAREA_STYLE}
-                className="w-full bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal min-h-[64px]"
+                className="w-full bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal/40 min-h-[64px]"
               />
               <div className="flex justify-end mt-1.5">
-                <button
-                  onClick={() => savePlanField(d.id, "paid_promise")}
-                  disabled={busy === d.id}
-                  className="font-mono text-[8px] uppercase bg-teal/10 border border-teal/30 text-teal px-2.5 py-1 disabled:opacity-50 hover:bg-teal/20 transition-colors"
-                >
-                  Uložiť
-                </button>
+                <SaveButton onClick={() => savePlanField(d.id, "paid_promise")} disabled={busy === d.id} variant="teal" />
               </div>
               <div className={`${HELPER_TEXT} mt-2`}>{plan.same_event_continuity}</div>
             </div>
@@ -748,16 +765,10 @@ export default function FanvueClient({
                       onChange={(e) => setCopyDrafts((c) => ({ ...c, [d.id]: { ...c[d.id], [field]: e.target.value } }))}
                       rows={3}
                       style={PROMPT_TEXTAREA_STYLE}
-                      className="w-full bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal min-h-[64px]"
+                      className="w-full bg-bg border border-border font-mono text-[10px] text-ink px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal/40 min-h-[64px]"
                     />
                     <div className="flex justify-end mt-1">
-                      <button
-                        onClick={() => saveCopyField(d.id, field)}
-                        disabled={busy === d.id}
-                        className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1 disabled:opacity-50 hover:text-teal hover:border-teal/30 transition-colors"
-                      >
-                        Uložiť
-                      </button>
+                      <SaveButton onClick={() => saveCopyField(d.id, field)} disabled={busy === d.id} />
                     </div>
                   </div>
                 ))}
@@ -865,20 +876,14 @@ export default function FanvueClient({
                           onChange={(e) => setShotDrafts((s) => ({ ...s, [shotKey]: e.target.value }))}
                           rows={4}
                           style={PROMPT_TEXTAREA_STYLE}
-                          className="w-full bg-bg border border-border font-mono text-[9px] text-muted2 px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal min-h-[88px]"
+                          className="w-full bg-bg border border-border font-mono text-[9px] text-muted2 px-2.5 py-1.5 leading-relaxed focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal/40 min-h-[88px]"
                         />
                         {/* Item 7 — non-blocking duplicate-person-risk warning on the currently edited prompt */}
                         {promptRisk && (
                           <div className="font-mono text-[8px] text-amber leading-relaxed break-words">⚠ {promptRisk}</div>
                         )}
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <button
-                            onClick={() => saveShotPrompt(d.id, shot.step)}
-                            disabled={busy === d.id}
-                            className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1 disabled:opacity-50 hover:text-teal hover:border-teal/30 transition-colors"
-                          >
-                            Uložiť prompt
-                          </button>
+                          <SaveButton onClick={() => saveShotPrompt(d.id, shot.step)} disabled={busy === d.id} label="Uložiť prompt" />
                           {/* Item 9 — generate is hidden only for explicit_adult (no provider supports it);
                               real file upload + URL-attach fallback are now available for EVERY content level. */}
                           {plan.content_level !== "explicit_adult" && (
@@ -924,7 +929,7 @@ export default function FanvueClient({
                         placeholder="https://…"
                         value={manualUrl[shotKey] ?? ""}
                         onChange={(e) => setManualUrl((m) => ({ ...m, [shotKey]: e.target.value }))}
-                        className="flex-1 min-w-[200px] bg-bg border border-border font-mono text-[9px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal"
+                        className="flex-1 min-w-[200px] bg-bg border border-border font-mono text-[9px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal/40"
                       />
                       {manualUrl[shotKey] && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -991,7 +996,7 @@ export default function FanvueClient({
                   step={0.5}
                   value={prices[d.id] ?? String(d.suggested_price ?? plan.commercial.price_eur)}
                   onChange={(e) => setPrices((p) => ({ ...p, [d.id]: e.target.value }))}
-                  className="w-24 bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal"
+                  className="w-24 bg-bg border border-border font-mono text-[10px] text-ink px-2 py-1.5 focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal/40"
                 />
                 <button onClick={() => savePrice(d.id)} disabled={busy === d.id} className="font-mono text-[8px] uppercase border border-border text-muted px-2.5 py-1.5 disabled:opacity-50 hover:text-teal hover:border-teal/30 transition-colors">
                   Uložiť cenu
