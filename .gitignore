@@ -23,3 +23,6 @@ npm-debug.log*
 
 .vercel
 .env*.local
+
+# claude code local state (personal, not shared)
+.claude/settings.local.json
