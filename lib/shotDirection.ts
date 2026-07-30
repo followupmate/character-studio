@@ -166,6 +166,39 @@ function ensureColorAnchored(wardrobeText: string): string {
   return COLOR_WORD_PATTERN.test(wardrobeText) ? wardrobeText : `${wardrobeText}, ${FALLBACK_COLOR_ANCHOR}`;
 }
 
+// Environment-continuity fix (real production finding): Higgsfield Soul has no reference-image
+// mechanism for BACKGROUND/environment (verified this session — an explicit reference_image_urls
+// field was accepted by the API without error but had no visible effect on the output; Soul ID
+// itself is deliberately character-only). Generic skyline text like "her city apartment building"
+// left every independently-generated shot free to invent its own city — one shot rendered a
+// Paris/NYC hybrid skyline, another a completely different European town. Same fix shape as
+// ensureColorAnchored below: only outdoor/skyline locations are affected (an indoor bedroom or
+// hotel room has no "which city" failure mode), and the anchor is picked once per StoryDay (via a
+// deterministic hash of the location text) so the SAME concrete architectural detail repeats
+// verbatim across all 6 independently-generated shots instead of each one re-imagining the view.
+const OUTDOOR_SKYLINE_PATTERN = /\b(rooftop|terrace|balcony|skyline|city street|penthouse)\b/i;
+const SPECIFIC_ARCHITECTURE_PATTERN = /\b(landmark|named|overlooking the|facing the|tower of)\b/i;
+const ARCHITECTURE_ANCHORS = [
+  "a pale limestone high-rise with wrought-iron balconies directly behind her, low terracotta rooftops spreading to the horizon, no distant skyscrapers",
+  "a row of cream-colored buildings with zinc mansard roofs directly behind her, a dense low-rise skyline beyond, no distant skyscrapers",
+  "a glass-and-steel tower with a stepped crown directly behind her, a wide grid of mid-rise city blocks below",
+  "a red-brick facade with black steel fire escapes directly behind her, a low industrial skyline beyond, no distant skyscrapers",
+  "a white concrete high-rise with rounded balconies directly behind her, a sprawl of orange-tiled roofs below, no distant skyscrapers",
+];
+
+function hashString(text: string): number {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+  return h;
+}
+
+function ensureArchitectureAnchored(locationText: string): string {
+  if (!OUTDOOR_SKYLINE_PATTERN.test(locationText)) return locationText;
+  if (SPECIFIC_ARCHITECTURE_PATTERN.test(locationText)) return locationText;
+  const anchor = ARCHITECTURE_ANCHORS[Math.abs(hashString(locationText)) % ARCHITECTURE_ANCHORS.length];
+  return `${locationText} — ${anchor}`;
+}
+
 function pickWardrobeState(situation: GenerativeSituation): string {
   // Single most concrete source only — never concatenate multiple layers into one run-on
   // description (§3/§5 doctrine: translate, don't merge; a real production draft showed this
@@ -209,7 +242,10 @@ const BEAT_SPATIAL_DRIFT: Record<ShotStep, (baseLocation: string) => string> = {
   escalation: (loc) => `fully inside the private continuation of ${loc}, no longer visible from outside`,
   reveal: (loc) => `a quieter, more secluded extension of the same setting, still connected to ${loc}`,
   payoff: (loc) => `the most private point of the same continuous setting as ${loc}`,
-  afterglow: () => `pulled back slightly within the same private setting, winding down`,
+  // Still threads the anchored location through — afterglow deliberately drifts to abstract
+  // "pulled back" wind-down language, but must keep the SAME architectural anchor as the other 5
+  // shots, or this one beat alone re-opens the environment-drift failure the anchor exists to fix.
+  afterglow: (loc) => `pulled back slightly within the same private setting as ${loc}, winding down`,
 };
 const BEAT_WARDROBE_DISPLACEMENT: Record<ShotStep, string> = {
   bridge: "exactly as worn, nothing shifted",
@@ -257,7 +293,7 @@ export function buildShotDirections(situation: GenerativeSituation, tier: StoryT
   void tier;
   const subject = "Vivienne, mid-20s, dark hair, slim athletic build";
   const continuity = "same woman, same outfit and setting throughout, continuous night";
-  const baseLocation = situation.visual_execution.location;
+  const baseLocation = ensureArchitectureAnchored(situation.visual_execution.location);
   const pose = pickPose(situation);
   const facial = pickFacialExpression(situation);
   const wardrobe = pickWardrobeState(situation);

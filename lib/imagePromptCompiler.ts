@@ -67,19 +67,30 @@ function capField(text: string, maxLen: number): string {
 // dramatically different scenes... because it learned the character independently of any single
 // photo's context") — so environment continuity across independently-generated shots can only
 // come from the text itself, and the old budget gave it less room than wardrobe/pose.
+//
+// spatial was widened again (location shrunk back down, other fields trimmed further) after a
+// second real production finding: even with location/spatial favored, generic skyline text
+// ("her city apartment building") still let each independently-generated shot invent its own
+// city — one rendered Paris+NYC, another an unrelated European town. A tested reference-image
+// parameter (reference_image_urls) had no effect (Soul silently ignored it — verified via a real
+// paid call, see lib/shotDirection.ts's ensureArchitectureAnchored comment), so the only working
+// lever is textual: a concrete, ~150-char architectural anchor (specific building material,
+// balcony style, roofline) appended once per StoryDay and repeated verbatim into every shot's
+// spatial_zone. spatial's cap must be generous enough that capField's clause-boundary cut lands
+// PAST the anchor's first internal comma, or the whole anchor gets silently dropped.
 const FIELD_CAPS = {
-  subject: 50,
-  action: 42,
-  location: 65,
-  spatial: 92,
-  pose: 65,
+  subject: 45,
+  action: 40,
+  location: 50,
+  spatial: 220,
+  pose: 60,
   bodyEmphasis: 24,
-  wardrobe: 72,
-  facial: 48,
-  cameraMotion: 22,
-  lighting: 26,
-  atmosphere: 18,
-  visualStyle: 30,
+  wardrobe: 65,
+  facial: 42,
+  cameraMotion: 16,
+  lighting: 20,
+  atmosphere: 13,
+  visualStyle: 22,
 };
 
 // Exact 8-part order per spec: subject+moment -> location/spatial zone -> pose+body emphasis ->
