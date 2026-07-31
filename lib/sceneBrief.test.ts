@@ -117,3 +117,28 @@ describe("pet_lock continuity", () => {
     expect(slotPromptsSrc).toMatch(/never be a DIFFERENT one/i);
   });
 });
+
+// Production 2026-08-01: reel_start_frame and story_bts (same day, same shared scene brief)
+// rendered different distant skylines even though wardrobe/props/foreground were locked
+// exhaustively — the brief's own spatial_setup/location_constraints described the background only
+// as "low-rise rooflines, 2 to 4 storeys of buildings", generic enough that two independent
+// Higgsfield calls still invented different architecture. Reuses lib/shotDirection.ts's
+// ensureEnvironmentAnchored (same mechanism verified this session on the Fanvue side) rather than
+// a second implementation.
+describe("environment anchor continuity (Instagram daily-batch pipeline)", () => {
+  const sceneBriefSrc = readFileSync(new URL("./sceneBrief.ts", import.meta.url), "utf8");
+
+  it("imports and applies the shared environment anchor to spatial_setup before returning the brief", () => {
+    expect(sceneBriefSrc).toMatch(/import \{ ensureEnvironmentAnchored \} from "@\/lib\/shotDirection"/);
+    expect(sceneBriefSrc).toMatch(/ensureEnvironmentAnchored\(json\.spatial_setup\)/);
+  });
+
+  it("also pushes the anchor detail into location_constraints, not just spatial_setup", () => {
+    expect(sceneBriefSrc).toMatch(/json\.location_constraints = \[\.\.\.json\.location_constraints, anchorDetail\]/);
+  });
+
+  it("applies the anchor once, before the brief is persisted/shared — not per-slot in lib/slotPrompts.ts", () => {
+    const slotPromptsSrc = readFileSync(new URL("./slotPrompts.ts", import.meta.url), "utf8");
+    expect(slotPromptsSrc).not.toMatch(/ensureEnvironmentAnchored/);
+  });
+});

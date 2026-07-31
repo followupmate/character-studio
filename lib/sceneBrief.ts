@@ -1,5 +1,6 @@
 import { claudeWithRetry } from "@/lib/generatePrompts";
 import { StylingProfile } from "@/lib/stylingDeck";
+import { ensureEnvironmentAnchored } from "@/lib/shotDirection";
 
 export interface SceneBriefJson {
   camera_language: string;
@@ -253,6 +254,23 @@ Output format:
   }
 
   const json = safeJsonExtract(jsonPart);
+
+  // Environment-continuity fix (same mechanism as lib/shotDirection.ts, reused not reimplemented):
+  // this brief is already shared verbatim across all 7-8 slots (see lib/slotPrompts.ts's
+  // commonBody/captionBody), but a real production finding showed Claude's own spatial_setup/
+  // location_constraints still describe distant background architecture in generic terms ("low-
+  // rise rooflines, 2 to 4 storeys of buildings") — specific enough for the foreground (pool,
+  // furniture, props) but not for the skyline/architecture beyond it, so independently-generated
+  // slots (reel_start_frame vs story_bts) still rendered different buildings. Anchoring
+  // spatial_setup here — once, before this brief is persisted and shared — fixes it everywhere the
+  // brief is used, without touching slotPrompts.ts.
+  const anchoredSpatial = ensureEnvironmentAnchored(json.spatial_setup);
+  if (anchoredSpatial !== json.spatial_setup) {
+    const anchorDetail = anchoredSpatial.slice(json.spatial_setup.length + 3);
+    json.spatial_setup = anchoredSpatial;
+    json.location_constraints = [...json.location_constraints, anchorDetail];
+  }
+
   const doctrine = doctrinePart.trim();
 
   if (doctrine.length < 100) {

@@ -264,7 +264,15 @@ function hashString(text: string): number {
   return h;
 }
 
-function ensureEnvironmentAnchored(locationText: string): string {
+// Exported so lib/sceneBrief.ts (the Instagram daily-batch pipeline) can apply the SAME
+// deterministic anchor to its scene brief's spatial_setup/location_constraints — a real production
+// finding: even though that pipeline already shares ONE Claude-authored brief across all 7-8
+// slots (unlike the old Fanvue system this was originally built for), the brief's own background
+// description stayed generic ("low-rise rooflines, 2 to 4 storeys of buildings") and still drifted
+// between independently-generated slots (reel_start_frame vs story_bts) — the identical failure
+// mode this function exists to fix, just one level removed (vague shared text, not vague per-shot
+// text).
+export function ensureEnvironmentAnchored(locationText: string): string {
   if (SPECIFIC_DETAIL_PATTERN.test(locationText)) return locationText;
   const family = classifyEnvironmentFamily(locationText);
   const anchors = ENVIRONMENT_ANCHORS[family];
