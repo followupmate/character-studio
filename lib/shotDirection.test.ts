@@ -187,6 +187,52 @@ describe("buildShotDirections", () => {
       expect(shot.wardrobe_state).not.toContain("charcoal-black");
     }
   });
+
+  it("appends the SAME concrete environment anchor to every shot's location (shared verbatim, including afterglow) — the practical substitute for a missing image-reference API (verified this session: reference_image_urls was accepted by Higgsfield Soul but had no visible effect)", () => {
+    // luxe_car's fixture location ("city street at night, beside a luxury car") names no
+    // furniture/architecture detail — every shot shares the SAME `location` value (computed once,
+    // reused across the map in buildShotDirections), and it must carry an appended anchor clause.
+    const locations = new Set(shots.map((s) => s.location));
+    expect(locations.size).toBe(1);
+    expect(shots[0].location).toMatch(/ — /);
+    // afterglow's spatial_zone wraps location with its own trailing clause but must still contain
+    // the same anchor text as every other shot's spatial_zone, not drop it.
+    const anchorText = shots[0].location.split(" — ")[1];
+    for (const shot of shots) {
+      expect(shot.spatial_zone).toContain(anchorText);
+    }
+  });
+
+  it("environment anchor applies to indoor locations too, not just outdoor/skyline — a real gap in the first version of this fix", () => {
+    const indoorSituation = baseSituation({
+      visual_execution: { location: "her bedroom", time_of_day: "evening", weather: "indoor", action_visible: "getting ready", shot_intent: "medium shot" },
+    });
+    const indoorShots = buildShotDirections(indoorSituation, "intimate_aesthetic");
+    for (const shot of indoorShots) {
+      expect(shot.spatial_zone).toMatch(/headboard|window|bench/);
+    }
+  });
+
+  it("picks a family-appropriate anchor (bedroom furniture, not a skyline) for an indoor location", () => {
+    const kitchenSituation = baseSituation({
+      visual_execution: { location: "the kitchen", time_of_day: "morning", weather: "indoor", action_visible: "making coffee", shot_intent: "medium shot" },
+    });
+    const kitchenShots = buildShotDirections(kitchenSituation, "everyday_life");
+    for (const shot of kitchenShots) {
+      expect(shot.spatial_zone).toMatch(/cabinetry|marble island|shelving/);
+      expect(shot.spatial_zone).not.toMatch(/skyline|rooftop|headboard/);
+    }
+  });
+
+  it("does not append an anchor when the location already names a specific landmark/detail", () => {
+    const specificSituation = baseSituation({
+      visual_execution: { location: "the rooftop overlooking the Eiffel Tower", time_of_day: "evening", weather: "clear", action_visible: "standing at the railing", shot_intent: "wide shot" },
+    });
+    const specificShots = buildShotDirections(specificSituation, "lived_moments");
+    for (const shot of specificShots) {
+      expect(shot.spatial_zone).not.toMatch(/limestone high-rise|zinc mansard|stepped crown|fire escapes|rounded balconies/);
+    }
+  });
 });
 
 describe("checkGradation", () => {

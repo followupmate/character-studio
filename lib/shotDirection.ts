@@ -169,22 +169,94 @@ function ensureColorAnchored(wardrobeText: string): string {
 // Environment-continuity fix (real production finding): Higgsfield Soul has no reference-image
 // mechanism for BACKGROUND/environment (verified this session — an explicit reference_image_urls
 // field was accepted by the API without error but had no visible effect on the output; Soul ID
-// itself is deliberately character-only). Generic skyline text like "her city apartment building"
-// left every independently-generated shot free to invent its own city — one shot rendered a
-// Paris/NYC hybrid skyline, another a completely different European town. Same fix shape as
-// ensureColorAnchored below: only outdoor/skyline locations are affected (an indoor bedroom or
-// hotel room has no "which city" failure mode), and the anchor is picked once per StoryDay (via a
-// deterministic hash of the location text) so the SAME concrete architectural detail repeats
-// verbatim across all 6 independently-generated shots instead of each one re-imagining the view.
-const OUTDOOR_SKYLINE_PATTERN = /\b(rooftop|terrace|balcony|skyline|city street|penthouse)\b/i;
-const SPECIFIC_ARCHITECTURE_PATTERN = /\b(landmark|named|overlooking the|facing the|tower of)\b/i;
-const ARCHITECTURE_ANCHORS = [
-  "a pale limestone high-rise with wrought-iron balconies directly behind her, low terracotta rooftops spreading to the horizon, no distant skyscrapers",
-  "a row of cream-colored buildings with zinc mansard roofs directly behind her, a dense low-rise skyline beyond, no distant skyscrapers",
-  "a glass-and-steel tower with a stepped crown directly behind her, a wide grid of mid-rise city blocks below",
-  "a red-brick facade with black steel fire escapes directly behind her, a low industrial skyline beyond, no distant skyscrapers",
-  "a white concrete high-rise with rounded balconies directly behind her, a sprawl of orange-tiled roofs below, no distant skyscrapers",
+// itself is deliberately character-only). Generic location text like "her city apartment
+// building" or "a private hotel suite" left every independently-generated shot free to invent its
+// own environment — one outdoor shot rendered a Paris/NYC hybrid skyline, another a completely
+// different European town; the same failure mode applies indoors (a "bedroom" or "kitchen" with
+// no concrete detail gets reinvented per shot just as freely). Same fix shape as
+// ensureColorAnchored above: classify the location into a small family of environment types (each
+// with its own small set of concrete, renderable anchor phrases — an outdoor skyline needs a
+// building/skyline detail, a bedroom needs furniture/window detail, a car needs upholstery/trim
+// detail), pick one anchor per StoryDay (via a deterministic hash of the location text) so the
+// SAME concrete detail repeats verbatim across all 6 independently-generated shots instead of
+// each one re-imagining the environment. Applies to every location, not just outdoor/skyline ones
+// — a real finding after the first fix only covered rooftop/terrace/balcony scenes.
+const SPECIFIC_DETAIL_PATTERN = /\b(landmark|named|overlooking the|facing the|tower of)\b/i;
+
+type EnvironmentFamily =
+  | "outdoor_skyline"
+  | "outdoor_water"
+  | "vehicle"
+  | "indoor_bathroom"
+  | "indoor_bedroom"
+  | "indoor_kitchen"
+  | "indoor_gym"
+  | "indoor_living"
+  | "indoor_generic";
+
+// Order matters — a location can match multiple families (e.g. "rooftop pool terrace" contains
+// both a skyline and a water cue); the first match wins, and outdoor_skyline is listed first
+// since it's the real-production case this fix was originally verified against.
+const ENVIRONMENT_FAMILY_PATTERNS: Array<{ family: EnvironmentFamily; pattern: RegExp }> = [
+  { family: "outdoor_skyline", pattern: /\b(rooftop|terrace|balcony|skyline|city street|penthouse)\b/i },
+  { family: "outdoor_water", pattern: /\b(pool|beach|lake|ocean|poolside|dock|marina)\b/i },
+  { family: "vehicle", pattern: /\b(car|backseat|vehicle|limo|passenger seat)\b/i },
+  { family: "indoor_bathroom", pattern: /\b(bathroom|bath\b|shower)\b/i },
+  { family: "indoor_bedroom", pattern: /\b(bedroom|\bbed\b|suite)\b/i },
+  { family: "indoor_kitchen", pattern: /\bkitchen\b/i },
+  { family: "indoor_gym", pattern: /\b(gym|locker room|workout)\b/i },
+  { family: "indoor_living", pattern: /\b(living room|lounge|sofa|couch)\b/i },
 ];
+
+function classifyEnvironmentFamily(locationText: string): EnvironmentFamily {
+  for (const { family, pattern } of ENVIRONMENT_FAMILY_PATTERNS) {
+    if (pattern.test(locationText)) return family;
+  }
+  return "indoor_generic";
+}
+
+const ENVIRONMENT_ANCHORS: Record<EnvironmentFamily, string[]> = {
+  outdoor_skyline: [
+    "a pale limestone high-rise with wrought-iron balconies directly behind her, low terracotta rooftops spreading to the horizon, no distant skyscrapers",
+    "a row of cream-colored buildings with zinc mansard roofs directly behind her, a dense low-rise skyline beyond, no distant skyscrapers",
+    "a glass-and-steel tower with a stepped crown directly behind her, a wide grid of mid-rise city blocks below",
+    "a red-brick facade with black steel fire escapes directly behind her, a low industrial skyline beyond, no distant skyscrapers",
+    "a white concrete high-rise with rounded balconies directly behind her, a sprawl of orange-tiled roofs below, no distant skyscrapers",
+  ],
+  outdoor_water: [
+    "turquoise pool water directly beside her, pale limestone coping, a row of dark green cypress trees along the far edge",
+    "a curved infinity-edge pool directly beside her, teak sun loungers with white cushions along the near edge",
+    "pale sand and weathered driftwood directly beside her, a low wooden beach fence in the middle distance",
+  ],
+  vehicle: [
+    "cream leather seats and dark wood trim on the door panel behind her, warm interior cabin light",
+    "black quilted leather seats and brushed-steel trim behind her, cool blue ambient interior light",
+  ],
+  indoor_bathroom: [
+    "a freestanding oval stone bathtub behind her, matte black fixtures, a tall arched window to one side",
+    "a marble double vanity behind her, a round brass-framed mirror, warm recessed lighting",
+  ],
+  indoor_bedroom: [
+    "a tufted grey upholstered headboard behind her, a pair of brass reading lamps on the nightstands",
+    "a large arched window with sheer white curtains behind her, pale oak flooring, a low wooden bench at the foot of the bed",
+  ],
+  indoor_kitchen: [
+    "matte black cabinetry with brass hardware behind her, a veined white marble island to one side",
+    "pale oak cabinetry behind her, open shelving with white ceramic dishware, a large window over the sink",
+  ],
+  indoor_gym: [
+    "a full mirrored wall behind her, black rubber flooring, a rack of dumbbells along the near edge",
+    "matte black gym equipment behind her, exposed concrete pillars, large factory-style windows",
+  ],
+  indoor_living: [
+    "a low camel-colored linen sofa behind her, a brass floor lamp in the corner, pale linen curtains",
+    "a dark green velvet sofa behind her, a round marble coffee table, tall potted plants in the corner",
+  ],
+  indoor_generic: [
+    "pale plaster walls behind her, warm wood floorboards, soft indirect light from an unseen window",
+    "textured cream walls behind her, a large framed mirror leaning against the wall, warm afternoon light",
+  ],
+};
 
 function hashString(text: string): number {
   let h = 0;
@@ -192,10 +264,11 @@ function hashString(text: string): number {
   return h;
 }
 
-function ensureArchitectureAnchored(locationText: string): string {
-  if (!OUTDOOR_SKYLINE_PATTERN.test(locationText)) return locationText;
-  if (SPECIFIC_ARCHITECTURE_PATTERN.test(locationText)) return locationText;
-  const anchor = ARCHITECTURE_ANCHORS[Math.abs(hashString(locationText)) % ARCHITECTURE_ANCHORS.length];
+function ensureEnvironmentAnchored(locationText: string): string {
+  if (SPECIFIC_DETAIL_PATTERN.test(locationText)) return locationText;
+  const family = classifyEnvironmentFamily(locationText);
+  const anchors = ENVIRONMENT_ANCHORS[family];
+  const anchor = anchors[Math.abs(hashString(locationText)) % anchors.length];
   return `${locationText} — ${anchor}`;
 }
 
@@ -293,7 +366,7 @@ export function buildShotDirections(situation: GenerativeSituation, tier: StoryT
   void tier;
   const subject = "Vivienne, mid-20s, dark hair, slim athletic build";
   const continuity = "same woman, same outfit and setting throughout, continuous night";
-  const baseLocation = ensureArchitectureAnchored(situation.visual_execution.location);
+  const baseLocation = ensureEnvironmentAnchored(situation.visual_execution.location);
   const pose = pickPose(situation);
   const facial = pickFacialExpression(situation);
   const wardrobe = pickWardrobeState(situation);

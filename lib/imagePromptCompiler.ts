@@ -73,7 +73,7 @@ function capField(text: string, maxLen: number): string {
 // ("her city apartment building") still let each independently-generated shot invent its own
 // city — one rendered Paris+NYC, another an unrelated European town. A tested reference-image
 // parameter (reference_image_urls) had no effect (Soul silently ignored it — verified via a real
-// paid call, see lib/shotDirection.ts's ensureArchitectureAnchored comment), so the only working
+// paid call, see lib/shotDirection.ts's ensureEnvironmentAnchored comment), so the only working
 // lever is textual: a concrete, ~150-char architectural anchor (specific building material,
 // balcony style, roofline) appended once per StoryDay and repeated verbatim into every shot's
 // spatial_zone. spatial's cap must be generous enough that capField's clause-boundary cut lands
