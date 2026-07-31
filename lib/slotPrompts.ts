@@ -570,6 +570,7 @@ ${visualRules}
 
 LOCATION CONSTRAINTS (geometric — respect spatial setup):
 ${constraints}
+${args.sceneBriefJson.environment_anchor ? `\nBACKGROUND ARCHITECTURE (MANDATORY — write this exact detail, or a close natural paraphrase that keeps its specific nouns, into THIS prompt; it is what a sibling slot from today's SAME batch is also being told to render, so it must not be dropped for brevity): ${args.sceneBriefJson.environment_anchor}\n` : ""}
 ${args.situationTranslation ? `\n${args.situationTranslation}\n` : ""}
 CHARACTER VISUAL BRIEF: ${args.character.visual_brief}
 ${args.character.soul_id ? `SOUL ID: ${args.character.soul_id}` : ""}
@@ -612,7 +613,11 @@ ANIMAL WORDING (critical): always write the SPECIES noun in the caption — "a b
     : "";
 
   return `OUTFIT (use exactly, no additions): ${args.sceneBriefJson.wardrobe_lock}
-LOCATION: ${args.sceneBriefJson.spatial_setup ?? args.sceneBriefDoctrine.split(".")[0]}
+LOCATION: ${args.sceneBriefJson.spatial_setup ?? args.sceneBriefDoctrine.split(".")[0]}${
+    args.sceneBriefJson.environment_anchor
+      ? `\nBACKGROUND (MANDATORY — keep this specific detail, do not simplify it away): ${args.sceneBriefJson.environment_anchor}`
+      : ""
+  }
 LIGHTING: ${args.sceneBriefJson.lighting_state}, ${args.sceneBriefJson.time_of_day}${animalLine}
 ${propLine}
 ${args.compactSituationTranslation ? `${args.compactSituationTranslation}\n` : ""}BACKGROUND PEOPLE: in a public place a few blurred, anonymous, out-of-focus people may appear as deep-background ambient life — NEVER a second sharp or recognizable face, never a foreground companion; she is the single clear subject. In private places (home, bedroom, bathroom) she is alone.

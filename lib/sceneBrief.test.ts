@@ -127,6 +127,7 @@ describe("pet_lock continuity", () => {
 // a second implementation.
 describe("environment anchor continuity (Instagram daily-batch pipeline)", () => {
   const sceneBriefSrc = readFileSync(new URL("./sceneBrief.ts", import.meta.url), "utf8");
+  const slotPromptsSrc = readFileSync(new URL("./slotPrompts.ts", import.meta.url), "utf8");
 
   it("imports and applies the shared environment anchor to spatial_setup before returning the brief", () => {
     expect(sceneBriefSrc).toMatch(/import \{ ensureEnvironmentAnchored \} from "@\/lib\/shotDirection"/);
@@ -138,7 +139,31 @@ describe("environment anchor continuity (Instagram daily-batch pipeline)", () =>
   });
 
   it("applies the anchor once, before the brief is persisted/shared — not per-slot in lib/slotPrompts.ts", () => {
-    const slotPromptsSrc = readFileSync(new URL("./slotPrompts.ts", import.meta.url), "utf8");
     expect(slotPromptsSrc).not.toMatch(/ensureEnvironmentAnchored/);
+  });
+
+  // Real regression found while verifying the first version of this fix on real production data
+  // (2026-08-02): the anchor WAS present in spatial_setup/location_constraints for both slots, but
+  // reel_start_frame's per-slot Claude rewrite kept it while story_bts's compressed it away — the
+  // shared brief being anchored was not sufficient, because lib/slotPrompts.ts's
+  // generateSlotPrompt() is itself a free per-slot Claude rewrite, not a deterministic template.
+  it("exposes environment_anchor as its own SceneBriefJson field, not just buried in location_constraints", () => {
+    expect(sceneBriefSrc).toMatch(/environment_anchor\?:\s*string/);
+    expect(sceneBriefSrc).toMatch(/json\.environment_anchor = anchorDetail/);
+  });
+
+  it("commonBody() surfaces environment_anchor as an explicit MANDATORY instruction, not an optional bullet", () => {
+    expect(slotPromptsSrc).toMatch(/sceneBriefJson\.environment_anchor/);
+    expect(slotPromptsSrc).toMatch(/BACKGROUND ARCHITECTURE \(MANDATORY/);
+  });
+
+  it("captionBody() (the compact doctrine path) also surfaces environment_anchor as mandatory", () => {
+    // captionBody is a separate, shorter prompt builder (see its own doc comment: "Full commonBody()
+    // ... overwhelms short-prompt instructions") — the mandatory instruction must reach both paths
+    // independently, not rely on commonBody's wiring alone.
+    const captionBodyMatch = slotPromptsSrc.match(/function captionBody\([\s\S]*?\n\}/);
+    expect(captionBodyMatch).not.toBeNull();
+    expect(captionBodyMatch![0]).toMatch(/sceneBriefJson\.environment_anchor/);
+    expect(captionBodyMatch![0]).toMatch(/MANDATORY/);
   });
 });

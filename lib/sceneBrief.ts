@@ -8,6 +8,15 @@ export interface SceneBriefJson {
   visual_rules: string[];
   location_constraints: string[];
   spatial_setup: string;
+  // Real production finding: even with the anchor baked into spatial_setup/location_constraints,
+  // lib/slotPrompts.ts's generateSlotPrompt() is a PER-SLOT Claude call that freely rewrites this
+  // brief into a short 1-2 sentence prompt — one slot (reel_start_frame) kept the anchored
+  // architecture detail, a sibling slot from the SAME batch (story_bts) compressed it away. This
+  // dedicated field lets lib/slotPrompts.ts surface it as an unambiguous MANDATORY instruction
+  // (see commonBody/captionBody) instead of one bullet among several that reads as optional.
+  // Undefined when ensureEnvironmentAnchored() didn't need to add anything (location already named
+  // something specific).
+  environment_anchor?: string;
   wardrobe_lock: string;
   // Optional: only present when an animal appears in the day's scene. Older briefs
   // stored before this field existed simply omit it.
@@ -269,6 +278,7 @@ Output format:
     const anchorDetail = anchoredSpatial.slice(json.spatial_setup.length + 3);
     json.spatial_setup = anchoredSpatial;
     json.location_constraints = [...json.location_constraints, anchorDetail];
+    json.environment_anchor = anchorDetail;
   }
 
   const doctrine = doctrinePart.trim();
