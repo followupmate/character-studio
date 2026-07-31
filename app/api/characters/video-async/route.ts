@@ -182,9 +182,23 @@ export async function POST(req: Request) {
     let needsAudio = false;
 
     if (model === "kling") {
-      falModel = startFrameUrl ? "fal-ai/kling-video/v2.1/pro/image-to-video" : "fal-ai/kling-video/v2.1/pro/text-to-video";
-      input = { prompt: cinematic, duration: "10", aspect_ratio: "9:16", ...(startFrameUrl ? { image_url: startFrameUrl } : {}) };
-      needsAudio = audioStyle !== "silent"; // Kling has no native audio → mmaudio after
+      // v3 (verified this session against the real @fal-ai/client types + real paid test calls):
+      // the image-to-video variant's source-image field is start_image_url, not image_url — a real
+      // breaking rename from v2.1/v1.6. v3 also defaults generate_audio to true; sending it
+      // explicitly as false is mandatory here, not optional — needsAudio below still drives a
+      // SEPARATE mmaudio pass afterward (unchanged), so leaving v3's own audio on would double it.
+      //
+      // Deliberately NOT using end_image_url here, even though it's a real, verified v3 capability
+      // (see lib/klingProvider.ts) — tested pairing reel_start_frame with story_bts as start/end and
+      // rejected it: story_bts is an independently-published Story asset, not a narrative
+      // continuation of the reel, and forcing Kling to converge on it produced visibly wrong physics
+      // (hair moving backward against the described motion) to hit that end pose in time. The reel
+      // stays single-image i2v — captivating on its own, not anchored to an unrelated end frame.
+      falModel = startFrameUrl ? "fal-ai/kling-video/v3/pro/image-to-video" : "fal-ai/kling-video/v3/pro/text-to-video";
+      input = startFrameUrl
+        ? { prompt: cinematic, duration: "10", start_image_url: startFrameUrl, generate_audio: false }
+        : { prompt: cinematic, duration: "10", aspect_ratio: "9:16", generate_audio: false };
+      needsAudio = audioStyle !== "silent"; // Kling's own audio is forced off above → mmaudio after
     } else if (model === "seedance-fast" || model === "seedance-i2v") {
       // Identity holds ONLY if the start frame clearly shows her face (see archetypeDeck reel_start_frame).
       // Explicit 9:16 (not "auto", which can reframe/crop the face) + highest resolution the tier allows.
