@@ -17,27 +17,43 @@ export function klingConfigured(): boolean {
 
 export type KlingTier = "standard" | "pro";
 
+// v3 (verified this session against the real @fal-ai/client generated types AND a real paid test
+// call): genuinely newer model than v2.1/v1.6, and the ONLY version that exposes end_image_url —
+// tested on two real production images (the same day's bridge/payoff shots, both already sharing
+// lib/shotDirection.ts's environment anchor) and confirmed the resulting video holds that same
+// environment continuously, not just at the two bookend frames. v3's standard/pro input types are
+// identical (KlingVideoV3StandardImageToVideoInput is a straight alias of the Pro type).
 const KLING_MODEL: Record<KlingTier, string> = {
-  standard: "fal-ai/kling-video/v1.6/standard/image-to-video",
-  pro: "fal-ai/kling-video/v2.1/pro/image-to-video",
+  standard: "fal-ai/kling-video/v3/standard/image-to-video",
+  pro: "fal-ai/kling-video/v3/pro/image-to-video",
 };
 
 // Verified against the real @fal-ai/client generated types (node_modules/@fal-ai/client/src/types/
-// endpoints.d.ts, KlingVideoV2MasterImageToVideoInput / KlingVideoV16ProImageToVideoInput) rather
-// than guessed from docs — every Kling image-to-video variant exposes negative_prompt (default
-// "blur, distort, and low quality") and cfg_scale (default 0.5, higher = follows the text prompt
-// more literally). Kling's own prompting guide recommends a real negative_prompt field for exactly
-// this — distinct from embedding negated instructions in the descriptive prompt text itself, which
-// this session found actively primes bad output (see lib/imagePromptCompiler.ts's
-// BANNED_COLLAGE_TERMS comment).
+// endpoints.d.ts, KlingVideoV3ProImageToVideoInput) rather than guessed from docs — every Kling
+// image-to-video variant exposes negative_prompt (default "blur, distort, and low quality") and
+// cfg_scale (default 0.5, higher = follows the text prompt more literally). Kling's own prompting
+// guide recommends a real negative_prompt field for exactly this — distinct from embedding negated
+// instructions in the descriptive prompt text itself, which this session found actively primes bad
+// output (see lib/imagePromptCompiler.ts's BANNED_COLLAGE_TERMS comment).
 const DEFAULT_NEGATIVE_PROMPT = "blurry, distorted face, warped hands, extra limbs, flicker, sudden cut, low quality";
 
 export async function generateKlingVideo(opts: {
   imageUrl: string;
+  // v3-only, real capability verified this session with a paid test call: an end-frame anchor.
+  // Pass the SAME StoryDay's later shot (e.g. payoff) whose environment already matches imageUrl's
+  // via lib/shotDirection.ts's ensureEnvironmentAnchored — confirmed the resulting video holds that
+  // shared environment for its full length, not just at the two bookend frames. Mutually exclusive
+  // with multi_prompt (confirmed via a real 422: "End Image Url is not supported with Multi
+  // Prompt") — this function never sends multi_prompt, so no conflict here.
+  endImageUrl?: string;
   prompt: string;
   negativePrompt?: string;
   cfgScale?: number;
   durationSeconds?: number;
+  // No-op on v3 (its input type has no aspect_ratio field — verified against the real generated
+  // types) — v3 infers aspect ratio from the source image instead. Kept for caller compatibility;
+  // every image this app feeds in is already generated at 9:16 (lib/imagePromptCompiler.ts), so
+  // the video comes out 9:16 regardless.
   aspectRatio?: "9:16" | "16:9" | "1:1";
   tier?: KlingTier;
   persist?: { mediaId: string };
@@ -47,17 +63,23 @@ export async function generateKlingVideo(opts: {
   fal.config({ credentials: falApiKey });
 
   const falModel: string = KLING_MODEL[opts.tier ?? "pro"];
-  // duration is a closed enum ("5" | "10") on every Kling image-to-video variant we checked, not a
-  // free string — snap to the nearest allowed value instead of sending an unsupported one.
-  const duration = (opts.durationSeconds ?? 10) <= 7 ? "5" : "10";
+  // v3's duration is a wider closed enum ("3".."15", integers only) than v1.6/v2.1's "5"|"10" —
+  // round and clamp into range instead of snapping to one of two fixed values.
+  const duration = String(Math.min(15, Math.max(3, Math.round(opts.durationSeconds ?? 10))));
   const input: Record<string, unknown> = {
     prompt: opts.prompt,
     negative_prompt: opts.negativePrompt ?? DEFAULT_NEGATIVE_PROMPT,
     cfg_scale: opts.cfgScale ?? 0.6,
     duration,
-    aspect_ratio: opts.aspectRatio ?? "9:16",
-    image_url: opts.imageUrl,
+    // v3's field is start_image_url, not image_url (a real breaking rename from v1.6/v2.1 —
+    // verified against the generated types AND a real successful test call).
+    start_image_url: opts.imageUrl,
+    // v3 defaults generate_audio to true (verified in the generated types) — our content doctrine
+    // is explicitly silent (see lib/seedancePromptCompiler.ts's NO_AUDIO_LOCK), so this must always
+    // be sent explicitly or v3 will add unwanted voice/sound.
+    generate_audio: false,
   };
+  if (opts.endImageUrl) input.end_image_url = opts.endImageUrl;
 
   const sub = (await fal.queue.submit(falModel, { input })) as { request_id: string };
 
