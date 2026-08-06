@@ -1,0 +1,65 @@
+{
+  "project": "vivien-lora-v2",
+  "total_candidates": 19,
+  "target_selected": "22-26",
+  "current_status": "candidate_selection_ready",
+  "soul_id": "fb42bf59-4397-4ac9-bf60-37af3e55a308",
+  "model": "soul_2",
+  "generation_date": "2026-08-06",
+  "batches": [
+    {
+      "batch": 1,
+      "type": "close-up-neutral",
+      "count": 6,
+      "images": [
+        {"index": 1, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_bdd9abb4-c705-4a41-a22b-d6b73e70184a.png", "job_id": "bdd9abb4-c705-4a41-a22b-d6b73e70184a"},
+        {"index": 2, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_03519843-7504-438d-813e-15d2ab6ab8f3.png", "job_id": "03519843-7504-438d-813e-15d2ab6ab8f3"},
+        {"index": 3, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_9e6a9233-5012-4b23-a192-caba13a076f2.png", "job_id": "9e6a9233-5012-4b23-a192-caba13a076f2"},
+        {"index": 4, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_903c9d25-128a-4d53-bfa0-8fb0e1481804.png", "job_id": "903c9d25-128a-4d53-bfa0-8fb0e1481804"},
+        {"index": 5, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_83128c55-d32e-4b62-809a-868ef92e6d1c.png", "job_id": "83128c55-d32e-4b62-809a-868ef92e6d1c"},
+        {"index": 6, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_0adfdfd1-2cbd-4349-80a9-0072b808ca40.png", "job_id": "0adfdfd1-2cbd-4349-80a9-0072b808ca40"}
+      ]
+    },
+    {
+      "batch": 2,
+      "type": "three-quarter-close-up",
+      "count": 5,
+      "images": [
+        {"index": 7, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061342_f4c65d08-5b6e-456b-86dd-18b6f6ec51f3.png", "job_id": "f4c65d08-5b6e-456b-86dd-18b6f6ec51f3"},
+        {"index": 8, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061342_ca7e2e9d-7d24-4cd7-871e-cda87c831aed.png", "job_id": "ca7e2e9d-7d24-4cd7-871e-cda87c831aed"},
+        {"index": 9, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061342_30e27352-e34b-4736-9c44-cbba3e381ff7.png", "job_id": "30e27352-e34b-4736-9c44-cbba3e381ff7"},
+        {"index": 10, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061342_e05b416d-2b7f-4e5d-a2e5-4d33c20c400a.png", "job_id": "e05b416d-2b7f-4e5d-a2e5-4d33c20c400a"},
+        {"index": 11, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061342_afe203ff-edc2-4bd8-aee2-b069b4c73364.png", "job_id": "afe203ff-edc2-4bd8-aee2-b069b4c73364"}
+      ]
+    },
+    {
+      "batch": 3,
+      "type": "medium-shots",
+      "count": 4,
+      "images": [
+        {"index": 12, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061429_09fafdcf-4421-4bad-be41-bc736cf8c8fe.png", "job_id": "09fafdcf-4421-4bad-be41-bc736cf8c8fe"},
+        {"index": 13, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061429_76247c99-9489-49be-902d-f050576408e4.png", "job_id": "76247c99-9489-49be-902d-f050576408e4"},
+        {"index": 14, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061429_7576129c-f699-4919-9aaa-b4b7d1592aa0.png", "job_id": "7576129c-f699-4919-9aaa-b4b7d1592aa0"},
+        {"index": 15, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061429_22fa17aa-e321-4ffa-bc2a-74b0ffc49366.png", "job_id": "22fa17aa-e321-4ffa-bc2a-74b0ffc49366"}
+      ]
+    },
+    {
+      "batch": 4,
+      "type": "full-body",
+      "count": 4,
+      "images": [
+        {"index": 16, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061459_c4be9de7-baf8-4b81-817b-f45639c04d17.png", "job_id": "c4be9de7-baf8-4b81-817b-f45639c04d17"},
+        {"index": 17, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061459_b74a6a1a-8176-4ac2-8424-043859051d8e.png", "job_id": "b74a6a1a-8176-4ac2-8424-043859051d8e"},
+        {"index": 18, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061459_4a969035-cc99-400a-ac37-e962befec372.png", "job_id": "4a969035-cc99-400a-ac37-e962befec372"},
+        {"index": 19, "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061459_f10e9ca1-b905-4090-b000-36941b9ec3f5.png", "job_id": "f10e9ca1-b905-4090-b000-36941b9ec3f5"}
+      ]
+    }
+  ],
+  "composition": {
+    "close_ups_11_15": 11,
+    "medium_shots_3_4": 4,
+    "full_body_16_19": 4
+  },
+  "next_step": "select_22_26_best_images_and_create_captions",
+  "trigger_token": "vivienv2x"
+}

@@ -1,0 +1,67 @@
+{
+  "batch": 1,
+  "name": "Neutrálne close-up portréty",
+  "generated_at": "2026-08-06T06:11:42Z",
+  "soul_id": "fb42bf59-4397-4ac9-bf60-37af3e55a308",
+  "model": "soul_2",
+  "aspect_ratio": "1:1",
+  "quality": "2k",
+  "images": [
+    {
+      "index": 1,
+      "job_id": "bdd9abb4-c705-4a41-a22b-d6b73e70184a",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_bdd9abb4-c705-4a41-a22b-d6b73e70184a.png",
+      "prompt": "Vivien, clearly adult woman, late 20s appearance, dark wavy hair, green eyes, sun-kissed skin, feminine features, soft jawline, close-up portrait, looking directly at the camera, neutral relaxed expression, plain light background, soft natural daylight, photorealistic, elegant, natural skin texture, realistic photography",
+      "framing": "front close-up",
+      "expression": "neutral",
+      "background": "plain light"
+    },
+    {
+      "index": 2,
+      "job_id": "03519843-7504-438d-813e-15d2ab6ab8f3",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_03519843-7504-438d-813e-15d2ab6ab8f3.png",
+      "prompt": "Vivien, clearly adult woman, late 20s appearance, dark wavy hair, green eyes, sun-kissed skin, close-up portrait, subtle relaxed smile, clean beige background, diffused window light, photorealistic, refined, natural skin texture, realistic photography",
+      "framing": "front close-up",
+      "expression": "subtle smile",
+      "background": "beige"
+    },
+    {
+      "index": 3,
+      "job_id": "9e6a9233-5012-4b23-a192-caba13a076f2",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_9e6a9233-5012-4b23-a192-caba13a076f2.png",
+      "prompt": "Vivien, clearly adult woman, late 20s appearance, dark wavy hair, green eyes, sun-kissed skin, close-up portrait, slight three-quarter angle from the left, calm expression, soft beige wall, natural window light, photorealistic, refined, realistic skin texture, beautiful but not overdone",
+      "framing": "three-quarter left",
+      "expression": "calm",
+      "background": "beige wall"
+    },
+    {
+      "index": 4,
+      "job_id": "903c9d25-128a-4d53-bfa0-8fb0e1481804",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_903c9d25-128a-4d53-bfa0-8fb0e1481804.png",
+      "prompt": "Vivien, clearly adult woman, late 20s appearance, dark wavy hair, green eyes, sun-kissed skin, close-up portrait, slight three-quarter angle from the right, looking near the camera, relaxed expression, neutral interior background, soft daylight, photorealistic, elegant, natural proportions",
+      "framing": "three-quarter right",
+      "expression": "relaxed",
+      "background": "neutral interior"
+    },
+    {
+      "index": 5,
+      "job_id": "83128c55-d32e-4b62-809a-868ef92e6d1c",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_83128c55-d32e-4b62-809a-868ef92e6d1c.png",
+      "prompt": "Vivien, clearly adult woman, late 20s appearance, dark wavy hair, green eyes, sun-kissed skin, close-up portrait, head-and-shoulders, looking slightly past camera, gentle natural expression, clean background, diffused daylight, photorealistic, authentic skin texture, refined",
+      "framing": "head-and-shoulders",
+      "expression": "gentle",
+      "background": "clean neutral"
+    },
+    {
+      "index": 6,
+      "job_id": "0adfdfd1-2cbd-4349-80a9-0072b808ca40",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3DIN7iizyGlbATv0YsKCQuyiU6L/hf_20260806_061142_0adfdfd1-2cbd-4349-80a9-0072b808ca40.png",
+      "prompt": "Vivien, clearly adult woman, late 20s appearance, dark wavy hair, green eyes, sun-kissed skin, close-up portrait, soft focused front view, eyes looking toward light, calm composed expression, neutral wall, window light, photorealistic, refined features, natural beauty",
+      "framing": "soft focus front",
+      "expression": "calm composed",
+      "background": "neutral wall"
+    }
+  ],
+  "status": "completed",
+  "total_cost_credits": 0.72
+}
