@@ -6,14 +6,15 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 const nav = [
-  { label: "Dashboard",       href: "/",            icon: "dashboard" },
-  { label: "Charaktery",      href: "/characters",  icon: "person" },
-  { label: "Dnešný deň",      href: "/today",       icon: "today" },
-  { label: "Review Queue",    href: "/review",      icon: "rate_review",  highlight: true },
-  { label: "Growth",          href: "/growth",      icon: "trending_up" },
-  { label: "Metriky",         href: "/metrics",     icon: "bar_chart" },
-  { label: "Publish Queue",   href: "/publish",     icon: "send" },
-  { label: "História",        href: "/history",     icon: "history" },
+  { label: "Dashboard",           href: "/",                                    icon: "dashboard" },
+  { label: "Charaktery",          href: "/characters",                          icon: "person" },
+  { label: "Dnešný deň",          href: "/today",                               icon: "today" },
+  { label: "Review Queue",        href: "/review",                              icon: "rate_review",  highlight: true },
+  { label: "Growth",              href: "/growth",                              icon: "trending_up" },
+  { label: "Metriky",             href: "/metrics",                             icon: "bar_chart" },
+  { label: "Publish Queue",       href: "/publish",                             icon: "send" },
+  { label: "História",            href: "/history",                             icon: "history" },
+  { label: "AI Video Optimizer",  href: "/dashboard/creative-intelligence",     icon: "smart_toy", highlight: true },
 ];
 
 const referenceNav = [
