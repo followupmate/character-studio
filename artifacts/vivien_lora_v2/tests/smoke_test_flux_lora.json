@@ -1,0 +1,288 @@
+{
+  "test_name": "VIVIEN LORA V2 — Smoke Test",
+  "endpoint": "fal-ai/flux-lora",
+  "lora_url": "https://v3b.fal.media/files/b/0aa539ce/TUuw_lMO8xowMXl5jxonP_pytorch_lora_weights.safetensors",
+  "lora_trigger": "vivienv2x",
+  "lora_strength_tested": 0.7,
+  "num_scenes": 3,
+  "total_images_target": 6,
+  "completed_images": 6,
+  "failed_images": 0,
+  "test_started_at": "2026-08-06T08:40:00.134Z",
+  "test_completed_at": "2026-08-06T08:41:00.134Z",
+  "results": [
+    {
+      "scene_id": "A",
+      "scene_name": "Close-up",
+      "prompt": "photo of vivienv2x woman, close-up portrait, looking directly at the camera, neutral relaxed expression, plain light background, soft natural daylight, photorealistic, natural skin texture",
+      "seed": 42001,
+      "lora_enabled": true,
+      "lora_strength": 0.7,
+      "image_url": "https://v3b.fal.media/files/b/0aa53a72/NGGgD-wPuTxLVIgSODT_u.jpg",
+      "image_size": "portrait_4_3",
+      "status": "success",
+      "endpoint": "fal-ai/flux-lora",
+      "request_timestamp": "2026-08-06T08:40:20.615Z",
+      "response_timestamp": "2026-08-06T08:40:29.366Z",
+      "raw_request": {
+        "prompt": "photo of vivienv2x woman, close-up portrait, looking directly at the camera, neutral relaxed expression, plain light background, soft natural daylight, photorealistic, natural skin texture",
+        "image_size": "portrait_4_3",
+        "num_inference_steps": 28,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+        "seed": 42001,
+        "loras": [
+          {
+            "path": "https://v3b.fal.media/files/b/0aa539ce/TUuw_lMO8xowMXl5jxonP_pytorch_lora_weights.safetensors",
+            "scale": 0.7
+          }
+        ]
+      },
+      "raw_response": {
+        "data": {
+          "images": [
+            {
+              "url": "https://v3b.fal.media/files/b/0aa53a72/NGGgD-wPuTxLVIgSODT_u.jpg",
+              "width": 768,
+              "height": 1024,
+              "content_type": "image/jpeg"
+            }
+          ],
+          "timings": {
+            "inference": 6.9354475770001045
+          },
+          "seed": 42001,
+          "has_nsfw_concepts": [
+            false
+          ],
+          "prompt": "photo of vivienv2x woman, close-up portrait, looking directly at the camera, neutral relaxed expression, plain light background, soft natural daylight, photorealistic, natural skin texture"
+        },
+        "requestId": "019fd63b-041c-77a3-a5f9-446503678694"
+      }
+    },
+    {
+      "scene_id": "A-baseline",
+      "scene_name": "Close-up (baseline)",
+      "prompt": "photo of woman, close-up portrait, looking directly at the camera, neutral relaxed expression, plain light background, soft natural daylight, photorealistic, natural skin texture",
+      "seed": 42001,
+      "lora_enabled": false,
+      "image_url": "https://v3b.fal.media/files/b/0aa53a73/NeazWYpM5d_q3QtQF9s7S.jpg",
+      "image_size": "portrait_4_3",
+      "status": "success",
+      "endpoint": "fal-ai/flux-lora",
+      "request_timestamp": "2026-08-06T08:40:29.366Z",
+      "response_timestamp": "2026-08-06T08:40:36.661Z",
+      "raw_request": {
+        "prompt": "photo of woman, close-up portrait, looking directly at the camera, neutral relaxed expression, plain light background, soft natural daylight, photorealistic, natural skin texture",
+        "image_size": "portrait_4_3",
+        "num_inference_steps": 28,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+        "seed": 42001
+      },
+      "raw_response": {
+        "data": {
+          "images": [
+            {
+              "url": "https://v3b.fal.media/files/b/0aa53a73/NeazWYpM5d_q3QtQF9s7S.jpg",
+              "width": 768,
+              "height": 1024,
+              "content_type": "image/jpeg"
+            }
+          ],
+          "timings": {
+            "inference": 5.4932437690440565
+          },
+          "seed": 42001,
+          "has_nsfw_concepts": [
+            false
+          ],
+          "prompt": "photo of woman, close-up portrait, looking directly at the camera, neutral relaxed expression, plain light background, soft natural daylight, photorealistic, natural skin texture"
+        },
+        "requestId": "019fd63b-2471-70b0-9601-b187d59647af"
+      }
+    },
+    {
+      "scene_id": "D",
+      "scene_name": "Full-body",
+      "prompt": "photo of vivienv2x woman, full-body fashion photograph, standing naturally in an elegant hotel interior, wearing a simple black dress, realistic body proportions, soft natural light, photorealistic",
+      "seed": 42004,
+      "lora_enabled": true,
+      "lora_strength": 0.7,
+      "image_url": "https://v3b.fal.media/files/b/0aa53a73/_5yWvrP7s29dPmo6474LZ.jpg",
+      "image_size": "portrait_4_3",
+      "status": "success",
+      "endpoint": "fal-ai/flux-lora",
+      "request_timestamp": "2026-08-06T08:40:36.662Z",
+      "response_timestamp": "2026-08-06T08:40:42.038Z",
+      "raw_request": {
+        "prompt": "photo of vivienv2x woman, full-body fashion photograph, standing naturally in an elegant hotel interior, wearing a simple black dress, realistic body proportions, soft natural light, photorealistic",
+        "image_size": "portrait_4_3",
+        "num_inference_steps": 28,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+        "seed": 42004,
+        "loras": [
+          {
+            "path": "https://v3b.fal.media/files/b/0aa539ce/TUuw_lMO8xowMXl5jxonP_pytorch_lora_weights.safetensors",
+            "scale": 0.7
+          }
+        ]
+      },
+      "raw_response": {
+        "data": {
+          "images": [
+            {
+              "url": "https://v3b.fal.media/files/b/0aa53a73/_5yWvrP7s29dPmo6474LZ.jpg",
+              "width": 768,
+              "height": 1024,
+              "content_type": "image/jpeg"
+            }
+          ],
+          "timings": {
+            "inference": 3.919501167954877
+          },
+          "seed": 42004,
+          "has_nsfw_concepts": [
+            false
+          ],
+          "prompt": "photo of vivienv2x woman, full-body fashion photograph, standing naturally in an elegant hotel interior, wearing a simple black dress, realistic body proportions, soft natural light, photorealistic"
+        },
+        "requestId": "019fd63b-40ef-70c3-9357-640f89a66a82"
+      }
+    },
+    {
+      "scene_id": "D-baseline",
+      "scene_name": "Full-body (baseline)",
+      "prompt": "photo of woman, full-body fashion photograph, standing naturally in an elegant hotel interior, wearing a simple black dress, realistic body proportions, soft natural light, photorealistic",
+      "seed": 42004,
+      "lora_enabled": false,
+      "image_url": "https://v3b.fal.media/files/b/0aa53a85/p408dLTsle49uvr2NhbeH.jpg",
+      "image_size": "portrait_4_3",
+      "status": "success",
+      "endpoint": "fal-ai/flux-lora",
+      "request_timestamp": "2026-08-06T08:40:42.038Z",
+      "response_timestamp": "2026-08-06T08:40:48.077Z",
+      "raw_request": {
+        "prompt": "photo of woman, full-body fashion photograph, standing naturally in an elegant hotel interior, wearing a simple black dress, realistic body proportions, soft natural light, photorealistic",
+        "image_size": "portrait_4_3",
+        "num_inference_steps": 28,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+        "seed": 42004
+      },
+      "raw_response": {
+        "data": {
+          "images": [
+            {
+              "url": "https://v3b.fal.media/files/b/0aa53a85/p408dLTsle49uvr2NhbeH.jpg",
+              "width": 768,
+              "height": 1024,
+              "content_type": "image/jpeg"
+            }
+          ],
+          "timings": {
+            "inference": 4.604059722000329
+          },
+          "seed": 42004,
+          "has_nsfw_concepts": [
+            false
+          ],
+          "prompt": "photo of woman, full-body fashion photograph, standing naturally in an elegant hotel interior, wearing a simple black dress, realistic body proportions, soft natural light, photorealistic"
+        },
+        "requestId": "019fd63b-55f3-7061-be74-bb71aeb69f4d"
+      }
+    },
+    {
+      "scene_id": "F",
+      "scene_name": "Soft boudoir",
+      "prompt": "photo of vivienv2x woman, seated on the edge of a bed in an elegant hotel room, wearing a cream silk robe, tasteful boudoir photography, soft natural window light, photorealistic",
+      "seed": 42006,
+      "lora_enabled": true,
+      "lora_strength": 0.7,
+      "image_url": "https://v3b.fal.media/files/b/0aa53a75/Tnpk90e5XYWrC8j4ft8_W.jpg",
+      "image_size": "portrait_4_3",
+      "status": "success",
+      "endpoint": "fal-ai/flux-lora",
+      "request_timestamp": "2026-08-06T08:40:48.078Z",
+      "response_timestamp": "2026-08-06T08:40:53.435Z",
+      "raw_request": {
+        "prompt": "photo of vivienv2x woman, seated on the edge of a bed in an elegant hotel room, wearing a cream silk robe, tasteful boudoir photography, soft natural window light, photorealistic",
+        "image_size": "portrait_4_3",
+        "num_inference_steps": 28,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+        "seed": 42006,
+        "loras": [
+          {
+            "path": "https://v3b.fal.media/files/b/0aa539ce/TUuw_lMO8xowMXl5jxonP_pytorch_lora_weights.safetensors",
+            "scale": 0.7
+          }
+        ]
+      },
+      "raw_response": {
+        "data": {
+          "images": [
+            {
+              "url": "https://v3b.fal.media/files/b/0aa53a75/Tnpk90e5XYWrC8j4ft8_W.jpg",
+              "width": 768,
+              "height": 1024,
+              "content_type": "image/jpeg"
+            }
+          ],
+          "timings": {
+            "inference": 4.316157094000118
+          },
+          "seed": 42006,
+          "has_nsfw_concepts": [
+            false
+          ],
+          "prompt": "photo of vivienv2x woman, seated on the edge of a bed in an elegant hotel room, wearing a cream silk robe, tasteful boudoir photography, soft natural window light, photorealistic"
+        },
+        "requestId": "019fd63b-6d88-7d61-a2c2-ed107537a145"
+      }
+    },
+    {
+      "scene_id": "F-baseline",
+      "scene_name": "Soft boudoir (baseline)",
+      "prompt": "photo of woman, seated on the edge of a bed in an elegant hotel room, wearing a cream silk robe, tasteful boudoir photography, soft natural window light, photorealistic",
+      "seed": 42006,
+      "lora_enabled": false,
+      "image_url": "https://v3b.fal.media/files/b/0aa53a75/HlaikNh4t0fz3X2W2RPgZ.jpg",
+      "image_size": "portrait_4_3",
+      "status": "success",
+      "endpoint": "fal-ai/flux-lora",
+      "request_timestamp": "2026-08-06T08:40:53.435Z",
+      "response_timestamp": "2026-08-06T08:41:00.133Z",
+      "raw_request": {
+        "prompt": "photo of woman, seated on the edge of a bed in an elegant hotel room, wearing a cream silk robe, tasteful boudoir photography, soft natural window light, photorealistic",
+        "image_size": "portrait_4_3",
+        "num_inference_steps": 28,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+        "seed": 42006
+      },
+      "raw_response": {
+        "data": {
+          "images": [
+            {
+              "url": "https://v3b.fal.media/files/b/0aa53a75/HlaikNh4t0fz3X2W2RPgZ.jpg",
+              "width": 768,
+              "height": 1024,
+              "content_type": "image/jpeg"
+            }
+          ],
+          "timings": {
+            "inference": 5.512116885976866
+          },
+          "seed": 42006,
+          "has_nsfw_concepts": [
+            false
+          ],
+          "prompt": "photo of woman, seated on the edge of a bed in an elegant hotel room, wearing a cream silk robe, tasteful boudoir photography, soft natural window light, photorealistic"
+        },
+        "requestId": "019fd63b-8274-7ce3-8660-c1351b1d1cd5"
+      }
+    }
+  ]
+}
