@@ -26,3 +26,12 @@ npm-debug.log*
 
 # claude code local state (personal, not shared)
 .claude/settings.local.json
+
+# Vivien LoRA v2 training artifacts
+artifacts/vivien_lora_v2/raw_higgsfield/
+artifacts/vivien_lora_v2/selected/
+artifacts/vivien_lora_v2/rejected/
+artifacts/vivien_lora_v2/training_package/
+*.zip
+*.tar.gz
+*.tar

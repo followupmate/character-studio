@@ -1,0 +1,548 @@
+{
+  "batch_id": "batch_1786056539",
+  "timestamp": "2026-08-07T00:48:59.390955",
+  "total_videos": 20,
+  "execution_status": "planning",
+  "jobs": [
+    {
+      "video_id": "proven_editorial_walk_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Editorial Walk, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "confident walking motion toward camera, gradual increase in scale, shoulder movement with gait, maintain eye contact, editorial pacing, duration 10 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_cinematic_glide_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Cinematic Glide, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_natural_glance_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Natural Glance, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_editorial_walk_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Editorial Walk, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "confident walking motion toward camera, gradual increase in scale, shoulder movement with gait, maintain eye contact, editorial pacing, duration 10 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_cinematic_glide_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Cinematic Glide, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_natural_glance_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Natural Glance, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_editorial_walk_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Editorial Walk, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "confident walking motion toward camera, gradual increase in scale, shoulder movement with gait, maintain eye contact, editorial pacing, duration 10 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_cinematic_glide_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Cinematic Glide, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_natural_glance_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Natural Glance, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_editorial_walk_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Editorial Walk, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "confident walking motion toward camera, gradual increase in scale, shoulder movement with gait, maintain eye contact, editorial pacing, duration 10 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_cinematic_glide_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Cinematic Glide, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "proven_natural_glance_v1_1786056539",
+      "category": "proven",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Natural Glance, soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "evolution_natural_glance_v1_mut_1786056539_1786056539",
+      "category": "evolution",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Natural Glance (Evolved), soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "evolution_cinematic_glide_v1_mut_1786056539_1786056539",
+      "category": "evolution",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Cinematic Glide (Evolved), soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "smooth camera push-in movement, head follows camera trajectory, confident 15-degree rotation, duration 8 seconds, cinematic timing",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "evolution_natural_glance_v1_mut_1786056539_1786056539",
+      "category": "evolution",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Natural Glance (Evolved), soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "evolution_editorial_walk_v1_mut_1786056539_1786056539",
+      "category": "evolution",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Editorial Walk (Evolved), soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "confident walking motion toward camera, gradual increase in scale, shoulder movement with gait, maintain eye contact, editorial pacing, duration 10 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "evolution_natural_glance_v1_mut_1786056539_1786056539",
+      "category": "evolution",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Natural Glance (Evolved), soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "evolution_cinematic_glide_v1_mut_1786056539_1786056539",
+      "category": "evolution",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Professional influencer shot, The Cinematic Glide (Evolved), soft studio lighting, diffused key light, minimal shadows, professional",
+            "lighting": "soft_studio",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "experiment_1786056539",
+      "category": "experiment",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Experimental: Slow zoom + gentle head rotation, evokes premium cinematography, rim_light lighting, rim lighting, edge detail, moody atmosphere",
+            "lighting": "rim_light",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    },
+    {
+      "video_id": "experiment_1786056539",
+      "category": "experiment",
+      "steps": [
+        {
+          "name": "higgsfield_first_frame",
+          "status": "pending",
+          "input": {
+            "prompt": "Experimental: Mutation of The Cinematic Glide, dramatic_backlit lighting, dramatic backlighting, volumetric light, silhouette elements",
+            "lighting": "dramatic_backlit",
+            "config_id": "config_1786056539"
+          },
+          "job_id": null,
+          "output": null
+        },
+        {
+          "name": "kling_motion",
+          "status": "pending",
+          "input": {
+            "motion_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+            "duration_sec": 10
+          },
+          "job_id": null,
+          "output": null
+        }
+      ]
+    }
+  ]
+}

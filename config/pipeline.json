@@ -1,0 +1,142 @@
+{
+  "pipeline_config": {
+    "name": "Creative Intelligence Layer - Video Pipeline",
+    "version": "1.0.0",
+    "created_at": "2024-01-15T00:00:00Z",
+    "stack": {
+      "visual_generation": "Higgsfield Soul2",
+      "motion_generation": "Kling AI",
+      "analytics_source": "Instagram API"
+    }
+  },
+  "modules": {
+    "dynamic_motion_library": {
+      "enabled": true,
+      "db_path": "data/motion_library.json",
+      "seed_patterns": [
+        {
+          "id": "cinematic_glide_v1",
+          "name": "The Cinematic Glide",
+          "category": "cinematic"
+        },
+        {
+          "id": "natural_glance_v1",
+          "name": "The Natural Glance",
+          "category": "authentic"
+        },
+        {
+          "id": "editorial_walk_v1",
+          "name": "The Editorial Walk",
+          "category": "dynamic"
+        }
+      ],
+      "evolution": {
+        "enabled": true,
+        "mutation_intensity": 0.3,
+        "min_uses_for_evolution": 5,
+        "success_threshold": 0.75
+      }
+    },
+    "analytical_feedback_loop": {
+      "enabled": true,
+      "analytics_path": "data/video_analytics.json",
+      "correlation_analysis": true,
+      "min_videos_for_correlation": 3
+    },
+    "higgsfield_optimizer": {
+      "enabled": true,
+      "configs_path": "data/higgsfield_configs.json",
+      "default_lighting": "golden_hour",
+      "lighting_profiles": {
+        "golden_hour": {
+          "description": "Warm, soft sunlight (early morning/sunset)",
+          "color_palette": ["#FFB84D", "#D4A574", "#8B6F47", "#FFF8DC"],
+          "motion_compatibility": ["cinematic_glide_v1", "natural_glance_v1"],
+          "expected_engagement_boost": 0.15
+        },
+        "soft_studio": {
+          "description": "Professional studio lighting, diffused",
+          "color_palette": ["#F5F5DC", "#E8E8E8", "#D0D0D0", "#A9A9A9"],
+          "motion_compatibility": ["natural_glance_v1", "editorial_walk_v1"],
+          "expected_engagement_boost": 0.08
+        },
+        "dramatic_backlit": {
+          "description": "Moody backlighting, volumetric light",
+          "color_palette": ["#1A1A1A", "#2F2F2F", "#FFD700", "#FF6347"],
+          "motion_compatibility": ["editorial_walk_v1"],
+          "expected_engagement_boost": 0.12
+        },
+        "rim_light": {
+          "description": "Edge lighting, emphasizes silhouette",
+          "color_palette": ["#0D0D0D", "#1F1F1F", "#FFA500", "#FFD700"],
+          "motion_compatibility": ["cinematic_glide_v1"],
+          "expected_engagement_boost": 0.10
+        }
+      }
+    },
+    "production_strategy": {
+      "enabled": true,
+      "output_path": "data/production_strategy.json",
+      "batch_composition": {
+        "proven_percentage": 0.60,
+        "evolution_percentage": 0.30,
+        "experiment_percentage": 0.10
+      },
+      "default_batch_size": 20,
+      "proven_pattern_count": 5,
+      "experiment_diversity": "high"
+    }
+  },
+  "api_configuration": {
+    "higgsfield": {
+      "base_url": "https://api.higgsfield.ai",
+      "model": "soul2",
+      "generation_settings": {
+        "height": 1080,
+        "width": 1080,
+        "steps": 50,
+        "guidance_scale": 7.5
+      },
+      "api_key_env": "HIGGSFIELD_API_KEY"
+    },
+    "kling_ai": {
+      "base_url": "https://api.kling.ai",
+      "model": "kling-v1",
+      "generation_settings": {
+        "resolution": "1080p",
+        "fps": 30,
+        "motion_strength": 0.7
+      },
+      "api_key_env": "KLING_API_KEY"
+    },
+    "instagram": {
+      "analytics_path": "data/ig_raw_analytics.json",
+      "data_format": "instagram_api_reels",
+      "required_fields": ["id", "metrics", "content_metadata"]
+    }
+  },
+  "performance_thresholds": {
+    "watch_time_min_seconds": 8.0,
+    "engagement_rate_threshold": 0.035,
+    "completion_rate_threshold": 0.35,
+    "pattern_success_threshold": 0.75,
+    "pattern_min_samples": 3
+  },
+  "execution_options": {
+    "dry_run": true,
+    "max_concurrent_jobs": 5,
+    "retry_policy": {
+      "max_retries": 3,
+      "retry_delay_seconds": 5
+    },
+    "polling": {
+      "job_check_interval": 10,
+      "max_wait_time_seconds": 3600
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "output_formats": ["console", "file"],
+    "log_file": "logs/pipeline.log"
+  }
+}

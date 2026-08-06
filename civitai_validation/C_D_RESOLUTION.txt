@@ -1,0 +1,30 @@
+IMAGE RESOLUTION ANALYSIS
+=========================
+
+✓ Scene A (Natural Portrait) v1: 896×1152 px
+✓ Scene B (Black Dress) v1: 896×1152 px
+
+✗ Scene C (Lingerie) v1: 796×1024 px (DOWNSCALED!)
+✗ Scene D (Silk Robe) v1: 796×1024 px (DOWNSCALED!)
+
+FILE SIZES:
+- Scene A/B: 105-202 KB @ 896×1152
+- Scene C/D: 54-57 KB @ 796×1024
+
+PROBLEM IDENTIFIED:
+Civitai Orchestration API returned Scene C & D at LOWER resolution (796×1024)
+instead of requested 896×1152. This is a CRITICAL issue because:
+
+1. Scene C (Lingerie) - CRITICAL for Fanvue validation - is DOWNSCALED
+2. Scene D (Boudoir) - CRITICAL for erotic content check - is DOWNSCALED
+3. API settings were identical for all scenes but results differ
+
+CAUSE LIKELY:
+- API dynamic resolution adjustment (possible bug)
+- Model quality degradation for sensitive scenes (lingerie/erotic)
+- Or API cache returning lower-res fallback versions
+
+NEXT ACTION NEEDED:
+Option A: Re-request from fresh API with explicit resolution parameters
+Option B: Accept lower resolution and evaluate as-is
+Option C: Use Civitai Generator UI directly for full-res Generation

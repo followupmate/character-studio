@@ -431,7 +431,21 @@ const CAPTION_VIDEO_HEADER = `You are writing a short video prompt for Google Ve
 
 WRITE LIKE: a one-sentence director's note. 30–50 words.
 
-SAFETY: no "nude [garment]", no body anatomy, no "sensual"/"intimate".`;
+SAFETY: no "nude [garment]", no body anatomy, no "sensual"/"intimate".
+
+PROVEN ENGAGEMENT PATTERN (measured on this character's real Instagram reel metrics, 29 scored
+reels: the top performers — 209k and 99k views — share ALL FOUR of these; the weakest reels,
+under 5k views, share none. Follow all four unless the archetype makes one physically impossible):
+1. CAMERA: static or near-static, chest/eye level, facing her directly. NO orbits, NO low-angle
+   tilts, NO handheld arcs — every complex camera move sits in the bottom of the metrics table.
+2. GAZE ARC INTO THE LENS: her eyes either hold the lens throughout, or make ONE arc — drift
+   down/away, then lift BACK UP to meet the lens near the end. The connect-with-the-lens moment
+   is the single strongest shared trait of the winners. NEVER end the video with her looking away
+   (a gaze that drifts to the window/horizon and stays there marks the weakest reels).
+3. ONE small self-contained gesture: adjusting a lapel or strap, lifting the necklace, a slow
+   exhale, hair settling. NOT a functional task — reaching for bags, stepping toward equipment,
+   picking things up all score at the bottom.
+4. SEAMLESS LOOP: the final frame returns to the opening composition/stillness, stated explicitly.`;
 
 const CAPTION_VIDEO_OUTPUT = `OUTPUT RULES:
 2–3 sentences. Cover: camera position, subject action (one motion verb), outfit from wardrobe_lock, setting, lighting.

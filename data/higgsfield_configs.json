@@ -1,0 +1,18 @@
+{
+  "config_1786056539": {
+    "id": "config_1786056539",
+    "base_prompt": "Experimental: Mutation of The Cinematic Glide, dramatic_backlit lighting, dramatic backlighting, volumetric light, silhouette elements",
+    "lighting": "dramatic_backlit",
+    "color_palette": [
+      "#1A1A1A",
+      "#2F2F2F",
+      "#FFD700",
+      "#FF6347"
+    ],
+    "composition": "rule_of_thirds",
+    "engagement_score": 0.0,
+    "paired_motions": [
+      "cinematic_glide_v1_mut_1786056539"
+    ]
+  }
+}

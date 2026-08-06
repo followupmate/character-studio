@@ -130,6 +130,270 @@ function containsEroticCue(prompt: string): boolean {
   return EROTIC_CUE_MARKERS.some((m) => prompt.includes(m));
 }
 
+// ── luxe_car shot blueprint (hard shot-role separation) ──
+// Found via a real live draft: the generic STEP_DIRECTIVES above are tier-agnostic template text
+// ("Alone now, she starts shedding..." / "Camera framing: medium, full-room establishing shot")
+// that doesn't fit a car scene at all, and only varies wording/intensity — not pose, camera
+// distance, spatial zone, garment state, body emphasis, or viewer relationship. The result reads
+// as 6 angle variations of one standing/stepping-out-of-car pose, not a narrative progression.
+// This blueprint gives luxe_car sets a genuinely distinct pose/spatial/garment arc per step,
+// scoped to this one tier for now (extending to others is future work — see visualDiversityCheck's
+// no-op-when-unrecognized guard below, which keeps this from silently penalizing other tiers).
+type CameraDistanceLabel = "wide" | "medium" | "medium-close" | "close" | "closest";
+interface LuxeCarShotBlueprint {
+  pose_family: string;
+  pose_archetype: string;
+  camera_distance: CameraDistanceLabel;
+  spatial_zone: string;
+  garment_state: { soft: string; hot: string };
+  body_emphasis: { soft: string; hot: string };
+  viewer_relationship: { soft: string; hot: string };
+}
+
+// Hard, verbatim locks appended to EVERY luxe_car shot prompt — not per-step content, deliberately
+// invariant text. Two real-draft failures drove this: (1) escalation rendered two instances of
+// Vivienne in one frame — a rendering failure the prompt itself has to actively guard against, not
+// just avoid triggering; (2) nothing pinned the scene to "still night" once shots moved beyond the
+// literal open car door, risking a drift to daylight/dusk framing across the set.
+const LUXE_CAR_SINGLE_PERSON_LOCK =
+  "Exactly one adult woman in the entire image. Show only one temporal moment and one body position. Do not depict sequential movement phases, reflections resembling another person, duplicates, clones, repeated bodies or another instance of Vivienne.";
+const LUXE_CAR_TEMPORAL_LIGHTING_LOCK =
+  "Continuous late-night setting from the source scene. Dark city street, warm artificial street and vehicle lighting, dark sky, no daylight, no sunrise, no sunset, no blue-hour transition. Preserve the same weather, street surface and overall color temperature throughout the entire set.";
+// Only for escalation/reveal/payoff/afterglow — bridge/private_access ARE the arrival/doorway
+// moment these exclusions forbid repeating, so applying them there would be self-contradictory.
+const LUXE_CAR_LATER_SHOT_EXCLUSIONS =
+  "Do not show the bridge pose. Do not show her standing outside beside the open car door. Do not use the same exposed-back over-the-shoulder composition. Do not merely change her head angle.";
+
+// Spatial progression (real-draft finding #2): six shots at the same open car door read as static
+// angle variation no matter how the pose text differs. The event stays continuous (same car, same
+// outfit, same night) but the LOCATION now genuinely moves — curbside -> fully inside the car ->
+// the car arriving at a private underground garage -> deepest moment there -> stepping back out.
+// Camera distance still only tightens (never resets to a wide establishing shot at the garage) so
+// the monotonic camera-proximity requirement holds even though the environment changes.
+const LUXE_CAR_SHOT_BLUEPRINT: Record<ShotStep, LuxeCarShotBlueprint> = {
+  bridge: {
+    pose_family: "car_exterior_arrival",
+    pose_archetype: "standing just outside the open car door, one hand still resting on the door frame, arriving into the moment, full figure visible against the car and street",
+    camera_distance: "wide",
+    spatial_zone: "exterior, beside the car at the curb, full figure with the car and dark street behind her",
+    garment_state: {
+      soft: "outfit fully closed and settled, exactly as worn on Instagram",
+      hot: "outfit fully closed and settled, exactly as worn on Instagram — nothing shifted yet",
+    },
+    body_emphasis: { soft: "overall silhouette and the line of the outfit", hot: "overall silhouette and the line of the outfit" },
+    viewer_relationship: {
+      soft: "a passerby's glance — aware of being seen, not yet addressing the camera directly",
+      hot: "a passerby's glance — aware of being seen, not yet addressing the camera directly",
+    },
+  },
+  private_access: {
+    pose_family: "car_rear_seat_edge",
+    pose_archetype: "seated on the edge of the rear seat, one leg still outside the car resting on the curb, the other drawn in, door still open beside her",
+    camera_distance: "medium",
+    spatial_zone: "car doorway threshold, half in frame, the interior visible behind her, still curbside",
+    garment_state: {
+      soft: "outfit unchanged but the open back now catching the warm cabin light as she settles onto the seat",
+      hot: "the open back now fully caught in the cabin light as she settles onto the seat — the halter tie at the neck loosened a fraction",
+    },
+    body_emphasis: {
+      soft: "waist and the beginning of the thigh line as she sits at the seat's edge",
+      hot: "waist, hip line and the open back as she settles onto the seat edge, thigh line beginning to show below the shorts hem",
+    },
+    viewer_relationship: {
+      soft: "the first direct acknowledgment of the camera — a private aside",
+      hot: "the first direct acknowledgment of the camera — a private aside, a small deliberate pause",
+    },
+  },
+  escalation: {
+    pose_family: "car_interior_full",
+    pose_archetype: "fully inside the car now, door closed, seated properly in the back seat with both legs drawn in, torso turned to face the camera",
+    camera_distance: "medium-close",
+    spatial_zone: "car interior, fully enclosed now, door closed, street light passing softly through the window",
+    garment_state: {
+      soft: "shorts settled at mid-thigh now that she's fully seated, halter neckline unchanged",
+      hot: "shorts riding higher on the thigh now that she's fully seated, halter tie visibly loosened at the neck",
+    },
+    body_emphasis: {
+      soft: "thigh line and seated waist curve, now fully visible with both legs in frame",
+      hot: "thigh line and seated waist curve, now fully visible with both legs in frame, the loosened halter drawing the eye to the collarbone",
+    },
+    viewer_relationship: {
+      soft: "engaged, holding eye contact as if inviting the camera closer",
+      hot: "engaged, holding eye contact as if inviting the camera closer — the privacy of the closed door changing the mood",
+    },
+  },
+  reveal: {
+    pose_family: "car_garage_continuation",
+    pose_archetype: "the car has pulled into a private underground garage and parked, engine off — she has shifted position inside, half-turned toward the camera with the garage's dim overhead light replacing the street glow",
+    camera_distance: "close",
+    spatial_zone: "car interior, now parked in a private underground garage — a genuinely new location, only the garage's dim overhead light and the car's cabin glow, same car, same outfit",
+    garment_state: {
+      soft: "the open back fully visible in the garage light, shorts hem at its highest point so far",
+      hot: "the open back fully visible in the garage light, halter tie loosened further, shorts hem at its highest point of the set so far",
+    },
+    body_emphasis: {
+      soft: "the open back and thigh together, now the two clear focal points",
+      hot: "the open back and thigh together, now the two clear focal points, more of the leg visible than any prior shot",
+    },
+    viewer_relationship: {
+      soft: "direct, unguarded eye contact — the moment turns toward the buyer specifically now that they're truly alone",
+      hot: "direct, unguarded eye contact — the moment turns toward the buyer specifically now that they're truly alone, nothing held back",
+    },
+  },
+  payoff: {
+    pose_family: "car_garage_peak",
+    pose_archetype: "still inside the car in the private garage, reclined across the back seat, one hand braced on the seat behind her, body arched slightly toward the camera — the closest and most intimate framing of the entire set",
+    camera_distance: "closest",
+    spatial_zone: "car interior, parked in the private garage, the tightest frame of the set, garage and cabin light the only source",
+    garment_state: {
+      soft: "the outfit at its most settled and revealing point within the provider-safe boundary",
+      hot: "maximum implied undress within the provider-safe boundary — the open back fully caught in the light, the halter and shorts at their most displaced point of the entire set",
+    },
+    body_emphasis: {
+      soft: "back, waist and thigh together, the clear focal point of the set",
+      hot: "maximum emphasis on back, waist and thigh together — visibly more leg shown than any prior shot — the clear reason this was worth paying for",
+    },
+    viewer_relationship: {
+      soft: "the closest, most private moment of the set, held for the buyer alone",
+      hot: "the closest, most private moment of the set — a direct invitation held for the buyer alone",
+    },
+  },
+  afterglow: {
+    pose_family: "car_garage_settled",
+    pose_archetype: "stepped halfway out of the car in the quiet garage, leaning against the open door, a soft and relaxed private closing moment",
+    camera_distance: "medium",
+    spatial_zone: "the private underground garage, pulled back slightly, only ambient garage light, the car beside her",
+    garment_state: {
+      soft: "outfit relaxed back to settled, no longer at its most displaced point",
+      hot: "outfit relaxed back to settled, no longer at its most displaced point — the peak has passed",
+    },
+    body_emphasis: { soft: "a softened overall line, no single focal point", hot: "a softened overall line, no single focal point" },
+    viewer_relationship: {
+      soft: "quiet and private, no longer performing for the camera — the buyer is simply there",
+      hot: "quiet and private, no longer performing for the camera — the buyer is simply there",
+    },
+  },
+};
+
+function buildLuxeCarDirective(step: ShotStep, contentLevel: ContentLevel): string {
+  const bp = LUXE_CAR_SHOT_BLUEPRINT[step];
+  const variant = contentLevel === "premium_sensual" ? "soft" : "hot";
+  const exclusions = step === "bridge" || step === "private_access" ? "" : ` ${LUXE_CAR_LATER_SHOT_EXCLUSIONS}`;
+  return `${bp.pose_archetype}. Spatial zone: ${bp.spatial_zone}. Garment state: ${bp.garment_state[variant]}. Body emphasis: ${bp.body_emphasis[variant]}. Viewer relationship: ${bp.viewer_relationship[variant]}. Camera framing: ${bp.camera_distance}. ${LUXE_CAR_SINGLE_PERSON_LOCK} ${LUXE_CAR_TEMPORAL_LIGHTING_LOCK}${exclusions}`;
+}
+
+// Pose-family classifier — recognizes both the new luxe_car blueprint's distinct per-step poses
+// AND the generic/duplicative stances that caused the original complaint (standing beside the
+// car door / torso turned back / looking over shoulder), so the near-duplicate guard below can
+// catch a regression back to that failure mode, not just validate the new blueprint's own output.
+const POSE_FAMILY_PATTERNS: Array<{ family: string; pattern: RegExp }> = [
+  { family: "car_exterior_arrival", pattern: /\bstanding just outside the open car door\b/i },
+  { family: "car_rear_seat_edge", pattern: /\bseated on the edge of the rear seat\b/i },
+  { family: "car_interior_full", pattern: /\bfully inside the car now, door closed\b/i },
+  { family: "car_garage_continuation", pattern: /\bthe car has pulled into a private underground garage\b/i },
+  { family: "car_garage_peak", pattern: /\bstill inside the car in the private garage, reclined\b/i },
+  { family: "car_garage_settled", pattern: /\bstepped halfway out of the car in the quiet garage\b/i },
+  { family: "standing_beside_car_door", pattern: /\bstanding\b[^.]{0,40}\b(beside|next to)\b[^.]{0,20}\bopen car door\b/i },
+  { family: "torso_turned_back", pattern: /\btorso\b[^.]{0,10}\bturned back\b/i },
+  { family: "looking_over_shoulder", pattern: /\blooking\b[^.]{0,10}\bover (her |the )?shoulder\b/i },
+];
+
+export function classifyPoseFamily(prompt: string): string | null {
+  for (const { family, pattern } of POSE_FAMILY_PATTERNS) {
+    if (pattern.test(prompt)) return family;
+  }
+  return null;
+}
+
+// Extracts the camera-distance rank from the "Camera framing: X." sentence every shot prompt
+// carries (item 8's original ladder + the luxe_car blueprint's camera_distance both use this same
+// convention). Order matters: "closest"/"medium-close" must be checked before the shorter
+// substrings ("close"/"medium") they contain, or they'd never be reached.
+const CAMERA_DISTANCE_LABEL_ORDER: Array<{ label: string; rank: number }> = [
+  { label: "closest", rank: 4 },
+  { label: "medium-close", rank: 2 },
+  { label: "close", rank: 3 },
+  { label: "wide", rank: 0 },
+  { label: "medium", rank: 1 },
+];
+
+export function extractCameraDistanceRank(prompt: string): number | null {
+  const m = prompt.match(/Camera framing:\s*([^.]*)\./i);
+  if (!m) return null;
+  const seg = m[1].toLowerCase();
+  for (const { label, rank } of CAMERA_DISTANCE_LABEL_ORDER) {
+    if (seg.includes(label)) return rank;
+  }
+  return null;
+}
+
+export interface VisualDiversityCheck {
+  passes: boolean;
+  reasons: string[];
+}
+
+const STANCE_REPEAT_LIMIT = 2; // reject a pose family appearing in MORE than 2 (i.e. 3+) shots
+const CAMERA_REPEAT_LIMIT = 2; // reject a camera distance appearing in MORE than 2 (i.e. 3+) shots
+const MIN_UNIQUE_POSE_FAMILIES = 4; // "reads as angle variation, not narrative progression" guard
+
+// Hard separation between shot roles + near-duplicate stance guard + visible-progression
+// enforcement, all in one deterministic (no LLM judge) check. Scoped to whichever tier(s) have a
+// shot blueprint the classifier recognizes — currently luxe_car only: if NO shot's pose is
+// recognized at all, this plan predates/doesn't use a blueprint and the check is a clean no-op,
+// never a false failure for a tier this guard doesn't cover yet. Folded into validatePaidValue()
+// below rather than kept as a parallel gate, since "does this read as a real paid escalation, not
+// angle variation" is squarely the same question validatePaidValue already owns.
+export function visualDiversityCheck(plan: FanvueContinuationPlan): VisualDiversityCheck {
+  const families = plan.shots.map((s) => classifyPoseFamily(s.prompt));
+  if (families.every((f) => f === null)) return { passes: true, reasons: [] };
+
+  const reasons: string[] = [];
+
+  const familyCounts = new Map<string, number>();
+  for (const family of families) {
+    if (family) familyCounts.set(family, (familyCounts.get(family) ?? 0) + 1);
+  }
+  for (const [family, count] of familyCounts) {
+    if (count > STANCE_REPEAT_LIMIT) {
+      reasons.push(`pose family "${family}" repeats across ${count} shots (max ${STANCE_REPEAT_LIMIT}) — each shot needs a distinct pose archetype`);
+    }
+  }
+
+  const frameCounts = new Map<number, number>();
+  for (const shot of plan.shots) {
+    const rank = extractCameraDistanceRank(shot.prompt);
+    if (rank !== null) frameCounts.set(rank, (frameCounts.get(rank) ?? 0) + 1);
+  }
+  for (const [, count] of frameCounts) {
+    if (count > CAMERA_REPEAT_LIMIT) {
+      reasons.push(`camera framing repeats across ${count} shots (max ${CAMERA_REPEAT_LIMIT}) — camera distance must vary across the set`);
+    }
+  }
+
+  const reveal = plan.shots.find((s) => s.step === "reveal");
+  const payoff = plan.shots.find((s) => s.step === "payoff");
+  if (reveal && payoff) {
+    const revealRank = extractCameraDistanceRank(reveal.prompt);
+    const payoffRank = extractCameraDistanceRank(payoff.prompt);
+    if (revealRank !== null && payoffRank !== null && payoffRank <= revealRank) {
+      reasons.push("payoff is not clearly more intimate (closer) than reveal");
+    }
+  }
+
+  const bridgeFamily = classifyPoseFamily(plan.shots.find((s) => s.step === "bridge")?.prompt ?? "");
+  const afterglowFamily = classifyPoseFamily(plan.shots.find((s) => s.step === "afterglow")?.prompt ?? "");
+  if (bridgeFamily && afterglowFamily && bridgeFamily === afterglowFamily) {
+    reasons.push("afterglow repeats bridge's pose family — must be visually distinct from the arrival stance");
+  }
+
+  const uniqueFamilies = new Set(families.filter((f): f is string => !!f));
+  if (uniqueFamilies.size < MIN_UNIQUE_POSE_FAMILIES) {
+    reasons.push(`only ${uniqueFamilies.size} distinct pose families recognized across the set (need >= ${MIN_UNIQUE_POSE_FAMILIES}) — set reads as angle variation, not narrative progression`);
+  }
+
+  return { passes: reasons.length === 0, reasons };
+}
+
 // Default content_level per tier/magnetism/tension — deliberately more aggressive than a plain
 // intensity->content_level remap: intimate_aesthetic and luxe_car default straight to
 // erotic_tease (they're already the two highest-probability, highest-price tiers today), and any
@@ -207,6 +471,7 @@ function buildShotPrompt(args: {
   series: string;
   storyDay: StoryDayLike;
   wardrobe: string;
+  tier: StoryTier;
   contentLevel: ContentLevel;
   intensity: ShotIntensity;
   situationTension?: SituationFanvueTension;
@@ -215,8 +480,10 @@ function buildShotPrompt(args: {
   luxurySeduction?: LuxurySeduction;
   playfulHotWorld?: PlayfulHotWorldProfile;
 }): string {
-  const { step, series, storyDay, wardrobe, contentLevel, intensity } = args;
-  const directive = STEP_DIRECTIVES[step][contentLevel === "premium_sensual" ? "soft" : "hot"];
+  const { step, series, storyDay, wardrobe, tier, contentLevel, intensity } = args;
+  const directive = tier === "luxe_car"
+    ? buildLuxeCarDirective(step, contentLevel)
+    : STEP_DIRECTIVES[step][contentLevel === "premium_sensual" ? "soft" : "hot"];
   const situationClause = situationTensionClause(args.situationTension);
   const rawSensualClause = sensualVisualLanguageClause(args.sensualVisualLanguage);
   // Private-source guard (item 6) — the reveal/payoff steps' own directive text already claims
@@ -310,6 +577,7 @@ export function buildFanvueContinuationPlan(args: {
       series: args.series,
       storyDay: args.storyDay,
       wardrobe: args.wardrobe,
+      tier: args.tier,
       contentLevel,
       intensity: curve[step],
       situationTension: args.situationTension,
@@ -409,6 +677,11 @@ export function validatePaidValue(plan: FanvueContinuationPlan): PaidValueCheck 
   if (new Set(corroboratingPrompts).size < corroboratingPrompts.length) {
     reasons.push("two or more of escalation/reveal/payoff have byte-identical prompts");
   }
+
+  // Hard shot-role separation + near-duplicate stance guard + visible-progression enforcement
+  // (currently meaningful for luxe_car via its shot blueprint; a clean no-op for tiers without
+  // one yet — see visualDiversityCheck's doc comment).
+  reasons.push(...visualDiversityCheck(plan).reasons);
 
   return { passes: reasons.length === 0, reasons };
 }

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3)",
+      "Bash(npm install *)",
+      "WebFetch(domain:education.civitai.com)",
+      "Bash(chmod +x lib/trainLoraVivienneFinal.sh)",
+      "Bash(bash lib/trainLoraVivienneFinal.sh)",
+      "Bash(python lib/pipeline_orchestrator.py --batch-size 20)",
+      "Bash(python -u lib/pipeline_orchestrator.py --batch-size 20)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\owner\\Desktop\\projekty\\projekt_9\\Character_studio"
+    ]
+  }
+}

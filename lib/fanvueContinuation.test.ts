@@ -5,11 +5,24 @@ import {
   validatePaidValue,
   validateFanvueSource,
   duplicatePersonRisk,
+  classifyPoseFamily,
+  extractCameraDistanceRank,
+  visualDiversityCheck,
   SHOT_STEPS,
   type FanvueContinuationPlan,
 } from "./fanvueContinuation";
 import type { StoryDayLike, SituationFanvueTension } from "./fanvueUnlock";
 import type { GenerativeSituation } from "./situationPlanner";
+
+const LUXE_CAR_STORY_DAY: StoryDayLike = {
+  tier: "luxe_car",
+  moment_family: null,
+  magnetism_level: null,
+  location: "city street at night, stepping out of a dark luxury grand-tourer",
+  mood: "electric",
+  ig_caption: null,
+  hook_text: "wait till she steps out",
+};
 
 function baseSituation(overrides: Partial<GenerativeSituation> = {}): GenerativeSituation {
   return {
@@ -483,5 +496,201 @@ describe("duplicatePersonRisk", () => {
 
   it("does not flag a prompt that explicitly negates a duplicate/split composition (negation-aware, same pattern as noSecondSharpFace)", () => {
     expect(duplicatePersonRisk("a single continuous frame, no split-screen, only one of her in view")).toBeNull();
+  });
+});
+
+// luxe_car shot blueprint — hard shot-role separation (real-draft finding: the generic
+// STEP_DIRECTIVES text produced 6 angle variations of one standing/stepping-out-of-car pose for
+// this tier; a live "After Dark" set was rejected on exactly this basis).
+describe("buildFanvueContinuationPlan — luxe_car shot blueprint", () => {
+  const plan = buildFanvueContinuationPlan({
+    tier: "luxe_car", series: "After Dark", storyDay: LUXE_CAR_STORY_DAY, wardrobe: "", magnetism: null,
+  });
+
+  it("gives every one of the 6 shots a distinct, recognized pose family", () => {
+    const families = plan.shots.map((s) => classifyPoseFamily(s.prompt));
+    for (const family of families) expect(family).not.toBeNull();
+    expect(new Set(families).size).toBe(6);
+  });
+
+  it("carries a monotonically non-decreasing camera-distance rank from bridge through payoff", () => {
+    const order: Array<typeof plan.shots[number]["step"]> = ["bridge", "private_access", "escalation", "reveal", "payoff"];
+    let last = -1;
+    for (const step of order) {
+      const shot = plan.shots.find((s) => s.step === step)!;
+      const rank = extractCameraDistanceRank(shot.prompt)!;
+      expect(rank).toBeGreaterThanOrEqual(last);
+      last = rank;
+    }
+  });
+
+  it("payoff is strictly closer (higher camera-distance rank) than reveal", () => {
+    const reveal = plan.shots.find((s) => s.step === "reveal")!;
+    const payoff = plan.shots.find((s) => s.step === "payoff")!;
+    expect(extractCameraDistanceRank(payoff.prompt)!).toBeGreaterThan(extractCameraDistanceRank(reveal.prompt)!);
+  });
+
+  it("afterglow does not repeat bridge's pose family", () => {
+    const bridge = plan.shots.find((s) => s.step === "bridge")!;
+    const afterglow = plan.shots.find((s) => s.step === "afterglow")!;
+    expect(classifyPoseFamily(afterglow.prompt)).not.toBe(classifyPoseFamily(bridge.prompt));
+  });
+
+  it("passes visualDiversityCheck and validatePaidValue for a real, unmodified erotic_tease luxe_car set", () => {
+    expect(visualDiversityCheck(plan)).toEqual({ passes: true, reasons: [] });
+    expect(validatePaidValue(plan).passes).toBe(true);
+  });
+
+  it("does not apply the luxe_car blueprint to other tiers (byte-identical to pre-blueprint generic directive shape)", () => {
+    const intimatePlan = buildFanvueContinuationPlan({
+      tier: "intimate_aesthetic", series: "Room 407", storyDay: LUXE_CAR_STORY_DAY, wardrobe: "silk robe", magnetism: null,
+    });
+    for (const shot of intimatePlan.shots) {
+      expect(shot.prompt).not.toContain("Spatial zone:");
+      expect(classifyPoseFamily(shot.prompt)).toBeNull();
+    }
+  });
+
+  // Real-draft findings: escalation rendered two Vivienne instances, and nothing pinned the set
+  // to a single continuous night once shots moved past the literal open car door.
+  it("every one of the 6 shots carries the single-person lock, verbatim", () => {
+    for (const shot of plan.shots) {
+      expect(shot.prompt).toContain("Exactly one adult woman in the entire image.");
+      expect(shot.prompt).toContain("another instance of Vivienne");
+    }
+  });
+
+  it("every one of the 6 shots carries the temporal/lighting lock, verbatim", () => {
+    for (const shot of plan.shots) {
+      expect(shot.prompt).toContain("Continuous late-night setting from the source scene.");
+      expect(shot.prompt).toContain("no daylight, no sunrise, no sunset, no blue-hour transition");
+    }
+  });
+
+  it("only escalation/reveal/payoff/afterglow carry the bridge-repeat exclusions — not bridge/private_access", () => {
+    for (const step of ["escalation", "reveal", "payoff", "afterglow"] as const) {
+      const shot = plan.shots.find((s) => s.step === step)!;
+      expect(shot.prompt).toContain("Do not show the bridge pose.");
+      expect(shot.prompt).toContain("Do not merely change her head angle.");
+    }
+    for (const step of ["bridge", "private_access"] as const) {
+      const shot = plan.shots.find((s) => s.step === step)!;
+      expect(shot.prompt).not.toContain("Do not show the bridge pose.");
+    }
+  });
+
+  it("reveal and payoff move to a genuinely new location (private garage) while keeping the same car and outfit", () => {
+    const reveal = plan.shots.find((s) => s.step === "reveal")!;
+    const payoff = plan.shots.find((s) => s.step === "payoff")!;
+    expect(reveal.prompt).toContain("private underground garage");
+    expect(payoff.prompt).toContain("private garage");
+    // same car/outfit continuity, not a new scene from scratch
+    expect(reveal.prompt).toContain("same car, same outfit");
+  });
+});
+
+describe("classifyPoseFamily", () => {
+  it("recognizes each of the 6 luxe_car blueprint pose archetypes", () => {
+    expect(classifyPoseFamily("standing just outside the open car door, one hand still resting")).toBe("car_exterior_arrival");
+    expect(classifyPoseFamily("seated on the edge of the rear seat, one leg still outside")).toBe("car_rear_seat_edge");
+    expect(classifyPoseFamily("fully inside the car now, door closed, seated properly")).toBe("car_interior_full");
+    expect(classifyPoseFamily("the car has pulled into a private underground garage and parked")).toBe("car_garage_continuation");
+    expect(classifyPoseFamily("still inside the car in the private garage, reclined across the back seat")).toBe("car_garage_peak");
+    expect(classifyPoseFamily("stepped halfway out of the car in the quiet garage, leaning against the open door")).toBe("car_garage_settled");
+  });
+
+  it("recognizes the generic/duplicative stances flagged as the original failure mode", () => {
+    expect(classifyPoseFamily("standing beside the open car door, torso half turned")).toBe("standing_beside_car_door");
+    expect(classifyPoseFamily("her torso is turned back toward the lens")).toBe("torso_turned_back");
+    expect(classifyPoseFamily("looking back over her shoulder toward the camera")).toBe("looking_over_shoulder");
+  });
+
+  it("returns null for unrecognized text", () => {
+    expect(classifyPoseFamily("a plain non-descriptive prompt with no pose cue")).toBeNull();
+  });
+});
+
+describe("extractCameraDistanceRank", () => {
+  it("ranks wide < medium < medium-close < close < closest", () => {
+    expect(extractCameraDistanceRank("blah. Camera framing: wide.")).toBe(0);
+    expect(extractCameraDistanceRank("blah. Camera framing: medium.")).toBe(1);
+    expect(extractCameraDistanceRank("blah. Camera framing: medium-close.")).toBe(2);
+    expect(extractCameraDistanceRank("blah. Camera framing: close.")).toBe(3);
+    expect(extractCameraDistanceRank("blah. Camera framing: closest.")).toBe(4);
+  });
+
+  it("returns null when no Camera framing sentence is present", () => {
+    expect(extractCameraDistanceRank("a prompt with no framing cue at all")).toBeNull();
+  });
+});
+
+describe("visualDiversityCheck", () => {
+  const basePlan = buildFanvueContinuationPlan({
+    tier: "luxe_car", series: "After Dark", storyDay: LUXE_CAR_STORY_DAY, wardrobe: "", magnetism: null,
+  });
+
+  it("is a no-op for a set with no recognized pose families (tier without a blueprint yet)", () => {
+    const genericPlan = buildFanvueContinuationPlan({
+      tier: "intimate_aesthetic", series: "Room 407", storyDay: LUXE_CAR_STORY_DAY, wardrobe: "silk robe", magnetism: null,
+    });
+    expect(visualDiversityCheck(genericPlan)).toEqual({ passes: true, reasons: [] });
+  });
+
+  it("rejects when 3+ shots share the same pose family (the original 'standing beside car door' failure mode)", () => {
+    const collapsed: FanvueContinuationPlan = {
+      ...basePlan,
+      shots: basePlan.shots.map((s, i) =>
+        i < 3 ? { ...s, prompt: "standing beside the open car door, torso half turned. Camera framing: wide." } : s
+      ),
+    };
+    const result = visualDiversityCheck(collapsed);
+    expect(result.passes).toBe(false);
+    expect(result.reasons.join(" ")).toContain("repeats across 3 shots");
+  });
+
+  it("rejects when payoff is not more intimate (closer) than reveal", () => {
+    const payoffIdx = basePlan.shots.findIndex((s) => s.step === "payoff");
+    const flattened: FanvueContinuationPlan = {
+      ...basePlan,
+      shots: basePlan.shots.map((s, i) => (i === payoffIdx ? { ...s, prompt: s.prompt.replace(/Camera framing: closest\./, "Camera framing: close.") } : s)),
+    };
+    const result = visualDiversityCheck(flattened);
+    expect(result.passes).toBe(false);
+    expect(result.reasons.join(" ")).toContain("not clearly more intimate");
+  });
+
+  it("rejects when afterglow repeats bridge's pose family", () => {
+    const bridge = basePlan.shots.find((s) => s.step === "bridge")!;
+    const withRepeat: FanvueContinuationPlan = {
+      ...basePlan,
+      shots: basePlan.shots.map((s) => (s.step === "afterglow" ? { ...s, prompt: bridge.prompt } : s)),
+    };
+    const result = visualDiversityCheck(withRepeat);
+    expect(result.passes).toBe(false);
+    expect(result.reasons.join(" ")).toContain("afterglow repeats bridge");
+  });
+
+  it("rejects when fewer than 4 distinct pose families are recognized across the set", () => {
+    const genericText = "standing beside the open car door, torso half turned. Camera framing: wide.";
+    const collapsedToTwo: FanvueContinuationPlan = {
+      ...basePlan,
+      shots: basePlan.shots.map((s, i) => (i % 2 === 0 ? { ...s, prompt: genericText } : { ...s, prompt: "looking back over her shoulder. Camera framing: medium." })),
+    };
+    const result = visualDiversityCheck(collapsedToTwo);
+    expect(result.passes).toBe(false);
+    expect(result.reasons.join(" ")).toContain("distinct pose families recognized");
+  });
+
+  it("validatePaidValue surfaces visualDiversityCheck's reasons for erotic_tease/explicit_adult, but not premium_sensual", () => {
+    const collapsed: FanvueContinuationPlan = {
+      ...basePlan,
+      shots: basePlan.shots.map((s, i) =>
+        i < 3 ? { ...s, prompt: "standing beside the open car door, torso half turned. Camera framing: wide." } : s
+      ),
+    };
+    expect(validatePaidValue(collapsed).passes).toBe(false);
+
+    const premiumCollapsed: FanvueContinuationPlan = { ...collapsed, content_level: "premium_sensual" };
+    expect(validatePaidValue(premiumCollapsed)).toEqual({ passes: true, reasons: [] });
   });
 });

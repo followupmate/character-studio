@@ -1,0 +1,110 @@
+{
+  "cinematic_glide_v1": {
+    "id": "cinematic_glide_v1",
+    "name": "The Cinematic Glide",
+    "description": "Slow zoom + gentle head rotation, evokes premium cinematography",
+    "kling_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+    "avg_watch_time": 11.8,
+    "engagement_score": 0.0651219512195122,
+    "uses": 1,
+    "success_rate": 0.5900000000000001,
+    "created_at": "2026-08-07T00:48:59.324284",
+    "last_modified": "2026-08-07T00:48:59.348286",
+    "metadata": {
+      "category": "cinematic",
+      "intensity": "low",
+      "duration_sec": 8
+    }
+  },
+  "natural_glance_v1": {
+    "id": "natural_glance_v1",
+    "name": "The Natural Glance",
+    "description": "Blink, subtle smile, hair in wind - authentic interaction",
+    "kling_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+    "avg_watch_time": 7.85,
+    "engagement_score": 0.05350446428571429,
+    "uses": 2,
+    "success_rate": 0.39249999999999996,
+    "created_at": "2026-08-07T00:48:59.325282",
+    "last_modified": "2026-08-07T00:48:59.352286",
+    "metadata": {
+      "category": "authentic",
+      "intensity": "minimal",
+      "duration_sec": 6
+    }
+  },
+  "editorial_walk_v1": {
+    "id": "editorial_walk_v1",
+    "name": "The Editorial Walk",
+    "description": "Dynamic movement toward camera, high engagement energy",
+    "kling_prompt": "confident walking motion toward camera, gradual increase in scale, shoulder movement with gait, maintain eye contact, editorial pacing, duration 10 seconds",
+    "avg_watch_time": 15.233333333333334,
+    "engagement_score": 0.06824114066165587,
+    "uses": 3,
+    "success_rate": 0.7616666666666667,
+    "created_at": "2026-08-07T00:48:59.325282",
+    "last_modified": "2026-08-07T00:48:59.350285",
+    "metadata": {
+      "category": "dynamic",
+      "intensity": "high",
+      "duration_sec": 10
+    }
+  },
+  "natural_glance_v1_mut_1786056539": {
+    "id": "natural_glance_v1_mut_1786056539",
+    "name": "The Natural Glance (Evolved)",
+    "description": "Mutation of The Natural Glance",
+    "kling_prompt": "natural eye movement with blink, soft smile formation, hair movement suggesting gentle wind, head tilt 5 degrees, very subtle, duration 6 seconds",
+    "avg_watch_time": 8.134691573156708,
+    "engagement_score": 0.0,
+    "uses": 0,
+    "success_rate": 0.0,
+    "created_at": "2026-08-07T00:48:59.379958",
+    "last_modified": "2026-08-07T00:48:59.379958",
+    "metadata": {
+      "category": "authentic",
+      "intensity": "minimal",
+      "duration_sec": 6,
+      "parent": "natural_glance_v1",
+      "generation": "evolved"
+    }
+  },
+  "cinematic_glide_v1_mut_1786056539": {
+    "id": "cinematic_glide_v1_mut_1786056539",
+    "name": "The Cinematic Glide (Evolved)",
+    "description": "Mutation of The Cinematic Glide",
+    "kling_prompt": "smooth camera push-in movement, head follows camera trajectory, subtle 15-degree rotation, duration 8 seconds, cinematic timing",
+    "avg_watch_time": 11.292574943840085,
+    "engagement_score": 0.0,
+    "uses": 0,
+    "success_rate": 0.0,
+    "created_at": "2026-08-07T00:48:59.381954",
+    "last_modified": "2026-08-07T00:48:59.381954",
+    "metadata": {
+      "category": "cinematic",
+      "intensity": "low",
+      "duration_sec": 8,
+      "parent": "cinematic_glide_v1",
+      "generation": "evolved"
+    }
+  },
+  "editorial_walk_v1_mut_1786056539": {
+    "id": "editorial_walk_v1_mut_1786056539",
+    "name": "The Editorial Walk (Evolved)",
+    "description": "Mutation of The Editorial Walk",
+    "kling_prompt": "confident walking motion toward camera, gradual increase in scale, shoulder movement with gait, maintain eye contact, editorial pacing, duration 10 seconds",
+    "avg_watch_time": 14.491154867520695,
+    "engagement_score": 0.0,
+    "uses": 0,
+    "success_rate": 0.0,
+    "created_at": "2026-08-07T00:48:59.376954",
+    "last_modified": "2026-08-07T00:48:59.376954",
+    "metadata": {
+      "category": "dynamic",
+      "intensity": "high",
+      "duration_sec": 10,
+      "parent": "editorial_walk_v1",
+      "generation": "evolved"
+    }
+  }
+}

@@ -1,5 +1,38 @@
 import { fal } from "@fal-ai/client";
 import { promises as fs } from "fs";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// Load .env.local
+function loadEnv() {
+  const envPath = resolve(process.cwd(), ".env.local");
+  const envContent = readFileSync(envPath, "utf-8");
+  const env: Record<string, string> = {};
+
+  envContent.split("\n").forEach((line) => {
+    line = line.trim();
+    if (!line || line.startsWith("#")) return;
+
+    const idx = line.indexOf("=");
+    if (idx === -1) return;
+
+    const key = line.substring(0, idx).trim();
+    let value = line.substring(idx + 1).trim();
+
+    if ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+
+    env[key] = value;
+  });
+
+  return env;
+}
+
+const env = loadEnv();
+if (!env.FAL_API_KEY) throw new Error("FAL_API_KEY not found in .env.local");
+fal.config({ credentials: env.FAL_API_KEY });
 
 // Post-training inference tests for Vivien LoRA V2
 // Tests 6 prompts × 3 LoRA strength levels = 18 images
@@ -76,9 +109,8 @@ intimate luxury ambiance, mood lighting`,
 const loraStrengths = [0.55, 0.7, 0.85];
 
 async function runInferenceTests(loraUrl: string): Promise<void> {
-  const falApiKey = process.env.FAL_API_KEY;
-  if (!falApiKey) throw new Error("FAL_API_KEY not configured");
-  fal.config({ credentials: falApiKey });
+  if (!env.FAL_API_KEY) throw new Error("FAL_API_KEY not configured");
+  fal.config({ credentials: env.FAL_API_KEY });
 
   if (!loraUrl) {
     throw new Error("LoRA URL required. Provide training-result.json with lora_url");

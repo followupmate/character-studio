@@ -1,0 +1,33 @@
+{
+  "testName": "Model Consistency Comparison",
+  "testDate": "2026-08-06T12:07:59.658Z",
+  "parameters": {
+    "prompt": "score_9, score_8_up, score_7_up, rating_explicit,\n1girl, long silver hair, blue eyes, athletic build,\nsitting on a velvet sofa,\nsoft cinematic lighting, detailed skin texture, goosebumps,\nmasterpiece",
+    "negativePrompt": "(low quality, worst quality:1.4), deformed, extra fingers, bad anatomy,\ntext, watermark, signature, blurred, lowres, monochrome",
+    "width": 832,
+    "height": 1216,
+    "steps": 30,
+    "cfgScale": 6,
+    "seed": 42424242,
+    "sampler": "dpmpp_2m_karras",
+    "clipSkip": 2
+  },
+  "results": [
+    {
+      "modelName": "CyberRealistic Pony v18.0",
+      "modelId": "cyberrealistic",
+      "status": "success",
+      "imageId": "f1fedf23-85f4-400f-b8bb-40f9d093a85e-0.jpg",
+      "workflowId": "12791621-20260806120714697",
+      "generatedAt": "2026-08-06T12:07:31.003Z"
+    },
+    {
+      "modelName": "Pony Diffusion V6 XL",
+      "modelId": "pony-v6",
+      "status": "success",
+      "imageId": "b3b8bbac-2b99-4f20-a0e0-53d50ae2d98e-0.jpg",
+      "workflowId": "12791621-20260806120733385",
+      "generatedAt": "2026-08-06T12:07:55.848Z"
+    }
+  ]
+}
