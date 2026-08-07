@@ -23,6 +23,10 @@
     {
       "path": "/api/publish/refresh-ig-token",
       "schedule": "0 4 * * 1"
+    },
+    {
+      "path": "/api/creative-intelligence/trigger-optimizer",
+      "schedule": "15 6 * * *"
     }
   ]
 }
