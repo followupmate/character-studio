@@ -23,6 +23,7 @@ export function startAutonomousOptimizer() {
 
   // Check if node-schedule is available
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const schedule = require('node-schedule');
 
     // Run at 6:00 AM daily
@@ -46,7 +47,8 @@ export function startAutonomousOptimizer() {
 
       } catch (error) {
         console.error('[ERROR] Daily optimization failed:', error);
-        await notifyError(error);
+        const err = error instanceof Error ? error : new Error(String(error));
+        await notifyError(err);
       }
     });
 
@@ -77,8 +79,6 @@ export async function vercelCronHandler() {
   console.log('[VERCEL CRON] Running autonomous optimizer');
 
   try {
-    const { execSync } = require('child_process');
-
     execSync('python lib/autonomous_optimizer.py', {
       cwd: process.cwd(),
       encoding: 'utf-8',
@@ -92,9 +92,10 @@ export async function vercelCronHandler() {
 
   } catch (error) {
     console.error('[ERROR]', error);
+    const message = error instanceof Error ? error.message : String(error);
     return {
       success: false,
-      error: error.message
+      error: message
     };
   }
 }

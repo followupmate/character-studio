@@ -110,6 +110,7 @@ async function runSmokeTest() {
 
       console.log(`       Request payload (first call):`, JSON.stringify(request, null, 2));
 
+      // @ts-ignore - fal-ai type mismatch on image_size
       const result = await fal.subscribe("fal-ai/flux-lora", { input: request });
 
       const withLoraEndTime = new Date().toISOString();

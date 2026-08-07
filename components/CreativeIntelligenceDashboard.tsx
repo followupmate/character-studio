@@ -130,7 +130,8 @@ export default function CreativeIntelligenceDashboard() {
       }
     } catch (error) {
       console.error('Error generating video:', error);
-      alert(`❌ Error: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert(`❌ Error: ${message}`);
     } finally {
       setGeneratingVideoId(null);
     }
@@ -368,7 +369,7 @@ export default function CreativeIntelligenceDashboard() {
           <div className="bg-gray-50 rounded-lg p-12 text-center">
             <div className="text-4xl mb-4">📭</div>
             <h3 className="text-xl font-bold mb-2">No batch generated yet</h3>
-            <p className="text-gray-600 mb-6">Click "Run Now" to trigger the optimizer</p>
+            <p className="text-gray-600 mb-6">Click &quot;Run Now&quot; to trigger the optimizer</p>
             <button
               onClick={triggerOptimizer}
               disabled={loading}
