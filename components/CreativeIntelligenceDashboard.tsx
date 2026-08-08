@@ -126,6 +126,31 @@ const WINNING_AXIS_COLOR: Record<WinningAxis, string> = {
   neither: 'bg-gray-100 text-gray-600',
 };
 
+// Snapshot JSON is persisted (chs_ci_strategy_snapshots) and can be older than the code
+// currently reading it — a schema change (like the platform/business split) can leave a
+// stored snapshot with fields missing entirely (undefined), not just null. `!== null` checks
+// don't catch that, so every numeric/enum display sourced from strategy JSON goes through
+// these helpers instead of a raw `.toFixed()` / direct Record lookup.
+function formatIndex(value: unknown): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)}x` : '—';
+}
+
+function formatPercent(value: unknown): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${Math.round(value * 100)}%` : '—';
+}
+
+function formatNumber(value: unknown, decimals = 2): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(decimals) : '—';
+}
+
+function formatCount(value: unknown): string {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value).toLocaleString() : '—';
+}
+
+function safeWinningAxis(value: unknown): WinningAxis {
+  return value === 'platform' || value === 'business' || value === 'both' || value === 'neither' ? value : 'neither';
+}
+
 export default function CreativeIntelligenceDashboard() {
   const [intelligence, setIntelligence] = useState<PerformanceIntelligence | null>(null);
   const [strategy, setStrategy] = useState<NextContentStrategy | null>(null);
@@ -183,7 +208,7 @@ export default function CreativeIntelligenceDashboard() {
               <h2 className="text-xl font-bold mb-4">Performance (last {intelligence.window_days} days)</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Stat label="Posts with real metrics" value={intelligence.posts_analyzed.toString()} />
-                <Stat label="Avg reach" value={Math.round(intelligence.avg_reach).toLocaleString()} />
+                <Stat label="Avg reach" value={formatCount(intelligence.avg_reach)} />
                 <Stat label="Top-performing tier" value={intelligence.top_tier ?? '—'} />
               </div>
               {intelligence.posts_analyzed === 0 && (
@@ -212,10 +237,10 @@ export default function CreativeIntelligenceDashboard() {
                           .join(' · ') || 'Untitled pattern'}
                       </div>
                       <div className="text-xs text-gray-500 mb-2 flex items-center gap-2 flex-wrap">
-                        <span>{p.performance?.sample_size} posts · confidence {(p.confidence_score * 100).toFixed(0)}%</span>
+                        <span>{p.performance?.sample_size} posts · confidence {formatPercent(p.confidence_score)}</span>
                         {p.performance && (
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded ${WINNING_AXIS_COLOR[p.performance.winning_axis]}`}>
-                            {WINNING_AXIS_LABEL[p.performance.winning_axis]}
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded ${WINNING_AXIS_COLOR[safeWinningAxis(p.performance.winning_axis)]}`}>
+                            {WINNING_AXIS_LABEL[safeWinningAxis(p.performance.winning_axis)]}
                           </span>
                         )}
                       </div>
@@ -251,17 +276,17 @@ export default function CreativeIntelligenceDashboard() {
                           <span className={`text-xs font-semibold px-2 py-1 rounded ${CATEGORY_COLOR[rec.category]}`}>
                             {rec.category.toUpperCase()}
                           </span>
-                          <span className={`text-xs font-semibold px-2 py-1 rounded ${WINNING_AXIS_COLOR[rec.winning_axis]}`}>
-                            {WINNING_AXIS_LABEL[rec.winning_axis]}
+                          <span className={`text-xs font-semibold px-2 py-1 rounded ${WINNING_AXIS_COLOR[safeWinningAxis(rec.winning_axis)]}`}>
+                            {WINNING_AXIS_LABEL[safeWinningAxis(rec.winning_axis)]}
                           </span>
                         </div>
-                        <span className="text-xs text-gray-500">Confidence {(rec.confidence_score * 100).toFixed(0)}%</span>
+                        <span className="text-xs text-gray-500">Confidence {formatPercent(rec.confidence_score)}</span>
                       </div>
                       <div className="font-semibold mb-1">{rec.content_concept}</div>
                       <div className="text-sm text-gray-600 mb-2">{rec.why_selected}</div>
                       <div className="flex gap-4 text-xs text-gray-500 mb-3">
-                        <span>Platform index: <span className="font-semibold text-gray-700">{rec.platform_composite_index !== null ? `${rec.platform_composite_index.toFixed(2)}x` : '—'}</span></span>
-                        <span>Business (Fanvue) index: <span className="font-semibold text-gray-700">{rec.business_conversion_index !== null ? `${rec.business_conversion_index.toFixed(2)}x` : '—'}</span></span>
+                        <span>Platform index: <span className="font-semibold text-gray-700">{formatIndex(rec.platform_composite_index)}</span></span>
+                        <span>Business (Fanvue) index: <span className="font-semibold text-gray-700">{formatIndex(rec.business_conversion_index)}</span></span>
                       </div>
 
                       {rec.performance && (
@@ -322,10 +347,10 @@ function MetricSection({ title, metrics, compositeLabel, compositeIndex }: {
               <td className="py-1 text-gray-600">{METRIC_LABELS[m.metric]}</td>
               {m.available ? (
                 <>
-                  <td className="py-1">{m.raw_value?.toFixed(2)}</td>
-                  <td className="py-1 text-gray-500">{m.baseline_value?.toFixed(2)}</td>
-                  <td className={`py-1 font-semibold ${(m.index ?? 0) >= 1 ? 'text-green-600' : 'text-gray-500'}`}>
-                    {m.index?.toFixed(2)}x
+                  <td className="py-1">{formatNumber(m.raw_value)}</td>
+                  <td className="py-1 text-gray-500">{formatNumber(m.baseline_value)}</td>
+                  <td className={`py-1 font-semibold ${typeof m.index === 'number' && m.index >= 1 ? 'text-green-600' : 'text-gray-500'}`}>
+                    {formatIndex(m.index)}
                   </td>
                 </>
               ) : (
@@ -338,7 +363,7 @@ function MetricSection({ title, metrics, compositeLabel, compositeIndex }: {
         </tbody>
       </table>
       <div className="mt-1 text-gray-500">
-        {compositeLabel}: <span className="font-semibold">{compositeIndex !== null ? `${compositeIndex.toFixed(2)}x` : '—'}</span> baseline
+        {compositeLabel}: <span className="font-semibold">{formatIndex(compositeIndex)}</span> baseline
       </div>
     </div>
   );
