@@ -10,6 +10,8 @@ import {
   getLastMomentFamily,
   StoryTier,
   ContentPhase,
+  TierBias,
+  MomentFamilyBias,
 } from "@/lib/storyTier";
 import type { MomentFamily, MagnetismLevel, SexualEnergyLevel, ContinuityPhase } from "@/types";
 import { Character } from "@/types";
@@ -25,11 +27,12 @@ import {
   LifeEvent,
 } from "@/lib/lifeState";
 import { getGrowthBias } from "@/lib/growthScore";
-import { allowedSexualEnergyLevels, sexualEnergyRangeGuidance, isActiveTier, pickSexualEnergyLevel } from "@/lib/sexualEnergyConfig";
+import { allowedSexualEnergyLevels, sexualEnergyRangeGuidance, isActiveTier, pickSexualEnergyLevel, SexualEnergyBias } from "@/lib/sexualEnergyConfig";
 import { pickPlayfulHotWorldProfile, playfulHotWorldGuidance } from "@/lib/playfulHotWorldConfig";
 import { getSituationMemory, computeFrequencyPenalties, softAvoidCliches, weeklyBalanceNudges, situationMemoryGuidance, outfitCategoryNudges } from "@/lib/situationMemory";
 import { SITUATION_OUTPUT_SPEC, situationSchemaBlock, extractSituation } from "@/lib/situationPlanner";
 import { validateGenerativeSituation, SITUATION_MAX_ATTEMPTS, ValidationContext } from "@/lib/situationValidation";
+import { selectGenerationStrategyInput, buildCreativeIntelligenceGuidance, biasDeltaFor, sexualEnergyMultiplierFor, GenerationStrategyInput } from "@/lib/creativeIntelligence/generationStrategyAdapter";
 
 // open_life_generation_v1 — orchestration extracted from app/api/characters/story/route.ts and
 // app/api/characters/generate-forward/route.ts, which independently re-implemented (and had
@@ -56,6 +59,10 @@ export interface BuildSystemPromptArgs {
   sexualEnergyGuidance?: string; // precomputed by lib/sexualEnergyConfig.ts, passed through to tierGuidance
   situationSchemaBlock?: string; // precomputed by lib/situationPlanner.ts's situationSchemaBlock — embedded INSIDE the scene JSON block
   situationOutputSpec?: string; // precomputed by lib/situationPlanner.ts's SITUATION_OUTPUT_SPEC — RULE/guidance text appended after the scene block
+  // creative_intelligence_generation_v1 — precomputed by generationStrategyAdapter.ts's
+  // buildCreativeIntelligenceGuidance(). Soft suggestion text only, same "guidance block" pattern
+  // as situationMemoryGuidance/VOICE ANCHOR above — never a hard constraint on the model's output.
+  ciGuidance?: string;
 }
 
 // Base = app/api/characters/story/route.ts's pre-extraction version — it carried a "VOICE
@@ -63,7 +70,7 @@ export interface BuildSystemPromptArgs {
 // generate-forward/route.ts's independent copy had drifted without. Byte-identical to that
 // version whenever every open_life_generation_v1 field above is omitted.
 export function buildSystemPrompt(args: BuildSystemPromptArgs): string {
-  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism, situationMode, sexualEnergyGuidance, situationSchemaBlock: situationSchema, situationOutputSpec } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism, situationMode, sexualEnergyGuidance, situationSchemaBlock: situationSchema, situationOutputSpec, ciGuidance } = args;
   const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
@@ -90,7 +97,7 @@ ${tierGuidance(tier, { family, magnetism, situationMode, sexualEnergyGuidance })
 ${driftSeedGuidance(driftSeeds)}
 ${lifeContext ? `\n${lifeContext}\n` : ""}
 VOICE ANCHOR — read recent history ONLY to avoid repeating the same city or scene two days in a row. If recent history drifted toward influencer fluff or hollow affirmations, IGNORE THE DRIFT and reset to the voice doctrine above.
-
+${ciGuidance ? `\n${ciGuidance}\n` : ""}
 RECENT HISTORY (last 7 days, oldest first):
 ${historyText}
 
@@ -163,6 +170,10 @@ export interface GenerateStoryDayResult {
   lifeOn: boolean;
   situationValidated?: boolean;
   situationRetries?: number;
+  // creative_intelligence_generation_v1 — the ONE recommendation selected for today (or null:
+  // flag off / CI unavailable / stale / fallback), so the caller can persist provenance on
+  // chs_story_days. See lib/creativeIntelligence/generationStrategyAdapter.ts.
+  strategyInput: GenerationStrategyInput | null;
 }
 
 const defaultClaudeCall: ClaudeCallFn = (params) => claudeWithRetry(params) as unknown as Promise<ClaudeMessageLike>;
@@ -178,9 +189,25 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
       ? reversed.map((d) => `Day ${d.day_number}: ${d.location} — ${d.mood} — ${d.narrative}`).join("\n")
       : "First day. No history yet.";
 
-  // GROWTH LAYER (flag-gated): gentle, capped tier bias (no-op until ≥10 reels w/ metrics). Untouched by this feature.
+  // CREATIVE INTELLIGENCE (flag-gated): the ONE random selection of "which real recommendation
+  // shapes today" happens exactly here — nowhere else (lib/dailyBatch.ts deterministically reads
+  // this same selection back via getStrategyInputByProvenance, never re-selects). Never throws;
+  // null means "not available today" (flag off, no/stale/insufficient snapshot, or an error) and
+  // every downstream consumer treats that identically to CI never having existed.
+  const ciOn = isFlagOn(flags, "creative_intelligence_generation_v1");
+  const strategyInput: GenerationStrategyInput | null = ciOn ? await selectGenerationStrategyInput(character.id) : null;
+
+  // GROWTH LAYER (flag-gated): gentle, capped tier bias (no-op until ≥10 reels w/ metrics).
+  // NEVER combined with CI bias (no double-counting the same "what performs well" signal) — CI,
+  // when it has a real recommendation, is the primary source; growth_layer is only the fallback
+  // for days CI has nothing to say.
   const growthOn = isFlagOn(flags, "growth_layer");
-  const tierBias = growthOn ? (await getGrowthBias(character.id))?.modifier : undefined;
+  let tierBias: TierBias | undefined;
+  if (strategyInput?.preferredTier) {
+    tierBias = { [strategyInput.preferredTier]: biasDeltaFor(strategyInput) };
+  } else if (growthOn) {
+    tierBias = (await getGrowthBias(character.id))?.modifier;
+  }
   const tier = args.forceTier ?? (await pickTier(character.id, 6, tierBias));
   const driftSeeds = await pickDriftSeeds(character.id, dayNumber);
 
@@ -205,8 +232,15 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
   const discoveryMode = isFlagOn(flags, "discovery_mode");
 
   // lived_moments only: pick today's world (anti-repeat vs the last lived_moments day) + magnetism.
-  const family = tier === "lived_moments" ? pickMomentFamily(await getLastMomentFamily(character.id)) : null;
+  // CI moment_family bias (when present) applies strictly AFTER the anti-repeat exclusion inside
+  // pickMomentFamily — same invariant as tier above, see storyTier.ts's pickMomentFamily.
+  const momentFamilyBias: MomentFamilyBias | undefined =
+    strategyInput?.preferredMomentFamily ? { [strategyInput.preferredMomentFamily]: biasDeltaFor(strategyInput) } : undefined;
+  const family =
+    tier === "lived_moments" ? pickMomentFamily(await getLastMomentFamily(character.id), Math.random, momentFamilyBias) : null;
   const magnetism = tier === "lived_moments" ? pickMagnetismLevel() : null;
+
+  const ciGuidanceText = strategyInput ? buildCreativeIntelligenceGuidance(strategyInput) : undefined;
 
   const situationMode = situationOn && isActiveTier(tier);
   // sensual_visual_language_v1 (iteration 2) — hard-prerequisite on situationMode: the sensual
@@ -258,7 +292,13 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
     const microEventPhases: ContinuityPhase[] = microEvent ? microEventPhaseCandidates(microEvent, targetDate) : [];
     const continuityPhase = microEventPhases[0];
 
-    const dictatedSexualEnergyLevel = pickSexualEnergyLevel(tier, { recentLevels, continuityPhase }, Math.random, sensualLanguageOn);
+    // CI sexual-energy bias: a multiplicative nudge (see sexualEnergyMultiplierFor), applied on
+    // top of the existing recency-penalty/continuity-phase mechanism, never replacing it.
+    const sexualEnergyBias: SexualEnergyBias | undefined =
+      strategyInput?.preferredSexualEnergy
+        ? { [strategyInput.preferredSexualEnergy as SexualEnergyLevel]: sexualEnergyMultiplierFor(strategyInput) }
+        : undefined;
+    const dictatedSexualEnergyLevel = pickSexualEnergyLevel(tier, { recentLevels, continuityPhase }, Math.random, sensualLanguageOn, sexualEnergyBias);
     sexualEnergyGuidanceText = sexualEnergyRangeGuidance(tier, sensualLanguageOn);
     const microEventSpec = microEvent ? microEventOutputSpec(microEvent, microEventPhases) : undefined;
 
@@ -322,6 +362,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
       sexualEnergyGuidance: sexualEnergyGuidanceText,
       situationSchemaBlock: situationSchemaBlockText,
       situationOutputSpec: situationMode ? appendRetryNote(situationOutputSpecText!, attempt > 0 ? lastErrors : undefined) : undefined,
+      ciGuidance: ciGuidanceText,
     });
 
     const msg = await claudeCall({
@@ -339,7 +380,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
     story = parseStoryJson(rawText);
 
     if (!situationMode) {
-      return { story, tier, driftSeeds, family, magnetism, lifeOn };
+      return { story, tier, driftSeeds, family, magnetism, lifeOn, strategyInput };
     }
 
     const situation = extractSituation(story);
@@ -361,7 +402,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
     };
 
     if (result.ok) {
-      return { story, tier, driftSeeds, family, magnetism, lifeOn, situationValidated: true, situationRetries: attempt };
+      return { story, tier, driftSeeds, family, magnetism, lifeOn, situationValidated: true, situationRetries: attempt, strategyInput };
     }
 
     lastErrors = result.errors;
@@ -383,7 +424,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
     },
   };
 
-  return { story, tier, driftSeeds, family, magnetism, lifeOn, situationValidated: false, situationRetries: maxAttempts };
+  return { story, tier, driftSeeds, family, magnetism, lifeOn, situationValidated: false, situationRetries: maxAttempts, strategyInput };
 }
 
 function appendRetryNote(spec: string, errors?: string[]): string {

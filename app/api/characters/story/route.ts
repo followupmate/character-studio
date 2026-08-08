@@ -63,7 +63,7 @@ export async function GET() {
       const dayNumber = ((history as StoryDay[])?.[0]?.day_number ?? 0) + 1;
       const lifeOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "life_layer");
 
-      const { story, tier, driftSeeds, family, magnetism } = await generateStoryDayContent({
+      const { story, tier, driftSeeds, family, magnetism, strategyInput } = await generateStoryDayContent({
         character: char,
         dayNumber,
         targetDate: today,
@@ -91,6 +91,19 @@ export async function GET() {
           hashtags: story.hashtags,
           ...(story.hook_text ? { hook_text: story.hook_text } : {}),
           ...(lifeOn && story.life_state ? { life_state: story.life_state } : {}),
+          // creative_intelligence_generation_v1 — provenance, written ONLY when a real CI
+          // recommendation was actually applied today; otherwise all 5 columns stay NULL
+          // (never a placeholder value) so `WHERE strategy_snapshot_id IS NOT NULL` cleanly
+          // selects "days CI actually influenced" for future closed-loop measurement.
+          ...(strategyInput
+            ? {
+                strategy_source: "creative_intelligence",
+                strategy_snapshot_id: strategyInput.strategy_snapshot_id,
+                recommendation_rank: strategyInput.recommendation_rank,
+                recommendation_category: strategyInput.category,
+                evidence_post_ids: strategyInput.evidencePostIds,
+              }
+            : {}),
         })
         .select("id, day_number")
         .single();

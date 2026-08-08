@@ -101,6 +101,12 @@ export interface SexualEnergyPickContext {
   continuityPhase?: ContinuityPhase;
 }
 
+// creative_intelligence_generation_v1: optional multiplicative nudge toward one CI-preferred
+// level, same magnitude family as CONTINUITY_PHASE_MODIFIER above (that mechanism's own comment
+// caps itself at "±30% max" — this reuses the same ceiling so CI is never a stronger lever than
+// the existing continuity-phase nudge).
+export type SexualEnergyBias = Partial<Record<SexualEnergyLevel, number>>;
+
 // NOT a blind weighted random. Base = SEXUAL_ENERGY_RANGE[tier] (or the intensified table when
 // useIntensified — iteration 2, character/flag-gated); softly penalizes recently-used levels;
 // applies a small continuity-phase modifier; renormalizes ONLY across the tier's non-zero cells
@@ -110,7 +116,8 @@ export function pickSexualEnergyLevel(
   tier: ActiveTier,
   ctx: SexualEnergyPickContext = {},
   rng: () => number = Math.random,
-  useIntensified?: boolean
+  useIntensified?: boolean,
+  ciBias?: SexualEnergyBias
 ): SexualEnergyLevel {
   const pool = allowedSexualEnergyLevels(tier, useIntensified);
   const base = rangeFor(tier, useIntensified);
@@ -125,7 +132,8 @@ export function pickSexualEnergyLevel(
   for (const level of pool) {
     const penalty = frequencyPenalty(level, recentLevels);
     const modifier = phaseMod[level] ?? 1;
-    adjusted[level] = Math.max(FLOOR, base[level] * penalty * modifier);
+    const ciModifier = ciBias?.[level] ? Math.max(0.7, Math.min(1.3, ciBias[level] as number)) : 1;
+    adjusted[level] = Math.max(FLOOR, base[level] * penalty * modifier * ciModifier);
   }
 
   return weightedFrom(adjusted, pool, rng);

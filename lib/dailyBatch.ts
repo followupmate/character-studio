@@ -16,6 +16,7 @@ import type { LifeState } from "@/lib/lifeState";
 import { maybeCreateFanvueUnlock } from "@/lib/fanvueUnlock";
 import { pickReelFormat, ReelFormat } from "@/lib/reelFormats";
 import { extractSituation, translateSituationForSlotPrompt, compactSituationTranslation, situationContextForSceneBrief, normalizeOutfitArchetypeFamily, normalizePoseArchetype, classifyOutfitCategory, GenerativeSituation } from "@/lib/situationPlanner";
+import { getStrategyInputByProvenance } from "@/lib/creativeIntelligence/generationStrategyAdapter";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek", "nano_banana", "caption"];
 
@@ -306,9 +307,20 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     }
   }
 
+  // creative_intelligence_generation_v1 — NEVER re-selects a recommendation (see
+  // generationStrategyAdapter.ts's file header for the single-selection invariant). Purely
+  // reads back the exact recommendation storyGeneration.ts already picked and persisted onto
+  // this story_day, keyed by (strategy_snapshot_id, recommendation_rank). Null when the flag was
+  // off, CI was unavailable that day, or the snapshot has since been deleted — pickArchetypesForBatch
+  // then runs exactly as it does today.
+  const ciStrategyInput = storyDay.strategy_snapshot_id
+    ? await getStrategyInputByProvenance(storyDay.strategy_snapshot_id as string, storyDay.recommendation_rank as number)
+    : null;
+
   const archetypeMap = await pickArchetypesForBatch({
     characterId,
     slots: slotsToGenerate,
+    preferredShotStyle: ciStrategyInput?.preferredShotStyle,
   });
 
   await prereserveSlots(batchId, storyDayId, slotsToGenerate, archetypeMap);

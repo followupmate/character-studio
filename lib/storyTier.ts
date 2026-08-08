@@ -152,11 +152,26 @@ function weightedFrom<T extends string>(weights: Record<T, number>, pool: T[], r
   return pool[pool.length - 1];
 }
 
+// creative_intelligence_generation_v1: optional per-family additive weight delta, same
+// clamp/floor shape as growth_layer's TierBias above (storyTier.ts:47-49) so a CI-preferred
+// moment_family can never be a stronger lever than the already-shipped growth_layer mechanism.
+export type MomentFamilyBias = Partial<Record<MomentFamily, number>>;
+
 // Pure + unit-testable. Avoids repeating the immediately-previous family when an
-// alternative exists; `last` from another tier / null is simply ignored.
-export function pickMomentFamily(last?: MomentFamily | null, rng: () => number = Math.random): MomentFamily {
+// alternative exists; `last` from another tier / null is simply ignored. `bias` is applied to
+// the SURVIVING pool only (after the anti-repeat exclusion above) — it can never reintroduce
+// yesterday's excluded family, matching the anti-repetition invariant used for TierBias.
+export function pickMomentFamily(last?: MomentFamily | null, rng: () => number = Math.random, bias?: MomentFamilyBias): MomentFamily {
   const pool = last ? MOMENT_FAMILIES.filter((f) => f !== last) : MOMENT_FAMILIES;
-  return weightedFrom(MOMENT_FAMILY_WEIGHTS, pool.length > 0 ? pool : MOMENT_FAMILIES, rng);
+  const survivingPool = pool.length > 0 ? pool : MOMENT_FAMILIES;
+  if (!bias) return weightedFrom(MOMENT_FAMILY_WEIGHTS, survivingPool, rng);
+
+  const adjusted: Record<MomentFamily, number> = { ...MOMENT_FAMILY_WEIGHTS };
+  for (const f of survivingPool) {
+    const m = Math.max(-BIAS_CAP, Math.min(BIAS_CAP, bias[f] ?? 0));
+    adjusted[f] = Math.max(TIER_FLOOR, MOMENT_FAMILY_WEIGHTS[f] + m);
+  }
+  return weightedFrom(adjusted, survivingPool, rng);
 }
 
 export function pickMagnetismLevel(rng: () => number = Math.random): MagnetismLevel {

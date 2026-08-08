@@ -200,7 +200,9 @@ export interface NextContentRecommendation {
     tier: StoryTier | null;
     moment_family: MomentFamily | null;
     location: string | null;
+    activity: string | null;
     mood: string | null;
+    sexual_energy_level: string | null;
     lighting_hint: string | null;
   };
 }

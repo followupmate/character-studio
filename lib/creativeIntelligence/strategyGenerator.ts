@@ -145,7 +145,9 @@ function toRecommendation(
       tier: descriptor.tier,
       moment_family: descriptor.moment_family,
       location: descriptor.location_family ?? descriptor.location,
+      activity: descriptor.activity_family,
       mood: descriptor.mood,
+      sexual_energy_level: descriptor.sexual_energy_level,
       lighting_hint: null, // not yet derivable from production data
     },
   };
@@ -270,4 +272,36 @@ export async function getLatestStrategySnapshot(characterId: string): Promise<Ne
   if (error) throw new Error(`getLatestStrategySnapshot: ${error.message}`);
   if (!data) return null;
   return data as unknown as NextContentStrategy;
+}
+
+// Snapshot row shape including its own `id` — needed by generationStrategyAdapter.ts to record
+// provenance (chs_story_days.strategy_snapshot_id) and to look a specific snapshot back up by id
+// (getStrategySnapshotById). Kept separate from NextContentStrategy/getLatestStrategySnapshot
+// above so the existing dashboard-facing return shape never changes.
+export interface StrategySnapshotRow extends NextContentStrategy {
+  id: string;
+}
+
+export async function getLatestStrategySnapshotRow(characterId: string): Promise<StrategySnapshotRow | null> {
+  const { data, error } = await supabase
+    .from("chs_ci_strategy_snapshots")
+    .select("id, character_id, generated_at, window_days, recommendations, breakdown, data_status")
+    .eq("character_id", characterId)
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`getLatestStrategySnapshotRow: ${error.message}`);
+  if (!data) return null;
+  return data as unknown as StrategySnapshotRow;
+}
+
+export async function getStrategySnapshotById(id: string): Promise<StrategySnapshotRow | null> {
+  const { data, error } = await supabase
+    .from("chs_ci_strategy_snapshots")
+    .select("id, character_id, generated_at, window_days, recommendations, breakdown, data_status")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`getStrategySnapshotById: ${error.message}`);
+  if (!data) return null;
+  return data as unknown as StrategySnapshotRow;
 }

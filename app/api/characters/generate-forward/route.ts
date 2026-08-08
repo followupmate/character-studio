@@ -98,7 +98,7 @@ export async function POST(req: Request) {
 
           const lifeOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "life_layer");
 
-          const { story, tier, driftSeeds, family, magnetism } = await generateStoryDayContent({
+          const { story, tier, driftSeeds, family, magnetism, strategyInput } = await generateStoryDayContent({
             character: char,
             dayNumber,
             targetDate,
@@ -125,6 +125,15 @@ export async function POST(req: Request) {
           if (magnetism) insertPayload.magnetism_level = magnetism;
           if (story.hook_text) insertPayload.hook_text = story.hook_text;
           if (lifeOn && story.life_state) insertPayload.life_state = story.life_state;
+          // creative_intelligence_generation_v1 — see app/api/characters/story/route.ts for the
+          // same provenance-only-when-applied rule.
+          if (strategyInput) {
+            insertPayload.strategy_source = "creative_intelligence";
+            insertPayload.strategy_snapshot_id = strategyInput.strategy_snapshot_id;
+            insertPayload.recommendation_rank = strategyInput.recommendation_rank;
+            insertPayload.recommendation_category = strategyInput.category;
+            insertPayload.evidence_post_ids = strategyInput.evidencePostIds;
+          }
 
           const { data: storyDay, error: storyError } = await supabase
             .from("chs_story_days")

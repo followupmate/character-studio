@@ -198,12 +198,27 @@ export function dailySlots(
     });
 }
 
+// creative_intelligence_generation_v1: humanizes an archetype id the same way
+// lib/creativeIntelligence/contentConcept.ts's describeShotStyle() does ("walking_motion" ->
+// "Walking"), so a CI recommendation's already-humanized `preferredShotStyle` (e.g. "Walking")
+// can be matched against the archetype pool. Duplicated rather than imported — same
+// avoid-a-cross-module-cycle convention already used by sexualEnergyConfig.ts's weightedFrom and
+// playfulHotWorldConfig.ts's frequencyPenalty (see their own "duplicated, not imported" notes).
+function humanizeArchetypeId(id: string): string {
+  const stripped = id.replace(/_motion$/, "");
+  const words = stripped.replace(/_/g, " ").trim();
+  return words.length > 0 ? words[0].toUpperCase() + words.slice(1) : words;
+}
+
 interface PickArgs {
   characterId: string;
   slots: SlotSpec[];
+  // creative_intelligence_generation_v1: optional, soft nudge only — never overrides cooldown
+  // exclusion or same-batch dedupe (applied strictly AFTER `pool` is already filtered below).
+  preferredShotStyle?: string | null;
 }
 
-export async function pickArchetypesForBatch({ characterId, slots }: PickArgs): Promise<Record<SlotName, string>> {
+export async function pickArchetypesForBatch({ characterId, slots, preferredShotStyle }: PickArgs): Promise<Record<SlotName, string>> {
   const { data: archetypes, error: archErr } = await supabase
     .from("chs_shot_archetypes")
     .select("*");
@@ -264,11 +279,20 @@ export async function pickArchetypesForBatch({ characterId, slots }: PickArgs): 
       pool = familyMatches;
     }
 
-    const totalWeight = pool.reduce((sum, a) => sum + Math.max(1, a.weight), 0);
+    // Soft weight bonus for the CI-preferred shot style, applied only WITHIN this already
+    // hard-filtered pool (cooldown/exclusion/dedupe already ran above) — a preference that
+    // doesn't match anything eligible this slot is simply a no-op, never a forced pick.
+    const effectiveWeight = (a: Archetype) => {
+      const base = Math.max(1, a.weight);
+      const matches = !!preferredShotStyle && humanizeArchetypeId(a.id).toLowerCase() === preferredShotStyle.toLowerCase();
+      return matches ? base * 1.5 : base;
+    };
+
+    const totalWeight = pool.reduce((sum, a) => sum + effectiveWeight(a), 0);
     let r = Math.random() * totalWeight;
     let chosen = pool[0];
     for (const a of pool) {
-      r -= Math.max(1, a.weight);
+      r -= effectiveWeight(a);
       if (r <= 0) { chosen = a; break; }
     }
 
