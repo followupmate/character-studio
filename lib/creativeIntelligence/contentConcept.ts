@@ -35,6 +35,70 @@ function withArticle(word: string): string {
   return /^[aeiou]/i.test(word) ? `an ${word}` : `a ${word}`;
 }
 
+function capitalize(s: string): string {
+  return s.length > 0 ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+// General-purpose "raw_enum_value" -> "Raw enum value" — used anywhere an internal id/enum
+// value would otherwise leak into primary UI text (e.g. "intimate_aesthetic" -> "Intimate aesthetic").
+export function humanizeLabel(s: string): string {
+  return capitalize(s.replace(/_/g, " ").trim());
+}
+
+// Short badge/label form (not a full sentence) — "Intimate aesthetic · walking motion" — built
+// only from dimensions the descriptor actually has. Used for "What is working" cards and the
+// best-direction summary line. Returns a flag for whether enough dimensions were present to
+// call this a *specific* pattern (vs. just a bare tier), so the caller can honestly say when
+// there isn't enough tagging yet instead of pretending a one-word label is a detailed insight.
+export function describePatternLabel(descriptor: ContentDescriptor): { label: string; specificDimensionCount: number } {
+  const parts: string[] = [];
+  let specificDimensionCount = 0;
+
+  if (descriptor.tier) parts.push(humanizeLabel(descriptor.tier));
+  if (descriptor.moment_family) {
+    parts.push(humanizeLabel(descriptor.moment_family));
+    specificDimensionCount++;
+  }
+  if (descriptor.location_family) {
+    parts.push(humanizeLabel(descriptor.location_family));
+    specificDimensionCount++;
+  }
+  if (descriptor.activity_family) {
+    parts.push(humanizeLabel(descriptor.activity_family));
+    specificDimensionCount++;
+  }
+  if (descriptor.sexual_energy_level) {
+    parts.push(`${humanizeLabel(descriptor.sexual_energy_level)} energy`);
+    specificDimensionCount++;
+  }
+  if (descriptor.shot_archetype) {
+    parts.push(humanizeLabel(descriptor.shot_archetype));
+    specificDimensionCount++;
+  }
+
+  return { label: parts.length > 0 ? parts.join(" · ") : "Unclassified content", specificDimensionCount };
+}
+
+// Descriptive content metadata ONLY — e.g. "walking_motion" -> "Walking". This is NOT a
+// Motion Intelligence output (see MotionRecommendation in types.ts); it's what the shot
+// already looked like in the source post, shown in the UI as "Shot style" and kept visually
+// distinct from the "Motion" (Kling) suggestion so the two are never read as the same thing.
+export function describeShotStyle(shotArchetype: string | null): string | null {
+  if (!shotArchetype) return null;
+  const stripped = shotArchetype.replace(/_motion$/, "");
+  return humanizeLabel(stripped);
+}
+
+// Human sentence for "visual direction", built only from this specific source post's own
+// mood/energy — never invented. Falls back to an honest "not recorded" note.
+export function describeVisualDirection(descriptor: ContentDescriptor): string {
+  const clauses: string[] = [];
+  if (descriptor.mood) clauses.push(`${descriptor.mood} mood`);
+  if (descriptor.sexual_energy_level) clauses.push(`${humanize(descriptor.sexual_energy_level)} energy`);
+  if (clauses.length === 0) return "No specific visual direction recorded for this source post yet.";
+  return `${capitalize(clauses.join(", "))}.`;
+}
+
 export function describeContentConcept(descriptor: ContentDescriptor): string {
   const tierPhrase = descriptor.tier ? TIER_LABELS[descriptor.tier] : null;
   const momentPhrase = descriptor.moment_family ? MOMENT_LABELS[descriptor.moment_family] : null;

@@ -1,5 +1,8 @@
 import type { AnalyzedPost } from "./igAnalyticsAdapter";
 import { PROVEN_MIN_SAMPLES, buildPerformanceBreakdown, computeConfidence, isProven } from "./scoring";
+import { describePatternLabel } from "./contentConcept";
+import { computeTopPosts } from "./topPosts";
+import { describeWhatIsWorking } from "./insights";
 import type { ContentDescriptor, ContentPattern, PerformanceIntelligence, StoryTier } from "./types";
 
 // Content Intelligence (A + B): groups real posted content by what it actually was
@@ -46,6 +49,24 @@ function dominantPostType(posts: AnalyzedPost[]): string {
   return best;
 }
 
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+// The single best-performing post in a group, by reach — cited as concrete evidence
+// ("strongest source Reel reached 123.7k") rather than only an abstract index.
+function findStrongestSource(group: AnalyzedPost[]): { post_id: string; reach: number | null } | null {
+  if (group.length === 0) return null;
+  let best = group[0];
+  for (const p of group) {
+    if ((p.performance.reach ?? -1) > (best.performance.reach ?? -1)) best = p;
+  }
+  return { post_id: best.performance.post_id, reach: best.performance.reach ?? null };
+}
+
 export function analyzePerformance(characterId: string, windowDays: number, posts: AnalyzedPost[]): PerformanceIntelligence {
   const scored = posts.filter((p) => p.performance.growth_score > 0);
 
@@ -72,10 +93,11 @@ export function analyzePerformance(characterId: string, windowDays: number, post
     patterns.push({
       id: patternId(key),
       descriptor: group[0].descriptor,
+      sources: group.map((p) => ({ post_id: p.performance.post_id, descriptor: p.descriptor, reach: p.performance.reach ?? null })),
       status,
       performance: breakdown,
       confidence_score: computeConfidence(breakdown, group, baselinePosts),
-      source_post_ids: breakdown.post_ids,
+      strongest_source: findStrongestSource(group),
     });
   }
   patterns.sort((a, b) => b.confidence_score - a.confidence_score);
@@ -94,14 +116,24 @@ export function analyzePerformance(characterId: string, windowDays: number, post
     }
   }
 
+  const provenPatterns = patterns.filter((p) => p.status === "proven");
+  const bestPattern = provenPatterns[0] ?? patterns[0] ?? null;
+  const bestDirectionLabel = bestPattern ? describePatternLabel(bestPattern.descriptor).label : null;
+
+  const reaches = scored.map((p) => p.performance.reach ?? 0);
+
   return {
     character_id: characterId,
     window_days: windowDays,
     posts_analyzed: scored.length,
     avg_growth_score: scored.length > 0 ? scored.reduce((s, p) => s + p.performance.growth_score, 0) / scored.length : 0,
-    avg_reach: scored.length > 0 ? scored.reduce((s, p) => s + (p.performance.reach ?? 0), 0) / scored.length : 0,
+    avg_reach: scored.length > 0 ? reaches.reduce((s, r) => s + r, 0) / scored.length : 0,
+    median_reach: median(reaches),
+    best_direction_label: bestDirectionLabel,
     top_tier: topTier,
     patterns,
+    top_posts: computeTopPosts(scored, 10),
+    what_is_working: describeWhatIsWorking(patterns, 5),
   };
 }
 
@@ -127,10 +159,13 @@ export function evolvePattern(pattern: ContentPattern): ContentPattern | null {
   return {
     id: `${pattern.id}_evo_${dim}`,
     descriptor: evolvedDescriptor,
+    // Same real source posts as the parent — evolution keeps the winning formula, just
+    // varies one dimension, so it draws scene inspiration from the same proven evidence.
+    sources: pattern.sources,
     status: "evolution",
-    performance: null,
+    performance: null, // no individual measurement — see EvidenceLevel "derived" in strategyGenerator.ts
     confidence_score: Math.round(pattern.confidence_score * 0.7 * 100) / 100,
-    source_post_ids: pattern.source_post_ids,
+    strongest_source: pattern.strongest_source,
     parent_pattern_id: pattern.id,
     evolved_dimension: dim,
   };

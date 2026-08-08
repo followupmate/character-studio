@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { fetchRecentPostPerformance } from "@/lib/creativeIntelligence/igAnalyticsAdapter";
 import { analyzePerformance } from "@/lib/creativeIntelligence/contentIntelligence";
+import { resolveWindowDays } from "@/lib/creativeIntelligence/window";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// GET /api/creative-intelligence/analyze?characterId=&days=30
+// GET /api/creative-intelligence/analyze?characterId=&window=7|30|90|all (or ?days=N)
 // Performance Intelligence (B): what has actually worked on Instagram, from real chs_posts
 // engagement data. Read-only — no generation, no writes.
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const days = Math.min(Number(url.searchParams.get("days")) || 30, 90);
+  const days = resolveWindowDays(url);
   let characterId = url.searchParams.get("characterId");
 
   if (!characterId) {

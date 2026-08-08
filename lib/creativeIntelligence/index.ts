@@ -18,7 +18,10 @@ export {
   computeConfidence,
   isProven,
 } from "./scoring";
-export { describeContentConcept, describeEvolutionConcept } from "./contentConcept";
+export { describeContentConcept, describeEvolutionConcept, describePatternLabel, describeVisualDirection, humanizeLabel } from "./contentConcept";
+export { summarizeMetrics, describeWinningAxis, formatIndexAsDelta, METRIC_LABELS } from "./describeBreakdown";
+export { computeTopPosts } from "./topPosts";
+export { describeWhatIsWorking } from "./insights";
 
 // Orchestrator (replaces lib/creative_intelligence.py's CreativeIntelligenceOrchestrator).
 // Pure recommendation layer: reads real IG performance already imported by

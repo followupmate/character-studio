@@ -24,6 +24,8 @@ interface RawPostRow {
     id: string;
     shot_archetype: string | null;
     channel: string | null;
+    media_url: string | null;
+    thumbnail_url: string | null;
     visual_signature: {
       situation_tags?: {
         activity_family?: string | null;
@@ -46,6 +48,8 @@ interface RawPostRow {
 export interface AnalyzedPost {
   performance: PostPerformance;
   descriptor: ContentDescriptor;
+  media_url: string | null;
+  thumbnail_url: string | null;
 }
 
 // Fetches every posted Instagram post for a character within the window, paired with the
@@ -62,7 +66,7 @@ export async function fetchRecentPostPerformance(
     .from("chs_posts")
     .select(
       `id, media_id, story_day_id, post_type, posted_at, engagement, growth_score, growth_winner,
-       chs_media ( id, shot_archetype, channel, visual_signature ),
+       chs_media ( id, shot_archetype, channel, media_url, thumbnail_url, visual_signature ),
        chs_story_days ( id, tier, moment_family, location, mood, magnetism_level )`
     )
     .eq("character_id", characterId)
@@ -98,6 +102,8 @@ function rowToAnalyzedPost(row: RawPostRow): AnalyzedPost {
     profile_visits: numOrUndef(eng.profile_visits),
     follows: numOrUndef(eng.follows),
     fanvue_clicks: numOrUndef(eng.fanvue_clicks),
+    total_interactions: numOrUndef(eng.total_interactions),
+    avg_watch_time_sec: numOrUndef(eng.avg_watch_time_sec),
     growth_score: row.growth_score ?? calculateGrowthScore(eng),
     growth_winner: row.growth_winner,
   };
@@ -116,7 +122,7 @@ function rowToAnalyzedPost(row: RawPostRow): AnalyzedPost {
     channel: row.chs_media?.channel ?? null,
   };
 
-  return { performance, descriptor };
+  return { performance, descriptor, media_url: row.chs_media?.media_url ?? null, thumbnail_url: row.chs_media?.thumbnail_url ?? null };
 }
 
 function numOrUndef(v: unknown): number | undefined {

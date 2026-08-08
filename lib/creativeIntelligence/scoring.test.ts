@@ -27,6 +27,8 @@ const BASE_DESCRIPTOR: ContentDescriptor = {
 function post(overrides: Partial<PostPerformance>): AnalyzedPost {
   return {
     descriptor: BASE_DESCRIPTOR,
+    media_url: null,
+    thumbnail_url: null,
     performance: {
       post_id: overrides.post_id ?? `post_${Math.random()}`,
       media_id: "media_1",
@@ -41,14 +43,26 @@ function post(overrides: Partial<PostPerformance>): AnalyzedPost {
 }
 
 describe("buildPerformanceBreakdown", () => {
-  it("marks non_follower_reach and watch_completion as structurally unavailable", () => {
+  it("marks non_follower_reach as structurally unavailable (no such metric exists in the IG API)", () => {
     const breakdown = buildPerformanceBreakdown([post({ reach: 1000 })], [post({ reach: 500 })]);
     const nonFollower = breakdown.metrics.find((m) => m.metric === "non_follower_reach")!;
-    const watch = breakdown.metrics.find((m) => m.metric === "watch_completion")!;
     expect(nonFollower.available).toBe(false);
     expect(nonFollower.unavailable_reason).toMatch(/not fetched/i);
-    expect(watch.available).toBe(false);
-    expect(watch.unavailable_reason).toMatch(/not fetched/i);
+  });
+
+  it("watch_completion is unavailable (not structurally) when a post has no avg_watch_time_sec, and available when it does", () => {
+    const withoutWatch = buildPerformanceBreakdown([post({ reach: 1000 })], [post({ reach: 500 })]);
+    const watchMissing = withoutWatch.metrics.find((m) => m.metric === "watch_completion")!;
+    expect(watchMissing.available).toBe(false);
+    expect(watchMissing.unavailable_reason).not.toMatch(/not fetched/i); // no longer structurally blocked
+
+    const withWatch = buildPerformanceBreakdown(
+      [post({ reach: 1000, avg_watch_time_sec: 9 })],
+      [post({ reach: 500, avg_watch_time_sec: 6 })]
+    );
+    const watchAvailable = withWatch.metrics.find((m) => m.metric === "watch_completion")!;
+    expect(watchAvailable.available).toBe(true);
+    expect(watchAvailable.index).toBeCloseTo(1.5);
   });
 
   it("computes raw_value, baseline_value and index correctly for an available metric", () => {
@@ -84,6 +98,18 @@ describe("buildPerformanceBreakdown", () => {
     expect(engagement.available).toBe(true);
     expect(engagement.raw_value).toBeCloseTo(0.17);
     expect(engagement.index).toBeCloseTo(0.17 / 0.045, 2);
+    expect(breakdown.platform_composite_index).toBeCloseTo(1.0);
+  });
+
+  it("shows total_interactions in the breakdown but excludes it from platform_composite_index (would double-count saves/shares)", () => {
+    // reach/saves/shares at baseline (index 1.0 each) — total_interactions is wildly different
+    // (5x), but must not move the composite since it overlaps saves/shares.
+    const patternPosts = [post({ reach: 1000, saves: 10, shares: 10, total_interactions: 500 })];
+    const baselinePosts = [post({ reach: 1000, saves: 10, shares: 10, total_interactions: 100 })];
+    const breakdown = buildPerformanceBreakdown(patternPosts, baselinePosts);
+    const totalInteractions = breakdown.metrics.find((m) => m.metric === "total_interactions")!;
+    expect(totalInteractions.available).toBe(true);
+    expect(totalInteractions.index).toBeCloseTo(5.0);
     expect(breakdown.platform_composite_index).toBeCloseTo(1.0);
   });
 

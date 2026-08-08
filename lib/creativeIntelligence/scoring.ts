@@ -10,8 +10,11 @@ import type { ExplainableMetric, MetricBreakdownEntry, MetricCategory, Performan
 // as "the score" because a raw number means nothing without knowing what's typical for this
 // account.
 //
-// Metrics not currently fetched by app/api/publish/import-insights/route.ts's METRIC_SETS
-// (non_follower_reach, watch_completion) are always marked unavailable — never estimated.
+// non_follower_reach is not currently fetched by app/api/publish/import-insights/route.ts
+// (no such breakdown exists in the IG API at all) and stays permanently unavailable.
+// watch_completion IS fetched (from ig_reels_avg_watch_time, reels only, confirmed working
+// via a real test call) — reels-only means it's naturally unavailable for feed/carousel posts,
+// which shows up as a normal "no comparable posts" reason, not a structural one.
 //
 // TWO SEPARATE AXES, never blended into one opaque number:
 //
@@ -35,9 +38,10 @@ import type { ExplainableMetric, MetricBreakdownEntry, MetricCategory, Performan
 //   platform math. fanvue_clicks is deliberately NEVER mixed into platform_composite_index —
 //   a pattern with flat IG reach but strong Fanvue clicks must not read as "IG is growing".
 //
-// "engagement" (derived from likes+comments+saves+shares / reach) is shown in the breakdown
-// for readability but excluded from BOTH weighted composites, to avoid double-counting
-// saves/shares (which already have their own weighted rows).
+// "engagement" (derived from likes+comments+saves+shares / reach) AND "total_interactions"
+// (IG's own likes+saves+comments+shares count, minus removals) are both shown in the
+// breakdown for readability but excluded from BOTH weighted composites — including either
+// would double-count saves/shares, which already have their own weighted rows.
 //
 // winning_axis names which axis is actually driving above-baseline performance ("platform",
 // "business", "both", or "neither") — always explicit, so nothing "wins" for an unstated
@@ -64,6 +68,7 @@ export const METRIC_CATEGORY: Record<ExplainableMetric, MetricCategory> = {
   saves: "platform",
   shares: "platform",
   engagement: "platform",
+  total_interactions: "platform",
   fanvue_clicks: "business",
 };
 
@@ -71,7 +76,7 @@ export const METRIC_CATEGORY: Record<ExplainableMetric, MetricCategory> = {
 // platform-only metrics (follows=15 >> profile_visits=8 > shares=5 > saves=4), re-expressed as
 // normalized (baseline-relative) weights instead of raw per-unit multipliers.
 export const PLATFORM_METRIC_WEIGHTS: Record<
-  Exclude<ExplainableMetric, "engagement" | "fanvue_clicks">,
+  Exclude<ExplainableMetric, "engagement" | "total_interactions" | "fanvue_clicks">,
   number
 > = {
   follows: 0.3,
@@ -98,12 +103,12 @@ const METRIC_ORDER: ExplainableMetric[] = [
   "saves",
   "shares",
   "engagement",
+  "total_interactions",
   "fanvue_clicks",
 ];
 
 const STRUCTURALLY_UNAVAILABLE: Partial<Record<ExplainableMetric, string>> = {
-  non_follower_reach: "Not fetched by the current IG insights import (would need reach broken down by follow status).",
-  watch_completion: "Not fetched by the current IG insights import (would need ig_reels_avg_watch_time / video view metrics).",
+  non_follower_reach: "Not fetched by the current IG insights import (no such follow-status breakdown exists in the IG API).",
 };
 
 function rawMetric(metric: ExplainableMetric, p: AnalyzedPost["performance"]): number | undefined {
@@ -120,11 +125,14 @@ function rawMetric(metric: ExplainableMetric, p: AnalyzedPost["performance"]): n
       return p.shares;
     case "fanvue_clicks":
       return p.fanvue_clicks;
+    case "total_interactions":
+      return p.total_interactions;
+    case "watch_completion":
+      return p.avg_watch_time_sec; // reels only — naturally absent for feed/carousel posts
     case "engagement":
       if (!p.reach || p.reach <= 0) return undefined;
       return ((p.likes ?? 0) + (p.comments ?? 0) + (p.saves ?? 0) + (p.shares ?? 0)) / p.reach;
     case "non_follower_reach":
-    case "watch_completion":
       return undefined;
   }
 }

@@ -190,8 +190,9 @@ export function recommendMotion(contentPattern: ContentPattern, motionPatterns: 
     const best = paired[0];
     return {
       motion_pattern_id: best.id,
+      name: best.name,
       status: "paired",
-      reason: `Paired with this content pattern in ${best.performance?.sample_size} prior post(s), platform composite index ${best.performance?.platform_composite_index?.toFixed(2)}x baseline.`,
+      reason: `Paired with this content pattern in ${best.performance?.sample_size} prior post(s), ${best.performance?.platform_composite_index?.toFixed(2)}x baseline performance.`,
       confidence_score: Math.min(1, (best.performance?.sample_size ?? 0) / 6),
     };
   }
@@ -200,8 +201,9 @@ export function recommendMotion(contentPattern: ContentPattern, motionPatterns: 
   if (!fallback) return null;
   return {
     motion_pattern_id: fallback.id,
+    name: fallback.name,
     status: "fallback_unproven",
-    reason: "No motion/content pairing data exists yet for this content pattern — defaulting to the broadest-appeal seed pattern, not a preference.",
+    reason: "Motion suggestion — not enough historical data yet.",
     confidence_score: 0,
   };
 }
