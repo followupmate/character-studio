@@ -7,7 +7,7 @@ import CreativeIntelligenceDashboard from '@/components/CreativeIntelligenceDash
 
 export const metadata = {
   title: 'Creative Intelligence | Character Studio',
-  description: 'AI video production strategy with autonomous daily optimization'
+  description: 'What works on Instagram, why, and what content to make next'
 };
 
 export default function CreativeIntelligencePage() {

@@ -4,14 +4,23 @@
       "Bash(python3)",
       "Bash(npm install *)",
       "WebFetch(domain:education.civitai.com)",
-      "Bash(chmod +x lib/trainLoraVivienneFinal.sh)",
-      "Bash(bash lib/trainLoraVivienneFinal.sh)",
-      "Bash(python lib/pipeline_orchestrator.py --batch-size 20)",
-      "Bash(python -u lib/pipeline_orchestrator.py --batch-size 20)",
       "Bash(cd /tmp/character-studio && echo \"=== ENV VARS NEEDED ===\" && cat .env.local.example && echo -e \"\\\\n=== VERCEL.JSON CRON JOBS ===\" && cat vercel.json && echo -e \"\\\\n=== README ===\" && head -50 README.md)",
       "Read(//tmp/**)",
       "Bash(npx vercel *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(echo \"Push started in background with PID: $!\")",
+      "Bash(tee push_output.txt)",
+      "Bash(wait)",
+      "Bash(git status *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(git rm *)",
+      "Bash(rm -f data/ig_raw_analytics.json data/video_analytics.json data/motion_library.json data/higgsfield_configs.json data/production_strategy.json data/execution_plan.json data/intelligence_report.json)",
+      "Bash(rmdir data *)",
+      "Bash(rm -f config/pipeline.json)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(powershell -c \"\\(Get-Content lib/creative_intelligence.py | Measure-Object -Line\\).Lines\")",
+      "Bash(npx vitest *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\owner\\Desktop\\projekty\\projekt_9\\Character_studio"

@@ -1,385 +1,375 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-interface VideoSpec {
-  video_id: string;
+// Mirrors lib/creativeIntelligence/types.ts. Kept as a local, structural subset (not imported
+// directly) since this is a client component and the source types live in a server-only module
+// graph (lib/supabase.ts pulls in server env vars) — field names must stay in sync by hand.
+
+type MetricCategory = 'platform' | 'business';
+type WinningAxis = 'platform' | 'business' | 'both' | 'neither';
+type ExplainableMetric =
+  | 'reach'
+  | 'non_follower_reach'
+  | 'follows'
+  | 'profile_visits'
+  | 'watch_completion'
+  | 'saves'
+  | 'shares'
+  | 'engagement'
+  | 'fanvue_clicks';
+
+interface MetricBreakdownEntry {
+  metric: ExplainableMetric;
+  category: MetricCategory;
+  available: boolean;
+  raw_value: number | null;
+  baseline_value: number | null;
+  index: number | null;
+  unavailable_reason?: string;
+}
+
+interface PerformanceBreakdown {
+  sample_size: number;
+  comparable_sample_size: number;
+  metrics: MetricBreakdownEntry[];
+  platform_composite_index: number | null;
+  business_conversion_index: number | null;
+  winning_axis: WinningAxis;
+  post_ids: string[];
+}
+
+interface ContentPattern {
+  id: string;
+  descriptor: {
+    tier: string | null;
+    moment_family: string | null;
+    location: string | null;
+    location_family: string | null;
+    activity_family: string | null;
+    sexual_energy_level: string | null;
+  };
+  status: 'proven' | 'evolution' | 'unproven';
+  performance: PerformanceBreakdown | null;
+  confidence_score: number;
+}
+
+interface PerformanceIntelligence {
+  character_id: string;
+  window_days: number;
+  posts_analyzed: number;
+  avg_growth_score: number;
+  avg_reach: number;
+  top_tier: string | null;
+  patterns: ContentPattern[];
+}
+
+interface NextContentRecommendation {
+  rank: number;
   category: 'proven' | 'evolution' | 'experiment';
-  motion_pattern: {
-    id: string;
-    name: string;
-    kling_prompt: string;
-    expected_performance: {
-      watch_time_avg: number;
-      engagement_score: number;
-    };
+  content_concept: string;
+  why_selected: string;
+  performance: PerformanceBreakdown | null;
+  platform_composite_index: number | null;
+  business_conversion_index: number | null;
+  winning_axis: WinningAxis;
+  objective: string;
+  recommended_framing: {
+    tier: string | null;
+    moment_family: string | null;
+    location: string | null;
+    mood: string | null;
+    lighting_hint: string | null;
   };
-  higgsfield_config: {
-    id: string;
-    prompt: string;
-    lighting: string;
-    color_palette: string[];
-  };
-  production_priority: string;
+  recommended_motion: { motion_pattern_id: string; status: 'paired' | 'fallback_unproven'; reason: string; confidence_score: number } | null;
+  confidence_score: number;
 }
 
-interface Batch {
-  batch_id: string;
-  timestamp: string;
-  videos: VideoSpec[];
-  strategy_breakdown: {
-    proven: { target: number; percentage: number };
-    evolution: { target: number; percentage: number };
-    experiment: { target: number; percentage: number };
-  };
-}
-
-interface Report {
+interface NextContentStrategy {
+  character_id: string;
   generated_at: string;
-  summary: {
-    videos_analyzed: number;
-    avg_completion_rate: number;
-    total_impressions: number;
-    total_engagement: number;
-  };
-  top_patterns: Array<{
-    name: string;
-    success_rate: number;
-    watch_time: number;
-  }>;
+  window_days: number;
+  recommendations: NextContentRecommendation[];
+  breakdown: { proven: number; evolution: number; experiment: number };
+  data_status: 'ok' | 'insufficient_history';
 }
+
+const CATEGORY_COLOR: Record<string, string> = {
+  proven: 'bg-green-100 text-green-800',
+  evolution: 'bg-blue-100 text-blue-800',
+  experiment: 'bg-purple-100 text-purple-800',
+};
+
+const METRIC_LABELS: Record<ExplainableMetric, string> = {
+  reach: 'Reach',
+  non_follower_reach: 'Non-follower reach',
+  follows: 'Follows',
+  profile_visits: 'Profile visits',
+  watch_completion: 'Watch completion',
+  saves: 'Saves',
+  shares: 'Shares',
+  engagement: 'Engagement rate',
+  fanvue_clicks: 'Fanvue clicks',
+};
+
+const WINNING_AXIS_LABEL: Record<WinningAxis, string> = {
+  platform: 'Wins on IG growth',
+  business: 'Wins on Fanvue conversion',
+  both: 'Wins on both IG growth and Fanvue conversion',
+  neither: 'Not above baseline yet',
+};
+
+const WINNING_AXIS_COLOR: Record<WinningAxis, string> = {
+  platform: 'bg-blue-100 text-blue-800',
+  business: 'bg-pink-100 text-pink-800',
+  both: 'bg-teal-100 text-teal-800',
+  neither: 'bg-gray-100 text-gray-600',
+};
 
 export default function CreativeIntelligenceDashboard() {
-  const [batch, setBatch] = useState<Batch | null>(null);
-  const [report, setReport] = useState<Report | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [generatingVideoId, setGeneratingVideoId] = useState<string | null>(null);
-  const [generatedVideos, setGeneratedVideos] = useState<Set<string>>(new Set());
+  const [intelligence, setIntelligence] = useState<PerformanceIntelligence | null>(null);
+  const [strategy, setStrategy] = useState<NextContentStrategy | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load batch on mount
   useEffect(() => {
-    loadBatch();
+    void load();
   }, []);
 
-  const loadBatch = async () => {
-    try {
-      const res = await fetch('/api/creative-intelligence/daily-batch');
-      const data = await res.json();
-
-      if (data.success) {
-        setBatch(data.batch);
-        loadReport();
-      }
-    } catch (error) {
-      console.error('Error loading batch:', error);
-    }
-  };
-
-  const loadReport = async () => {
-    try {
-      const reportPath = 'data/daily_optimization_report.json';
-      // Note: This would need a separate API endpoint
-      // For now, we'll load it via the optimizer trigger
-    } catch (error) {
-      console.error('Error loading report:', error);
-    }
-  };
-
-  const triggerOptimizer = async () => {
+  async function load() {
     setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('/api/creative-intelligence/trigger-optimizer', {
-        method: 'POST'
-      });
-      const data = await res.json();
+      const [analyzeRes, strategyRes] = await Promise.all([
+        fetch('/api/creative-intelligence/analyze?days=30'),
+        fetch('/api/creative-intelligence/strategy?days=7'),
+      ]);
+      const analyzeData = await analyzeRes.json();
+      const strategyData = await strategyRes.json();
 
-      if (data.success) {
-        setBatch(data.batch);
-        setReport(data.report);
-      }
-    } catch (error) {
-      console.error('Error triggering optimizer:', error);
+      if (!analyzeData.success) throw new Error(analyzeData.error ?? 'Failed to load performance intelligence');
+      if (!strategyData.success) throw new Error(strategyData.error ?? 'Failed to load strategy');
+
+      setIntelligence(analyzeData.intelligence);
+      setStrategy(strategyData.strategy);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const generateVideo = async (video: VideoSpec) => {
-    setGeneratingVideoId(video.video_id);
-
-    try {
-      const res = await fetch('/api/creative-intelligence/generate-video', {
-        method: 'POST',
-        body: JSON.stringify({
-          videoId: video.video_id,
-          motionPatternId: video.motion_pattern.id,
-          higgsFieldConfigId: video.higgsfield_config.id,
-          higgsFieldPrompt: video.higgsfield_config.prompt,
-          klingPrompt: video.motion_pattern.kling_prompt,
-          durationSec: 10
-        })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setGeneratedVideos(prev => new Set(prev).add(video.video_id));
-        alert(`✅ Video generated!\n\nFirst Frame: ${data.firstFrame.url}\nVideo: ${data.video.url}`);
-      } else {
-        alert(`❌ Generation failed: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error generating video:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      alert(`❌ Error: ${message}`);
-    } finally {
-      setGeneratingVideoId(null);
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'proven':
-        return 'bg-green-100 text-green-800';
-      case 'evolution':
-        return 'bg-blue-100 text-blue-800';
-      case 'experiment':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const provenPatterns = intelligence?.patterns.filter((p) => p.status === 'proven') ?? [];
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4">
       <div className="space-y-8">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg p-8 text-white">
-          <h1 className="text-4xl font-bold mb-2">🎭 Creative Intelligence</h1>
+          <h1 className="text-4xl font-bold mb-2">Creative Intelligence</h1>
           <p className="text-purple-100">
-            AI-powered video production strategy (prompts generated, click to create)
+            What&apos;s working on Instagram, why, and what to make next — based only on real, imported IG metrics,
+            normalized against this account&apos;s own baseline.
           </p>
         </div>
 
-        {/* Control Panel */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-bold mb-2">Autonomous Optimizer</h2>
-              <p className="text-gray-600">Runs daily at 6:00 AM to analyze IG metrics</p>
-            </div>
-            <button
-              onClick={triggerOptimizer}
-              disabled={loading}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50"
-            >
-              {loading ? '⏳ Running...' : '▶ Run Now'}
-            </button>
-          </div>
-        </div>
+        {loading && <div className="bg-white rounded-lg shadow p-6 text-gray-500">Loading real performance data…</div>}
+        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-red-700">{error}</div>}
 
-        {/* Report Summary */}
-        {report && (
-          <div className="grid grid-cols-4 gap-4">
-            <div className="bg-blue-50 rounded-lg p-6">
-              <div className="text-sm text-gray-600 mb-2">Videos Analyzed</div>
-              <div className="text-3xl font-bold text-blue-600">
-                {report.summary.videos_analyzed}
+        {!loading && !error && intelligence && (
+          <>
+            {/* 1. Performance This Window — real metrics only */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold mb-4">Performance (last {intelligence.window_days} days)</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Stat label="Posts with real metrics" value={intelligence.posts_analyzed.toString()} />
+                <Stat label="Avg reach" value={Math.round(intelligence.avg_reach).toLocaleString()} />
+                <Stat label="Top-performing tier" value={intelligence.top_tier ?? '—'} />
               </div>
+              {intelligence.posts_analyzed === 0 && (
+                <p className="mt-4 text-sm text-gray-500">
+                  No scored posts yet in this window. Metrics import daily via the existing IG insights cron —
+                  once posts have real engagement data, patterns will appear here.
+                </p>
+              )}
             </div>
 
-            <div className="bg-green-50 rounded-lg p-6">
-              <div className="text-sm text-gray-600 mb-2">Completion Rate</div>
-              <div className="text-3xl font-bold text-green-600">
-                {(report.summary.avg_completion_rate * 100).toFixed(0)}%
-              </div>
-            </div>
-
-            <div className="bg-purple-50 rounded-lg p-6">
-              <div className="text-sm text-gray-600 mb-2">Total Engagement</div>
-              <div className="text-3xl font-bold text-purple-600">
-                {report.summary.total_engagement.toLocaleString()}
-              </div>
-            </div>
-
-            <div className="bg-pink-50 rounded-lg p-6">
-              <div className="text-sm text-gray-600 mb-2">Impressions</div>
-              <div className="text-3xl font-bold text-pink-600">
-                {(report.summary.total_impressions / 1000).toFixed(0)}K
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Top Patterns */}
-        {report && report.top_patterns && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-xl font-bold mb-4">⭐ Top Performing Patterns</h3>
-            <div className="grid grid-cols-3 gap-4">
-              {report.top_patterns.map((pattern, idx) => (
-                <div
-                  key={idx}
-                  className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200"
-                >
-                  <div className="font-semibold mb-2">{pattern.name}</div>
-                  <div className="text-sm space-y-1 text-gray-600">
-                    <div>Success: {(pattern.success_rate * 100).toFixed(0)}%</div>
-                    <div>Watch Time: {pattern.watch_time.toFixed(1)}s</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Batch Composition */}
-        {batch && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-xl font-bold mb-6">📊 Batch Composition</h3>
-            <div className="grid grid-cols-3 gap-6 mb-8">
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-3xl font-bold text-green-600">
-                  {batch.strategy_breakdown.proven.target}
-                </div>
-                <div className="text-sm text-gray-600">Proven (60%)</div>
-                <div className="text-xs text-gray-500">Highest confidence</div>
-              </div>
-
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-3xl font-bold text-blue-600">
-                  {batch.strategy_breakdown.evolution.target}
-                </div>
-                <div className="text-sm text-gray-600">Evolution (30%)</div>
-                <div className="text-xs text-gray-500">Mutation testing</div>
-              </div>
-
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-3xl font-bold text-purple-600">
-                  {batch.strategy_breakdown.experiment.target}
-                </div>
-                <div className="text-sm text-gray-600">Experiment (10%)</div>
-                <div className="text-xs text-gray-500">Discovery</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Videos Grid */}
-        {batch && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-xl font-bold mb-6">
-              📹 Production Videos ({batch.videos.length} ready)
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {batch.videos.map((video) => {
-                const isGenerated = generatedVideos.has(video.video_id);
-                const isGenerating = generatingVideoId === video.video_id;
-
-                return (
-                  <div
-                    key={video.video_id}
-                    className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-                  >
-                    {/* Category Badge */}
-                    <div className={`px-4 py-2 ${getCategoryColor(video.category)}`}>
-                      <span className="font-semibold text-sm">
-                        {video.category.toUpperCase()}
-                      </span>
+            {/* 2. Proven Patterns — read-only, what's working and why, with full breakdown */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold mb-4">Proven Patterns</h2>
+              {provenPatterns.length === 0 ? (
+                <p className="text-gray-500 text-sm">
+                  No pattern has cleared the proven bar yet (needs ≥3 real posts of the same combination,
+                  outperforming this character&apos;s own baseline on comparable posts).
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {provenPatterns.map((p) => (
+                    <div key={p.id} className="border rounded-lg p-4 bg-green-50/40">
+                      <div className="font-semibold text-sm mb-2">
+                        {[p.descriptor.tier, p.descriptor.moment_family, p.descriptor.location_family, p.descriptor.activity_family]
+                          .filter(Boolean)
+                          .join(' · ') || 'Untitled pattern'}
+                      </div>
+                      <div className="text-xs text-gray-500 mb-2 flex items-center gap-2 flex-wrap">
+                        <span>{p.performance?.sample_size} posts · confidence {(p.confidence_score * 100).toFixed(0)}%</span>
+                        {p.performance && (
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded ${WINNING_AXIS_COLOR[p.performance.winning_axis]}`}>
+                            {WINNING_AXIS_LABEL[p.performance.winning_axis]}
+                          </span>
+                        )}
+                      </div>
+                      {p.performance && <MetricBreakdownTable breakdown={p.performance} />}
                     </div>
-
-                    {/* Content */}
-                    <div className="p-4 space-y-3">
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">Motion Pattern</div>
-                        <div className="font-semibold">{video.motion_pattern.name}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">Lighting</div>
-                        <div className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
-                          {video.higgsfield_config.lighting}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <div className="text-xs text-gray-500">Watch Time</div>
-                          <div className="font-semibold">
-                            {video.motion_pattern.expected_performance.watch_time_avg.toFixed(1)}s
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500">Engagement</div>
-                          <div className="font-semibold">
-                            {(video.motion_pattern.expected_performance.engagement_score * 100).toFixed(1)}%
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Generate Button */}
-                      <button
-                        onClick={() => generateVideo(video)}
-                        disabled={isGenerating || isGenerated}
-                        className={`w-full py-2 px-4 rounded font-semibold mt-4 ${
-                          isGenerated
-                            ? 'bg-green-500 text-white cursor-default'
-                            : isGenerating
-                            ? 'bg-gray-400 text-white cursor-wait'
-                            : 'bg-purple-600 text-white hover:bg-purple-700'
-                        }`}
-                      >
-                        {isGenerated
-                          ? '✅ Generated'
-                          : isGenerating
-                          ? '⏳ Generating...'
-                          : '🎬 Generate Video'}
-                      </button>
-
-                      {/* Prompts (collapsible preview) */}
-                      <details className="mt-3">
-                        <summary className="text-xs text-purple-600 cursor-pointer hover:text-purple-700">
-                          View Prompts
-                        </summary>
-                        <div className="mt-2 space-y-2 text-xs bg-gray-50 p-3 rounded">
-                          <div>
-                            <div className="font-semibold text-gray-700">Higgsfield:</div>
-                            <div className="text-gray-600 line-clamp-2">
-                              {video.higgsfield_config.prompt}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="font-semibold text-gray-700">Kling:</div>
-                            <div className="text-gray-600 line-clamp-2">
-                              {video.motion_pattern.kling_prompt}
-                            </div>
-                          </div>
-                        </div>
-                      </details>
-                    </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* Empty State */}
-        {!batch && (
-          <div className="bg-gray-50 rounded-lg p-12 text-center">
-            <div className="text-4xl mb-4">📭</div>
-            <h3 className="text-xl font-bold mb-2">No batch generated yet</h3>
-            <p className="text-gray-600 mb-6">Click &quot;Run Now&quot; to trigger the optimizer</p>
-            <button
-              onClick={triggerOptimizer}
-              disabled={loading}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50"
-            >
-              {loading ? 'Running...' : 'Run Optimizer Now'}
-            </button>
-          </div>
+            {/* 3. Next Content Strategy — the primary output */}
+            {strategy && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className="text-xl font-bold mb-2">Recommended Next Content</h2>
+                {strategy.data_status === 'insufficient_history' ? (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3 mb-4">
+                    Not enough real performance history yet for a proven/evolution/experiment split — every
+                    recommendation below is exploratory until more posts have been scored.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-6 mb-6">
+                    <BreakdownStat label="Proven (60%)" value={strategy.breakdown.proven} color="text-green-600" />
+                    <BreakdownStat label="Evolution (30%)" value={strategy.breakdown.evolution} color="text-blue-600" />
+                    <BreakdownStat label="Experiment (10%)" value={strategy.breakdown.experiment} color="text-purple-600" />
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {strategy.recommendations.map((rec) => (
+                    <div key={rec.rank} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-semibold px-2 py-1 rounded ${CATEGORY_COLOR[rec.category]}`}>
+                            {rec.category.toUpperCase()}
+                          </span>
+                          <span className={`text-xs font-semibold px-2 py-1 rounded ${WINNING_AXIS_COLOR[rec.winning_axis]}`}>
+                            {WINNING_AXIS_LABEL[rec.winning_axis]}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500">Confidence {(rec.confidence_score * 100).toFixed(0)}%</span>
+                      </div>
+                      <div className="font-semibold mb-1">{rec.content_concept}</div>
+                      <div className="text-sm text-gray-600 mb-2">{rec.why_selected}</div>
+                      <div className="flex gap-4 text-xs text-gray-500 mb-3">
+                        <span>Platform index: <span className="font-semibold text-gray-700">{rec.platform_composite_index !== null ? `${rec.platform_composite_index.toFixed(2)}x` : '—'}</span></span>
+                        <span>Business (Fanvue) index: <span className="font-semibold text-gray-700">{rec.business_conversion_index !== null ? `${rec.business_conversion_index.toFixed(2)}x` : '—'}</span></span>
+                      </div>
+
+                      {rec.performance && (
+                        <details className="mb-3">
+                          <summary className="text-xs text-purple-600 cursor-pointer hover:text-purple-700">
+                            View performance breakdown
+                          </summary>
+                          <div className="mt-2">
+                            <MetricBreakdownTable breakdown={rec.performance} />
+                          </div>
+                        </details>
+                      )}
+
+                      <div className="text-xs text-gray-500 grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div>Objective: {rec.objective}</div>
+                        <div>Tier: {rec.recommended_framing.tier ?? '—'}</div>
+                        <div>Location: {rec.recommended_framing.location ?? '—'}</div>
+                        <div>
+                          Motion: {rec.recommended_motion?.motion_pattern_id ?? '—'}
+                          {rec.recommended_motion?.status === 'fallback_unproven' && (
+                            <span className="ml-1 text-amber-600">(unproven fallback)</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+}
+
+function MetricSection({ title, metrics, compositeLabel, compositeIndex }: {
+  title: string;
+  metrics: MetricBreakdownEntry[];
+  compositeLabel: string;
+  compositeIndex: number | null;
+}) {
+  return (
+    <div className="mb-2">
+      <div className="text-gray-400 uppercase tracking-wide text-[10px] mb-1">{title}</div>
+      <table className="w-full">
+        <thead>
+          <tr className="text-gray-400 text-left">
+            <th className="font-normal pb-1">Metric</th>
+            <th className="font-normal pb-1">This pattern</th>
+            <th className="font-normal pb-1">Baseline</th>
+            <th className="font-normal pb-1">Index</th>
+          </tr>
+        </thead>
+        <tbody>
+          {metrics.map((m) => (
+            <tr key={m.metric} className="border-t border-gray-100">
+              <td className="py-1 text-gray-600">{METRIC_LABELS[m.metric]}</td>
+              {m.available ? (
+                <>
+                  <td className="py-1">{m.raw_value?.toFixed(2)}</td>
+                  <td className="py-1 text-gray-500">{m.baseline_value?.toFixed(2)}</td>
+                  <td className={`py-1 font-semibold ${(m.index ?? 0) >= 1 ? 'text-green-600' : 'text-gray-500'}`}>
+                    {m.index?.toFixed(2)}x
+                  </td>
+                </>
+              ) : (
+                <td colSpan={3} className="py-1 text-gray-400 italic">
+                  {m.unavailable_reason ?? 'unavailable'}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-1 text-gray-500">
+        {compositeLabel}: <span className="font-semibold">{compositeIndex !== null ? `${compositeIndex.toFixed(2)}x` : '—'}</span> baseline
+      </div>
+    </div>
+  );
+}
+
+function MetricBreakdownTable({ breakdown }: { breakdown: PerformanceBreakdown }) {
+  const platformMetrics = breakdown.metrics.filter((m) => m.category === 'platform');
+  const businessMetrics = breakdown.metrics.filter((m) => m.category === 'business');
+  return (
+    <div className="text-xs">
+      <MetricSection title="Platform performance (IG growth)" metrics={platformMetrics} compositeLabel="Platform composite index" compositeIndex={breakdown.platform_composite_index} />
+      <MetricSection title="Business conversion (Fanvue)" metrics={businessMetrics} compositeLabel="Business conversion index" compositeIndex={breakdown.business_conversion_index} />
+      <div className="mt-1 text-gray-500">Normalized against {breakdown.comparable_sample_size} comparable posts (same post type, same window).</div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-4">
+      <div className="text-xs text-gray-500 mb-1">{label}</div>
+      <div className="text-2xl font-bold text-gray-800">{value}</div>
+    </div>
+  );
+}
+
+function BreakdownStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="text-center p-4 bg-gray-50 rounded-lg">
+      <div className={`text-3xl font-bold ${color}`}>{value}</div>
+      <div className="text-sm text-gray-600">{label}</div>
     </div>
   );
 }
