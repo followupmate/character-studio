@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { calculateGrowthScore, GrowthMetrics } from "@/lib/growthScore";
 import { requireCron } from "@/lib/apiAuth";
 import { getIgAccessToken } from "@/lib/igToken";
+import { resolveCycleState, buildKeysetFilter, resolveBatchSize, CursorRow } from "@/lib/importInsightsCursor";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -13,6 +14,14 @@ export const maxDuration = 120;
 // recomputes growth_score + growth_winner (top ~30%). Runs daily from vercel.json
 // cron; manual fields imported via /api/characters/import-metrics (fanvue_clicks…)
 // are preserved by the merge.
+//
+// BATCHED, RESUMABLE: the external cron caller (cron-job.org) has a hard 30s timeout, and a
+// 90-day window can span far more posts than fit in one sequential IG API pass under that. So
+// this route processes one small batch per call (see lib/importInsightsCursor.ts) and persists
+// a cursor in chs_import_insights_cursor — the caller keeps hitting the same plain URL, newest
+// posts first, and the route resumes on its own until the window is fully covered, then starts
+// a fresh cycle from the newest post again.
+const CURSOR_ID = "default";
 
 // Metric sets from richest to safest, chosen per post_type since REELS and FEED/CAROUSEL
 // media support different metric combinations. Verified against real Meta docs AND, because
@@ -103,17 +112,34 @@ export async function GET(req: Request) {
   // climbing for weeks after posting, so anything older than a week was silently frozen at
   // its day-~7 snapshot instead of tracking real, current performance.
   const days = Math.min(Number(url.searchParams.get("days")) || 90, 90);
+  const batchSize = resolveBatchSize(url.searchParams.get("batch"));
   const since = new Date(Date.now() - days * 86400000).toISOString();
+  const now = new Date();
 
-  // Stories expire after 24h and expose almost no insights — skip them.
-  const { data: posts, error } = await supabase
+  const { data: cursorRowRaw } = await supabase
+    .from("chs_import_insights_cursor")
+    .select("window_days, cursor_posted_at, cursor_post_id, cycle_started_at, cycle_complete")
+    .eq("id", CURSOR_ID)
+    .maybeSingle();
+  const cycle = resolveCycleState(cursorRowRaw as CursorRow | null, days, now);
+
+  // Stories expire after 24h and expose almost no insights — skip them. Newest-first order +
+  // keyset cursor: one batch per call, resumable, deterministic even with same-timestamp posts.
+  let query = supabase
     .from("chs_posts")
-    .select("id, character_id, platform_post_id, post_type, engagement")
+    .select("id, character_id, platform_post_id, post_type, posted_at, engagement")
     .eq("status", "posted")
     .eq("platform", "instagram")
     .neq("post_type", "story")
     .not("platform_post_id", "is", null)
-    .gte("posted_at", since);
+    .gte("posted_at", since)
+    .order("posted_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(batchSize);
+  if (cycle.cursorPostedAt && cycle.cursorPostId) {
+    query = query.or(buildKeysetFilter(cycle.cursorPostedAt, cycle.cursorPostId));
+  }
+  const { data: posts, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -162,6 +188,46 @@ export async function GET(req: Request) {
     if (losers.length) await supabase.from("chs_posts").update({ growth_winner: false }).in("id", losers);
   }
 
+  // Advance the cursor to the last (oldest, since we ordered newest-first) post attempted this
+  // batch — attempted, not just successful, so one permanently-failing post (e.g. IG returns an
+  // error for every metric set) can't stall the cursor forever; the next full cycle retries it.
+  const lastPost = (posts ?? [])[(posts ?? []).length - 1] ?? null;
+  let remainingEstimate = 0;
+  if (lastPost) {
+    const { count } = await supabase
+      .from("chs_posts")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "posted")
+      .eq("platform", "instagram")
+      .neq("post_type", "story")
+      .not("platform_post_id", "is", null)
+      .gte("posted_at", since)
+      .or(buildKeysetFilter(lastPost.posted_at as string, lastPost.id as string));
+    remainingEstimate = count ?? 0;
+  }
+  const cycleComplete = !lastPost || remainingEstimate === 0;
+
+  await supabase.from("chs_import_insights_cursor").upsert({
+    id: CURSOR_ID,
+    window_days: days,
+    cursor_posted_at: lastPost ? (lastPost.posted_at as string) : null,
+    cursor_post_id: lastPost ? (lastPost.id as string) : null,
+    cycle_started_at: cycle.cycleStartedAt,
+    cycle_complete: cycleComplete,
+    updated_at: now.toISOString(),
+  });
+
   const ok = results.filter((r) => r.ok).length;
-  return NextResponse.json({ success: true, imported: ok, total: results.length, results });
+  return NextResponse.json({
+    success: true,
+    processed: results.length,
+    successful: ok,
+    failed: results.length - ok,
+    cycle_complete: cycleComplete,
+    remaining_estimate: remainingEstimate,
+    window_days: days,
+    batch_size: batchSize,
+    is_new_cycle: cycle.isNewCycle,
+    results,
+  });
 }
