@@ -726,6 +726,19 @@ export async function POST(req: Request) {
           .eq("id", media.id);
       }
 
+      // Same guard generate-higgsfield/route.ts already has. Without it, a slot whose prompt
+      // never got built (e.g. the daily batch's Claude call failed) would silently generate from
+      // an almost-empty prompt (just the LoRA trigger word) instead of surfacing a clear,
+      // actionable error — the image "succeeds" but has no real scene direction.
+      if (!effectivePrompt || !effectivePrompt.trim()) {
+        const msg = "No prompt available for this media — regenerate the daily batch prompts first";
+        await supabase
+          .from("chs_media")
+          .update({ generation_status: "failed", last_error: msg })
+          .eq("id", media.id);
+        return { mediaId: media.id, slot: media.slot, provider: "none", success: false, error: msg };
+      }
+
       const prompt = `${triggerWord}, ${effectivePrompt}`;
 
       // Determine provider

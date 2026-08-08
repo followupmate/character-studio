@@ -167,29 +167,42 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
 
   // Higgsfield Soul image flow: the server route generates via the official SDK (~30-40s) and returns
   // the final Supabase URL directly. If the request drops/times out, fall back to polling the row.
+  //
+  // IMPORTANT: only a genuine network-level failure (fetch() itself throwing — connection drop,
+  // client-side timeout) falls through to polling. A real HTTP response, even an error one, is
+  // authoritative for THIS attempt and must be surfaced directly — falling through to polling on
+  // any non-ok response used to re-read chs_media.generation_status/last_error, which can hold a
+  // STALE value from an unrelated earlier failure (e.g. the daily batch's prompt-build step) that
+  // this attempt never touched, resurfacing a misleading old error (e.g. an Anthropic credit
+  // error) even after the real problem was fixed.
   async function runHiggsfield(promptOverride?: string): Promise<string> {
-    let lastErr: string | null = null;
+    let res: Response | null = null;
+    let data: { success?: boolean; media_url?: string; error?: string } = {};
     try {
-      const res = await fetch("/api/characters/generate-higgsfield", {
+      res = await fetch("/api/characters/generate-higgsfield", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mediaId: media.id, promptOverride }),
       });
-      const data = await res.json();
-      if (res.ok && data.success && data.media_url) return data.media_url;
-      lastErr = data?.error ?? `Chyba ${res.status}`;
+      data = await res.json().catch(() => ({}));
     } catch {
-      // network error / serverless timeout — fall through to polling in case it still finished
+      res = null; // genuine network failure — fall through to polling below
     }
+
+    if (res) {
+      if (res.ok && data.success && data.media_url) return data.media_url;
+      throw new Error(data?.error ?? `Chyba ${res.status}`);
+    }
+
     for (let i = 0; i < 12; i++) {
       await new Promise((r) => setTimeout(r, 8000));
       const s = await fetch(`/api/characters/generate-higgsfield?id=${media.id}`).then((r) => r.json());
       if (s.status === "ready" && s.media_url) return s.media_url;
       if (s.generation_status === "failed" || s.status === "failed") {
-        throw new Error(s.last_error ?? lastErr ?? "Higgsfield generovanie zlyhalo");
+        throw new Error(s.last_error ?? "Higgsfield generovanie zlyhalo");
       }
     }
-    throw new Error(lastErr ?? "Higgsfield beží dlhšie — obnov stránku o chvíľu");
+    throw new Error("Higgsfield beží dlhšie — obnov stránku o chvíľu");
   }
 
   async function generateWithFal() {
