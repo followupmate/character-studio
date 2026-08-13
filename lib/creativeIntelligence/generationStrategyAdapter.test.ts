@@ -53,6 +53,7 @@ function rec(overrides: Partial<NextContentRecommendation> = {}): NextContentRec
       mood: "golden",
       sexual_energy_level: "provocative",
       lighting_hint: null,
+      location_family: "bedroom",
     },
     ...overrides,
   };
@@ -183,7 +184,7 @@ describe("groupByCategory / pickCategory", () => {
 describe("buildCreativeIntelligenceGuidance", () => {
   it("returns empty string when no preferred dimensions are set", () => {
     const input = toGenerationStrategyInput(
-      rec({ recommended_framing: { tier: null, moment_family: null, location: null, activity: null, mood: null, sexual_energy_level: null, lighting_hint: null } }),
+      rec({ recommended_framing: { tier: null, moment_family: null, location: null, activity: null, mood: null, sexual_energy_level: null, lighting_hint: null, location_family: null } }),
       "s"
     );
     expect(buildCreativeIntelligenceGuidance(input)).toBe("");

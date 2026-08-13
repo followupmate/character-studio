@@ -4,6 +4,7 @@ import { calculateGrowthScore, GrowthMetrics } from "@/lib/growthScore";
 import { requireCron } from "@/lib/apiAuth";
 import { getIgAccessToken } from "@/lib/igToken";
 import { resolveCycleState, buildKeysetFilter, resolveBatchSize, CursorRow } from "@/lib/importInsightsCursor";
+import { captureMaturedSnapshots } from "@/lib/creativeIntelligence/performanceSnapshots";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -169,6 +170,25 @@ export async function GET(req: Request) {
     }
     if (post.character_id) affected.add(post.character_id as string);
     results.push({ postId: post.id, ok: true, score });
+
+    // Closed-loop CI evaluation, phase 1: freeze this post's just-merged cumulative engagement
+    // into an immutable checkpoint the moment it first crosses each maturity horizon. Cheap (0-3
+    // small upserts, most calls 0-1 in steady state) and never blocks the import loop — a
+    // snapshot failure here must never fail the metrics import itself.
+    if (post.character_id && post.posted_at) {
+      try {
+        await captureMaturedSnapshots({
+          postId: post.id,
+          characterId: post.character_id as string,
+          postedAt: post.posted_at as string,
+          postType: post.post_type as string,
+          metrics: merged as Record<string, number | undefined>,
+          growthScore: score,
+        });
+      } catch (snapErr) {
+        console.error("[import-insights] snapshot capture failed:", snapErr);
+      }
+    }
   }
 
   // Recompute winners (top ~30% by score) per affected character — same rule as import-metrics.

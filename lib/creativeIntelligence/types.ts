@@ -199,11 +199,16 @@ export interface NextContentRecommendation {
   recommended_framing: {
     tier: StoryTier | null;
     moment_family: MomentFamily | null;
-    location: string | null;
+    location: string | null; // display text — descriptor.location_family, falling back to free-text descriptor.location. Guidance-only (see generationStrategyAdapter.ts); NEVER used for alignment scoring.
     activity: string | null;
-    mood: string | null;
+    mood: string | null; // free text — diagnostic display only, never scored (see outcomeEvaluator.ts)
     sexual_energy_level: string | null;
     lighting_hint: string | null;
+    // Closed-loop CI evaluation only (outcomeEvaluator.ts) — the location_family TAG alone, with
+    // NO free-text fallback, so alignment scoring can tell "we have a reliable category on both
+    // sides" apart from "location just happens to render the same free text". Never read by the
+    // generation/guidance path — that stays on `location` above, unchanged.
+    location_family: string | null;
   };
 }
 

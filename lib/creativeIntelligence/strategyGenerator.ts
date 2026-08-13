@@ -149,6 +149,7 @@ function toRecommendation(
       mood: descriptor.mood,
       sexual_energy_level: descriptor.sexual_energy_level,
       lighting_hint: null, // not yet derivable from production data
+      location_family: descriptor.location_family, // tag-only, no free-text fallback — see types.ts
     },
   };
 }

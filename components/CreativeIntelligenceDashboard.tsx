@@ -161,6 +161,113 @@ const METRIC_LABELS: Record<ExplainableMetric, string> = {
 
 const WINDOW_LABEL: Record<WindowOption, string> = { '7': '7 days', '30': '30 days', '90': '90 days', all: 'All time' };
 
+// ── Strategy Performance (closed-loop CI evaluation) — mirrors lib/creativeIntelligence/
+// outcomeEvaluator.ts's public types, same hand-sync convention as the rest of this file.
+type Horizon = '24h' | '72h' | '7d';
+type Verdict = 'strong_win' | 'win' | 'neutral' | 'loss' | 'insufficient_data';
+type Bucket = 'low' | 'medium' | 'high';
+type StrategyCategoryType = 'proven' | 'evolution' | 'experiment';
+
+// Scoring-safe attributes only (tag/enum values) — mirrors outcomeEvaluator.ts's
+// ContentAttributes. `location`/`mood` are deliberately absent: they're free text with no
+// reliable family/tag representation, so V1 never string-matches them for alignment scoring —
+// see FreeTextAttributesDTO below for their diagnostic-only display counterparts.
+interface ContentAttributesDTO {
+  tier: string | null;
+  moment_family: string | null;
+  location_family: string | null;
+  activity: string | null;
+  sexual_energy_level: string | null;
+  shot_style: string | null;
+}
+
+interface FreeTextAttributesDTO {
+  location: string | null;
+  mood: string | null;
+}
+
+interface MetricUpliftEntryDTO {
+  metric: 'reach' | 'views' | 'saves' | 'shares' | 'watch_time';
+  postValue: number | null;
+  baselineValue: number | null;
+  uplift: number | null;
+  available: boolean;
+}
+
+interface SnapshotMetricsDTO {
+  reach: number | null;
+  views: number | null;
+  saves: number | null;
+  shares: number | null;
+  avg_watch_time_sec: number | null;
+  fanvue_clicks: number | null;
+}
+
+interface StrategyOutcomeDTO {
+  postId: string;
+  storyDayId: string;
+  strategySnapshotId: string;
+  recommendationRank: number;
+  recommendationCategory: StrategyCategoryType;
+  recommendationConfidence: number;
+  horizon: Horizon;
+  capturedAt: string;
+  ageHours: number;
+  alignmentScore: number | null;
+  recommended: ContentAttributesDTO;
+  actual: ContentAttributesDTO;
+  recommendedText: FreeTextAttributesDTO;
+  actualText: FreeTextAttributesDTO;
+  platformUplift: number | null;
+  platformUpliftDetail: MetricUpliftEntryDTO[];
+  businessUplift: number | null;
+  rawMetrics: SnapshotMetricsDTO;
+  baselineMetrics: SnapshotMetricsDTO;
+  comparableSampleSize: number;
+  baselineWindowDays: number;
+  evidencePostIds: string[];
+  verdict: Verdict;
+}
+
+interface CategoryBucketStatsDTO {
+  count: number;
+  winRate: number | null;
+  strongWinRate: number | null;
+  avgPlatformUplift: number | null;
+  medianPlatformUplift: number | null;
+}
+
+interface StrategyEffectivenessSummaryDTO {
+  characterId: string;
+  horizon: Horizon;
+  totalCiGuidedPosts: number;
+  matureCounts: Record<Horizon, number>;
+  winRate: number | null;
+  strongWinRate: number | null;
+  avgPlatformUplift: number | null;
+  medianPlatformUplift: number | null;
+  avgBusinessUplift: number | null;
+  byCategory: Record<StrategyCategoryType, CategoryBucketStatsDTO>;
+  byConfidenceBucket: Record<Bucket, CategoryBucketStatsDTO>;
+  byAlignmentBucket: Record<Bucket, CategoryBucketStatsDTO>;
+}
+
+const VERDICT_LABEL: Record<Verdict, string> = {
+  strong_win: 'Strong win',
+  win: 'Win',
+  neutral: 'Neutral',
+  loss: 'Loss',
+  insufficient_data: 'Not enough data yet',
+};
+const VERDICT_COLOR: Record<Verdict, string> = {
+  strong_win: 'bg-green-100 text-green-800',
+  win: 'bg-teal-100 text-teal-800',
+  neutral: 'bg-gray-100 text-gray-600',
+  loss: 'bg-red-100 text-red-700',
+  insufficient_data: 'bg-gray-100 text-gray-400',
+};
+const STRATEGY_LABEL: Record<StrategyCategoryType, string> = { proven: 'Proven', evolution: 'Evolution', experiment: 'Experiment' };
+
 // Snapshot JSON is persisted and can be older than the code reading it — every numeric/enum
 // display sourced from strategy JSON goes through these helpers instead of a raw `.toFixed()`
 // or direct Record lookup, so a schema drift never crashes the page (see the earlier runtime fix).
@@ -204,10 +311,38 @@ export default function CreativeIntelligenceDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [windowOption, setWindowOption] = useState<WindowOption>('30');
 
+  // Strategy Performance — horizon-based, not window-based, so it loads once independently of
+  // the 7/30/90/all toggle above (it answers "how did CI-guided posts do at a fixed age", not
+  // "what happened in the last N days").
+  const [outcomesSummary, setOutcomesSummary] = useState<StrategyEffectivenessSummaryDTO | null>(null);
+  const [outcomes, setOutcomes] = useState<StrategyOutcomeDTO[]>([]);
+  const [outcomesLoading, setOutcomesLoading] = useState(true);
+  const [outcomesError, setOutcomesError] = useState<string | null>(null);
+
   useEffect(() => {
     void load(windowOption);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowOption]);
+
+  useEffect(() => {
+    void loadOutcomes();
+  }, []);
+
+  async function loadOutcomes() {
+    setOutcomesLoading(true);
+    setOutcomesError(null);
+    try {
+      const res = await fetch('/api/creative-intelligence/outcomes?horizon=72h');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error ?? 'Failed to load strategy performance');
+      setOutcomesSummary(data.summary);
+      setOutcomes(data.outcomes);
+    } catch (err) {
+      setOutcomesError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setOutcomesLoading(false);
+    }
+  }
 
   async function load(win: WindowOption) {
     setLoading(true);
@@ -267,6 +402,7 @@ export default function CreativeIntelligenceDashboard() {
             <TopPerformingContent posts={intelligence.top_posts} />
             <WhatIsWorking insights={intelligence.what_is_working} />
             {strategy && <WhatToMakeNext strategy={strategy} />}
+            <StrategyPerformance summary={outcomesSummary} outcomes={outcomes} loading={outcomesLoading} error={outcomesError} />
           </>
         )}
       </div>
@@ -584,6 +720,208 @@ function MetricBreakdownTable({ breakdown }: { breakdown: PerformanceBreakdown }
       <MetricSection title="Platform performance (IG growth)" metrics={platformMetrics} compositeLabel="Platform composite index" compositeIndex={breakdown.platform_composite_index} />
       <MetricSection title="Business conversion (Fanvue)" metrics={businessMetrics} compositeLabel="Business conversion index" compositeIndex={breakdown.business_conversion_index} />
       <div className="mt-1 text-gray-500">Sample size: {breakdown.sample_size} · Normalized against {breakdown.comparable_sample_size} comparable posts.</div>
+    </div>
+  );
+}
+
+// F. Strategy Performance — closed-loop evaluation: did CI-guided posts actually outperform a
+// comparable baseline, and how closely did the generated content follow the recommendation?
+// Read-only measurement — never feeds back into 60/30/10, confidence thresholds, or bias
+// strength (see lib/creativeIntelligence/outcomeEvaluator.ts's file header).
+
+function formatUplift(value: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  const pct = Math.round(value * 100);
+  if (pct === 0) return '±0%';
+  return pct > 0 ? `+${pct}%` : `${pct}%`;
+}
+
+function medianOf(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+function medianMetricUplift(outcomes: StrategyOutcomeDTO[], metric: MetricUpliftEntryDTO['metric']): number | null {
+  const values = outcomes
+    .map((o) => o.platformUpliftDetail.find((d) => d.metric === metric))
+    .filter((d): d is MetricUpliftEntryDTO => !!d && d.available && d.uplift !== null)
+    .map((d) => d.uplift as number);
+  return medianOf(values);
+}
+
+function StrategyPerformance({
+  summary,
+  outcomes,
+  loading,
+  error,
+}: {
+  summary: StrategyEffectivenessSummaryDTO | null;
+  outcomes: StrategyOutcomeDTO[];
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-bold mb-4">Strategy Performance</h2>
+        <p className="text-gray-500 text-sm">Loading closed-loop performance data…</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-bold mb-4">Strategy Performance</h2>
+        <p className="text-red-600 text-sm">{error}</p>
+      </div>
+    );
+  }
+  if (!summary || summary.matureCounts['72h'] === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-bold mb-2">Strategy Performance</h2>
+        <p className="text-sm text-gray-500">Not enough mature CI-guided posts yet.</p>
+        {summary && summary.totalCiGuidedPosts > 0 && (
+          <p className="text-xs text-gray-400 mt-2">
+            {summary.totalCiGuidedPosts} CI-guided post{summary.totalCiGuidedPosts === 1 ? '' : 's'} tracked so far — none have reached the 72h checkpoint yet.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const reachUplift = medianMetricUplift(outcomes, 'reach');
+  const savesUplift = medianMetricUplift(outcomes, 'saves');
+  const sharesUplift = medianMetricUplift(outcomes, 'shares');
+
+  const ranked = outcomes.filter((o) => o.verdict !== 'insufficient_data' && o.platformUplift !== null).sort((a, b) => (b.platformUplift ?? 0) - (a.platformUplift ?? 0));
+  const best = ranked.slice(0, 3);
+  const weak = ranked.length > best.length ? ranked.slice(-3).reverse() : [];
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+        <h2 className="text-xl font-bold">Strategy Performance</h2>
+        <span className="text-xs text-gray-400">Measured at 72h · read-only, never changes generation</span>
+      </div>
+      <p className="text-sm text-gray-500 mb-4">Did content Creative Intelligence nudged us toward actually outperform a comparable baseline?</p>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Stat label="CI-guided posts" value={summary.totalCiGuidedPosts.toString()} />
+        <Stat label="Mature 72h posts" value={summary.matureCounts['72h'].toString()} />
+        <Stat label="Win rate" value={formatPercent(summary.winRate)} />
+        <Stat label="Median platform uplift" value={formatUplift(summary.medianPlatformUplift)} />
+        <Stat label="Reach uplift (median)" value={formatUplift(reachUplift)} />
+        <Stat label="Saves uplift (median)" value={formatUplift(savesUplift)} />
+        <Stat label="Shares uplift (median)" value={formatUplift(sharesUplift)} />
+        <Stat label="Business (Fanvue) uplift" value={summary.avgBusinessUplift !== null ? formatUplift(summary.avgBusinessUplift) : 'Not tracked'} />
+      </div>
+
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-2">By strategy type</h3>
+        <div className="grid grid-cols-3 gap-3">
+          {(['proven', 'evolution', 'experiment'] as StrategyCategoryType[]).map((cat) => {
+            const b = summary.byCategory[cat];
+            return (
+              <div key={cat} className="border rounded-lg p-3 text-center">
+                <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{STRATEGY_LABEL[cat]}</div>
+                <div className="text-lg font-bold text-gray-800">{formatPercent(b.winRate)}</div>
+                <div className="text-xs text-gray-500">win rate · {b.count} outcome{b.count === 1 ? '' : 's'}</div>
+                <div className="text-xs text-gray-500 mt-1">median uplift {formatUplift(b.medianPlatformUplift)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {best.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Best CI decisions</h3>
+          <div className="space-y-2">
+            {best.map((o) => (
+              <OutcomeCard key={`${o.postId}-${o.horizon}`} outcome={o} />
+            ))}
+          </div>
+        </div>
+      )}
+      {weak.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Weak CI decisions</h3>
+          <div className="space-y-2">
+            {weak.map((o) => (
+              <OutcomeCard key={`${o.postId}-${o.horizon}`} outcome={o} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// scored=true (default): highlighted green on match — a genuine tag/enum comparison that fed
+// alignmentScore. scored=false: shown neutrally, no highlight — free text that was NEVER
+// compared for scoring (see ContentAttributes' comment in outcomeEvaluator.ts for why).
+function attrLine(label: string, recommended: string | null, actual: string | null, scored = true) {
+  const matched = scored && !!recommended && !!actual && recommended.trim().toLowerCase() === actual.trim().toLowerCase();
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="text-gray-400 w-24 flex-shrink-0">{label}</span>
+      <span className={matched ? 'text-green-700 font-medium' : 'text-gray-600'}>
+        {actual ?? '—'} <span className="text-gray-400 font-normal">(recommended: {recommended ?? '—'})</span>
+      </span>
+    </div>
+  );
+}
+
+function OutcomeCard({ outcome }: { outcome: StrategyOutcomeDTO }) {
+  return (
+    <div className="border rounded-lg p-3">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-semibold px-2 py-1 rounded ${VERDICT_COLOR[outcome.verdict]}`}>{VERDICT_LABEL[outcome.verdict]}</span>
+          <span className={`text-xs font-semibold px-2 py-1 rounded ${CATEGORY_COLOR[outcome.recommendationCategory] ?? 'bg-gray-100 text-gray-700'}`}>
+            {STRATEGY_LABEL[outcome.recommendationCategory]}
+          </span>
+          <span className="text-xs text-gray-500">#{outcome.recommendationRank}</span>
+        </div>
+        <span className="text-xs text-gray-500">
+          Platform uplift {formatUplift(outcome.platformUplift)} · Alignment {outcome.alignmentScore !== null ? formatPercent(outcome.alignmentScore) : 'n/a'}
+        </span>
+      </div>
+      <div className="text-xs space-y-1 mb-2">
+        {attrLine('Tier', outcome.recommended.tier, outcome.actual.tier)}
+        {attrLine('Location family', outcome.recommended.location_family, outcome.actual.location_family)}
+        {attrLine('Activity', outcome.recommended.activity, outcome.actual.activity)}
+        {attrLine('Sexual energy', outcome.recommended.sexual_energy_level, outcome.actual.sexual_energy_level)}
+        {attrLine('Shot style', outcome.recommended.shot_style, outcome.actual.shot_style)}
+      </div>
+      <details>
+        <summary className="text-xs text-purple-600 cursor-pointer">Raw data</summary>
+        <div className="mt-2 text-xs text-gray-500 space-y-1">
+          <div>
+            Confidence at decision time: {formatPercent(outcome.recommendationConfidence)} · Comparable sample: {outcome.comparableSampleSize} posts over {outcome.baselineWindowDays}d
+          </div>
+          <div className="pt-1 border-t border-gray-100">
+            <div className="text-gray-400 mb-0.5">Free text — diagnostic only, not scored (no reliable tag to compare):</div>
+            {attrLine('Location', outcome.recommendedText.location, outcome.actualText.location, false)}
+            {attrLine('Mood', outcome.recommendedText.mood, outcome.actualText.mood, false)}
+          </div>
+          <div>
+            Raw: reach {formatCompactCount(outcome.rawMetrics.reach)} · saves {formatCompactCount(outcome.rawMetrics.saves)} · shares {formatCompactCount(outcome.rawMetrics.shares)} · views{' '}
+            {formatCompactCount(outcome.rawMetrics.views)}
+          </div>
+          <div>
+            Baseline (median): reach {formatCompactCount(outcome.baselineMetrics.reach)} · saves {formatCompactCount(outcome.baselineMetrics.saves)} · shares{' '}
+            {formatCompactCount(outcome.baselineMetrics.shares)}
+          </div>
+          {outcome.businessUplift !== null && <div>Business (Fanvue) uplift: {formatUplift(outcome.businessUplift)}</div>}
+          <div>
+            Captured at {outcome.ageHours.toFixed(1)}h age · story day {outcome.storyDayId.slice(0, 8)}… · evidence posts: {outcome.evidencePostIds.length}
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
