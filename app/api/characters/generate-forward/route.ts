@@ -73,16 +73,26 @@ export async function POST(req: Request) {
         const targetDate = nextDate;
         const dayNumber = nextDayNumber;
 
-        // Skip if this date already exists
+        // If this date's story_day already exists, don't just skip it — a previous run may have
+        // been killed by the platform mid-batch (e.g. hit maxDuration) after the story insert but
+        // before generateDailyBatch finished, leaving a story_day with zero chs_media rows. Always
+        // (re-)run generateDailyBatch: it's a fast no-op via determineSlotsNeeded when the day is
+        // already fully generated, and it resumes/heals when it isn't — same pattern already used
+        // by the daily story cron (app/api/characters/story/route.ts), which never had this bug.
         const { data: existing } = await supabase
           .from("chs_story_days")
-          .select("id")
+          .select("id, tier")
           .eq("character_id", char.id)
           .eq("date", targetDate)
           .maybeSingle();
 
         if (existing) {
-          charResult.days.push({ date: targetDate, day_number: dayNumber, tier: "skip", status: "already_exists" });
+          try {
+            const batch = await generateDailyBatch({ characterId: char.id, storyDayId: existing.id });
+            charResult.days.push({ date: targetDate, day_number: dayNumber, tier: existing.tier ?? "unknown", status: batch.status });
+          } catch (err) {
+            charResult.days.push({ date: targetDate, day_number: dayNumber, tier: existing.tier ?? "unknown", status: "failed", error: errMsg(err) });
+          }
           nextDate = addDays(nextDate, 1);
           nextDayNumber++;
           continue;

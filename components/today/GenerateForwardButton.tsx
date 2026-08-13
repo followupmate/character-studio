@@ -37,23 +37,49 @@ export default function GenerateForwardButton({ characterId }: { characterId?: s
     setLoading(true);
     setResults(null);
     setError(null);
+    // One HTTP request per day, sent sequentially — NOT one request for all `days`. Each day's
+    // real generation cost (story narrative + scene brief + up to ~9 slot prompts, all Claude
+    // calls) is minutes, not the ~25s this used to assume; bundling several days into a single
+    // request risked hitting the function's maxDuration mid-flight, which kills the whole request
+    // with no error handling — the browser sees a bare "Failed to fetch" and every day after the
+    // one being processed never even gets attempted. Splitting to one day per request means a
+    // slow or failed day only affects itself; the loop keeps going for the rest either way.
+    const combined: CharResult[] = [];
+    let lastErrorMsg: string | null = null;
     try {
-      const res = await fetch("/api/characters/generate-forward", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, ...(characterId ? { character_id: characterId } : {}) }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Unknown error");
-      setResults(data.generated);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      for (let i = 0; i < days; i++) {
+        try {
+          const res = await fetch("/api/characters/generate-forward", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ days: 1, ...(characterId ? { character_id: characterId } : {}) }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error ?? "Unknown error");
+          for (const r of data.generated as CharResult[]) {
+            const existing = combined.find((c) => c.character === r.character);
+            if (existing) existing.days.push(...r.days);
+            else combined.push({ character: r.character, days: [...r.days] });
+          }
+        } catch (e) {
+          lastErrorMsg = e instanceof Error ? e.message : String(e);
+          const key = characterId ?? "?";
+          const existing = combined.find((c) => c.character === key);
+          const entry: DayResult = { date: "?", day_number: 0, tier: "unknown", status: "failed", error: lastErrorMsg };
+          if (existing) existing.days.push(entry);
+          else combined.push({ character: key, days: [entry] });
+        }
+        setResults([...combined]);
+      }
+      if (lastErrorMsg && combined.every((c) => c.days.every((d) => d.status === "failed"))) {
+        setError(lastErrorMsg);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  const estimated = days * 25;
+  const estimated = days * 200;
   const progress = loading ? Math.min((elapsed / estimated) * 100, 95) : 0;
 
   const statusColor = (s: string) =>
@@ -120,13 +146,13 @@ export default function GenerateForwardButton({ characterId }: { characterId?: s
 
               {/* Quick day navigation buttons */}
               <div className="flex flex-wrap gap-1.5">
-                {r.days.map((d) => {
-                  const label = new Date(d.date + "T12:00:00Z").toLocaleDateString("sk-SK", { day: "numeric", month: "numeric" });
+                {r.days.map((d, i) => {
+                  const label = d.date === "?" ? "?" : new Date(d.date + "T12:00:00Z").toLocaleDateString("sk-SK", { day: "numeric", month: "numeric" });
                   const isOk = d.status === "ready" || d.status === "already_exists";
                   return (
                     <a
-                      key={d.date}
-                      href={`/today?date=${d.date}`}
+                      key={`${d.date}-${i}`}
+                      href={d.date === "?" ? "#" : `/today?date=${d.date}`}
                       className={`font-mono text-[10px] border rounded px-2.5 py-1 transition-colors ${
                         isOk
                           ? "border-teal/40 bg-teal/10 text-teal hover:bg-teal/20"
@@ -144,8 +170,8 @@ export default function GenerateForwardButton({ characterId }: { characterId?: s
 
               {/* Detail list */}
               <div className="space-y-1">
-                {r.days.map((d) => (
-                  <div key={d.date} className="flex items-center gap-3">
+                {r.days.map((d, i) => (
+                  <div key={`${d.date}-${i}`} className="flex items-center gap-3">
                     <span className="font-mono text-[10px] text-ink w-24">{d.date}</span>
                     <span className="font-mono text-[9px] text-muted2">Day {d.day_number}</span>
                     <span className="font-mono text-[9px] bg-bg border border-border text-muted px-1.5 py-0.5 rounded">
