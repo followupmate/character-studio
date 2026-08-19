@@ -54,8 +54,11 @@ import type { ExplainableMetric, MetricBreakdownEntry, MetricCategory, Performan
 //   performanceFactor — how far the stronger axis's index sits above 1.0 (baseline), capped
 //                       at 2x baseline so one outlier post can't inflate confidence
 //
-// status = "proven" requires BOTH sample_size >= PROVEN_MIN_SAMPLES AND winning_axis !== "neither"
-// (real outperformance on at least one axis, not just "some posts exist").
+// status = "proven" requires sample_size >= PROVEN_MIN_SAMPLES, winning_axis !== "neither", AND
+// a majority (>50%) of the individual pattern posts themselves outperforming baseline on the
+// winning axis — this is what stops one viral outlier from single-handedly dragging a mean-based
+// composite index above 1.0 while every other post in the group sits at or below baseline. See
+// majorityOutperforms() / isProven() below.
 
 export const PROVEN_MIN_SAMPLES = 3;
 
@@ -258,6 +261,33 @@ export function computeConfidence(breakdown: PerformanceBreakdown, patternPosts:
   return Math.round(sizeFactor * consistencyFactor * performanceFactor * 100) / 100;
 }
 
-export function isProven(breakdown: PerformanceBreakdown | null): boolean {
-  return !!breakdown && breakdown.sample_size >= PROVEN_MIN_SAMPLES && breakdown.winning_axis !== "neither";
+// What fraction of the individual pattern posts outperform baseline (per-post index > 1.0) on
+// the given axis weights. A post with no comparable data on this axis counts as NOT
+// outperforming — it stays out of the numerator but stays in the denominator — matching the
+// "no fabricated scores" principle elsewhere in this file: missing data never helps a pattern
+// look more proven than it is.
+function majorityOutperforms<M extends string>(patternPosts: AnalyzedPost[], baselinePosts: AnalyzedPost[], weights: Record<M, number>): boolean {
+  if (patternPosts.length === 0) return false;
+  const outperforming = patternPosts.filter((p) => {
+    const index = perPostAxisIndex(p, baselinePosts, weights);
+    return index !== null && index > 1.0;
+  }).length;
+  return outperforming / patternPosts.length > 0.5;
+}
+
+// "proven" requires real, broad-based outperformance — not just a mean that one standout post
+// happens to drag above baseline. sample_size/winning_axis are the existing gates; the majority
+// check is the new one: more than half of the individual evidence posts must themselves clear
+// baseline on the axis that's supposedly winning. For "both", the majority must hold
+// independently on platform AND on business — each axis's own "winning" claim needs its own
+// majority evidence, not one axis's outlier covering for the other.
+export function isProven(breakdown: PerformanceBreakdown | null, patternPosts: AnalyzedPost[], baselinePosts: AnalyzedPost[]): boolean {
+  if (!breakdown || breakdown.sample_size < PROVEN_MIN_SAMPLES || breakdown.winning_axis === "neither") return false;
+
+  const platformMajority = () => majorityOutperforms(patternPosts, baselinePosts, PLATFORM_METRIC_WEIGHTS);
+  const businessMajority = () => majorityOutperforms(patternPosts, baselinePosts, BUSINESS_METRIC_WEIGHTS);
+
+  if (breakdown.winning_axis === "both") return platformMajority() && businessMajority();
+  if (breakdown.winning_axis === "business") return businessMajority();
+  return platformMajority(); // winning_axis === "platform"
 }

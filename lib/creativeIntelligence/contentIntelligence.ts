@@ -89,7 +89,7 @@ export function analyzePerformance(characterId: string, windowDays: number, post
     const type = dominantPostType(group);
     const baselinePosts = byPostType.get(type) ?? scored;
     const breakdown = buildPerformanceBreakdown(group, baselinePosts);
-    const status = isProven(breakdown) ? "proven" : "unproven";
+    const status = isProven(breakdown, group, baselinePosts) ? "proven" : "unproven";
     patterns.push({
       id: patternId(key),
       descriptor: group[0].descriptor,

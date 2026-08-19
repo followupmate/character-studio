@@ -43,7 +43,7 @@ export interface GenerationStrategyInput {
 
 // Never more aggressive than the existing growth_layer cap (storyTier.ts's BIAS_CAP = 0.10) —
 // CI bias must never be a stronger lever than the already-shipped growth_layer mechanism.
-const BIAS_DELTA: Record<BiasStrength, number> = { none: 0, soft: 0.03, medium: 0.06, strong: 0.10 };
+const BIAS_DELTA: Record<BiasStrength, number> = { none: 0, soft: 0.05, medium: 0.08, strong: 0.1 };
 
 // Stale-snapshot guard: a CI snapshot older than this is treated exactly like "no snapshot" —
 // never used as a bias, regardless of how good its numbers were when it was generated.

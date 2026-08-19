@@ -163,7 +163,7 @@ describe("winning_axis — distinguishing IG-growth winners from Fanvue winners"
     expect(breakdown.platform_composite_index).toBeGreaterThan(1.0);
     expect(breakdown.business_conversion_index).toBeLessThan(1.0);
     expect(breakdown.winning_axis).toBe("platform");
-    expect(isProven(breakdown)).toBe(true);
+    expect(isProven(breakdown, patternPosts, baselinePosts)).toBe(true);
   });
 
   it("case B: average reach, high Fanvue clicks -> winning_axis 'business', not 'platform'", () => {
@@ -178,26 +178,22 @@ describe("winning_axis — distinguishing IG-growth winners from Fanvue winners"
     expect(breakdown.platform_composite_index).toBeCloseTo(1.0, 1);
     expect(breakdown.business_conversion_index).toBeGreaterThan(1.0);
     expect(breakdown.winning_axis).toBe("business");
-    expect(isProven(breakdown)).toBe(true);
+    expect(isProven(breakdown, patternPosts, baselinePosts)).toBe(true);
   });
 
   it("distinguishes the two winner types from each other (not just from a 'neither' baseline)", () => {
     const baselinePosts = [post({ reach: 1000, follows: 2, fanvue_clicks: 5 }), post({ reach: 1000, follows: 2, fanvue_clicks: 5 })];
-    const igWinner = buildPerformanceBreakdown(
-      [post({ reach: 5000, follows: 10, fanvue_clicks: 1 }), post({ reach: 5000, follows: 10, fanvue_clicks: 1 }), post({ reach: 5000, follows: 10, fanvue_clicks: 1 })],
-      baselinePosts
-    );
-    const fanvueWinner = buildPerformanceBreakdown(
-      [post({ reach: 1000, follows: 2, fanvue_clicks: 30 }), post({ reach: 1000, follows: 2, fanvue_clicks: 30 }), post({ reach: 1000, follows: 2, fanvue_clicks: 30 })],
-      baselinePosts
-    );
+    const igWinnerPosts = [post({ reach: 5000, follows: 10, fanvue_clicks: 1 }), post({ reach: 5000, follows: 10, fanvue_clicks: 1 }), post({ reach: 5000, follows: 10, fanvue_clicks: 1 })];
+    const fanvueWinnerPosts = [post({ reach: 1000, follows: 2, fanvue_clicks: 30 }), post({ reach: 1000, follows: 2, fanvue_clicks: 30 }), post({ reach: 1000, follows: 2, fanvue_clicks: 30 })];
+    const igWinner = buildPerformanceBreakdown(igWinnerPosts, baselinePosts);
+    const fanvueWinner = buildPerformanceBreakdown(fanvueWinnerPosts, baselinePosts);
 
     expect(igWinner.winning_axis).not.toBe(fanvueWinner.winning_axis);
     expect(igWinner.winning_axis).toBe("platform");
     expect(fanvueWinner.winning_axis).toBe("business");
     // Both are legitimately "proven", but for entirely different, transparent reasons.
-    expect(isProven(igWinner)).toBe(true);
-    expect(isProven(fanvueWinner)).toBe(true);
+    expect(isProven(igWinner, igWinnerPosts, baselinePosts)).toBe(true);
+    expect(isProven(fanvueWinner, fanvueWinnerPosts, baselinePosts)).toBe(true);
   });
 
   it("winning_axis is 'both' when a pattern outperforms baseline on both axes", () => {
@@ -214,28 +210,100 @@ describe("winning_axis — distinguishing IG-growth winners from Fanvue winners"
 
 describe("isProven", () => {
   it("requires both PROVEN_MIN_SAMPLES and winning_axis !== 'neither'", () => {
-    const strongButFewSamples = buildPerformanceBreakdown(
-      [post({ reach: 2000 })],
-      [post({ reach: 1000 }), post({ reach: 1000 })]
-    );
+    const fewSamplePosts = [post({ reach: 2000 })];
+    const fewSampleBaseline = [post({ reach: 1000 }), post({ reach: 1000 })];
+    const strongButFewSamples = buildPerformanceBreakdown(fewSamplePosts, fewSampleBaseline);
     expect(strongButFewSamples.sample_size).toBeLessThan(PROVEN_MIN_SAMPLES);
-    expect(isProven(strongButFewSamples)).toBe(false);
+    expect(isProven(strongButFewSamples, fewSamplePosts, fewSampleBaseline)).toBe(false);
 
-    const enoughSamplesButAtBaseline = buildPerformanceBreakdown(
-      [post({ reach: 1000 }), post({ reach: 1000 }), post({ reach: 1000 })],
-      [post({ reach: 1000 }), post({ reach: 1000 })]
-    );
-    expect(isProven(enoughSamplesButAtBaseline)).toBe(false); // index === 1.0, not > 1.0
+    const atBaselinePosts = [post({ reach: 1000 }), post({ reach: 1000 }), post({ reach: 1000 })];
+    const atBaselineBaseline = [post({ reach: 1000 }), post({ reach: 1000 })];
+    const enoughSamplesButAtBaseline = buildPerformanceBreakdown(atBaselinePosts, atBaselineBaseline);
+    expect(isProven(enoughSamplesButAtBaseline, atBaselinePosts, atBaselineBaseline)).toBe(false); // index === 1.0, not > 1.0
 
-    const proven = buildPerformanceBreakdown(
-      [post({ reach: 2000 }), post({ reach: 2000 }), post({ reach: 2000 })],
-      [post({ reach: 1000 }), post({ reach: 1000 })]
-    );
-    expect(isProven(proven)).toBe(true);
+    const provenPosts = [post({ reach: 2000 }), post({ reach: 2000 }), post({ reach: 2000 })];
+    const provenBaseline = [post({ reach: 1000 }), post({ reach: 1000 })];
+    const proven = buildPerformanceBreakdown(provenPosts, provenBaseline);
+    expect(isProven(proven, provenPosts, provenBaseline)).toBe(true);
   });
 
   it("returns false for a null breakdown", () => {
-    expect(isProven(null)).toBe(false);
+    expect(isProven(null, [], [])).toBe(false);
+  });
+
+  it("does NOT let one viral outlier make a pattern proven: 1 outlier + 4 posts at/below baseline -> NOT proven", () => {
+    const baselinePosts = [post({ reach: 1000 }), post({ reach: 1000 })];
+    const patternPosts = [
+      post({ reach: 200000 }), // the viral outlier
+      post({ reach: 900 }),
+      post({ reach: 800 }),
+      post({ reach: 700 }),
+      post({ reach: 600 }),
+    ];
+    const breakdown = buildPerformanceBreakdown(patternPosts, baselinePosts);
+    // The outlier drags the mean-based composite well above 1.0 — winning_axis still fires...
+    expect(breakdown.platform_composite_index).toBeGreaterThan(1.0);
+    expect(breakdown.winning_axis).toBe("platform");
+    // ...but only 1 of 5 posts individually clears baseline, so the majority gate blocks proven.
+    expect(isProven(breakdown, patternPosts, baselinePosts)).toBe(false);
+  });
+
+  it("3 of 5 posts individually above baseline -> proven (majority satisfied)", () => {
+    const baselinePosts = [post({ reach: 1000 }), post({ reach: 1000 })];
+    const patternPosts = [
+      post({ reach: 3000 }),
+      post({ reach: 2500 }),
+      post({ reach: 2000 }),
+      post({ reach: 900 }),
+      post({ reach: 800 }),
+    ];
+    const breakdown = buildPerformanceBreakdown(patternPosts, baselinePosts);
+    expect(breakdown.winning_axis).toBe("platform");
+    expect(isProven(breakdown, patternPosts, baselinePosts)).toBe(true);
+  });
+
+  it("2 of 5 posts individually above baseline -> NOT proven (exactly at the 50% line, not a majority)", () => {
+    const baselinePosts = [post({ reach: 1000 }), post({ reach: 1000 })];
+    const patternPosts = [
+      post({ reach: 5000 }),
+      post({ reach: 4000 }),
+      post({ reach: 900 }),
+      post({ reach: 800 }),
+      post({ reach: 700 }),
+    ];
+    const breakdown = buildPerformanceBreakdown(patternPosts, baselinePosts);
+    expect(breakdown.winning_axis).toBe("platform"); // mean is still pulled above baseline
+    expect(isProven(breakdown, patternPosts, baselinePosts)).toBe(false);
+  });
+
+  it("a strong outlier cannot single-handedly beat the majority rule, no matter how extreme", () => {
+    const baselinePosts = [post({ reach: 1000 }), post({ reach: 1000 })];
+    const patternPosts = [
+      post({ reach: 10_000_000 }), // absurdly extreme single outlier
+      post({ reach: 100 }),
+      post({ reach: 100 }),
+      post({ reach: 100 }),
+      post({ reach: 100 }),
+    ];
+    const breakdown = buildPerformanceBreakdown(patternPosts, baselinePosts);
+    expect(breakdown.winning_axis).toBe("platform");
+    expect(isProven(breakdown, patternPosts, baselinePosts)).toBe(false);
+  });
+
+  it("majority check is evaluated independently per axis when winning_axis is 'both'", () => {
+    const baselinePosts = [post({ reach: 1000, fanvue_clicks: 5 }), post({ reach: 1000, fanvue_clicks: 5 })];
+    // platform: majority satisfied (4 of 5 above baseline). business: only 1 of 5 above baseline
+    // (a single fanvue outlier) -> 'both' must fail even though platform alone would pass.
+    const patternPosts = [
+      post({ reach: 3000, fanvue_clicks: 200 }),
+      post({ reach: 2500, fanvue_clicks: 1 }),
+      post({ reach: 2200, fanvue_clicks: 1 }),
+      post({ reach: 2100, fanvue_clicks: 1 }),
+      post({ reach: 900, fanvue_clicks: 1 }),
+    ];
+    const breakdown = buildPerformanceBreakdown(patternPosts, baselinePosts);
+    expect(breakdown.winning_axis).toBe("both");
+    expect(isProven(breakdown, patternPosts, baselinePosts)).toBe(false);
   });
 });
 

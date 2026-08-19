@@ -127,6 +127,19 @@ describe("biasDeltaFor", () => {
     expect(biasDeltaFor(soft)).toBeLessThan(biasDeltaFor(medium));
     expect(biasDeltaFor(medium)).toBeLessThan(biasDeltaFor(strong));
   });
+  it("soft/medium/strong deltas are exactly 0.05 / 0.08 / 0.10", () => {
+    const soft = toGenerationStrategyInput(rec({ confidence_score: 0.1 }), "s");
+    const medium = toGenerationStrategyInput(rec({ confidence_score: 0.4 }), "s");
+    const strong = toGenerationStrategyInput(rec({ confidence_score: 0.9 }), "s");
+    expect(biasDeltaFor(soft)).toBe(0.05);
+    expect(biasDeltaFor(medium)).toBe(0.08);
+    expect(biasDeltaFor(strong)).toBe(0.1);
+  });
+  it("experiment stays capped to the soft delta (0.05) even at high confidence", () => {
+    const experimentHighConfidence = toGenerationStrategyInput(rec({ category: "experiment", confidence_score: 0.95 }), "s");
+    expect(experimentHighConfidence.biasStrength).toBe("soft");
+    expect(biasDeltaFor(experimentHighConfidence)).toBe(0.05);
+  });
 });
 
 describe("sexualEnergyMultiplierFor", () => {
