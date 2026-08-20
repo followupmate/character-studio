@@ -3,7 +3,13 @@ import { stripPromptHeader } from "@/lib/promptClean";
 import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// Was 120 — genuinely too tight: generateSoulImage()'s own poll loop (lib/higgsfieldSoul.ts) can run
+// up to 45 * 2.5s = 112.5s by itself, before the submit call, the final image download, and the
+// Supabase Storage upload — all of which regularly pushed the real worst case past 120s, producing
+// a 504 (Vercel Runtime Timeout Error) on production. app/api/characters/generate-media/route.ts
+// already runs at 300s, confirming the project's plan supports this; 240 gives real headroom above
+// the ~112.5s poll ceiling without touching the async-job architecture.
+export const maxDuration = 240;
 
 // In-app Higgsfield Soul image generation — calls the official Higgsfield Cloud API
 // (platform.higgsfield.ai) directly from the server. Used for max-intimate scenes where Soul gives the

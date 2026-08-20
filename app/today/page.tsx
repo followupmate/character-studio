@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { Character, StoryDay, Media } from "@/types";
 import { tierLabel } from "@/lib/storyTier";
+import { isFlagOn } from "@/lib/featureFlags";
 import Sidebar from "@/components/dashboard/Sidebar";
 import MediaCard from "@/components/dashboard/MediaCard";
 import CharacterSelector from "@/components/today/CharacterSelector";
@@ -37,7 +38,7 @@ const tierColors: Record<string, string> = {
   lifestyle_travel: "text-amber border-amber/20 bg-amber/10",
 };
 
-function ProductionGroup({ title, hint, items, canAutoGenerate }: { title: string; hint: string; items: Media[]; canAutoGenerate?: boolean }) {
+function ProductionGroup({ title, hint, items, canAutoGenerate, promptDirectorEnabled }: { title: string; hint: string; items: Media[]; canAutoGenerate?: boolean; promptDirectorEnabled?: boolean }) {
   return (
     <div>
       <div className="mb-3">
@@ -46,7 +47,7 @@ function ProductionGroup({ title, hint, items, canAutoGenerate }: { title: strin
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {items.map((m) => (
-          <MediaCard key={m.id} media={m} canAutoGenerate={canAutoGenerate} />
+          <MediaCard key={m.id} media={m} canAutoGenerate={canAutoGenerate} promptDirectorEnabled={promptDirectorEnabled} />
         ))}
       </div>
     </div>
@@ -142,7 +143,7 @@ export default async function TodayPage({
 
                 return (
                   <div key={story.id} className="bg-bg2 border border-border rounded-md overflow-hidden">
-                    {(() => { const canAutoGenerate = !!char?.lora_model_id; return (
+                    {(() => { const canAutoGenerate = !!char?.lora_model_id; const promptDirectorEnabled = isFlagOn(char?.feature_flags, "prompt_director_v1"); return (
                     <>
                     {/* Story header */}
                     <div className="bg-bg3 px-6 py-4 border-b border-border flex items-center justify-between">
@@ -236,6 +237,7 @@ export default async function TodayPage({
                                 hint={`${feed.length} / 5 framov · IG carousel (4:5)`}
                                 items={feed}
                                 canAutoGenerate={canAutoGenerate}
+                                promptDirectorEnabled={promptDirectorEnabled}
                               />
                             )}
                             {reel.length > 0 && (
@@ -244,6 +246,7 @@ export default async function TodayPage({
                                 hint="Start frame → image gen · motion → Kling (Seedance blokuje realistické tváre) · 9:16 · audio"
                                 items={reel}
                                 canAutoGenerate={canAutoGenerate}
+                                promptDirectorEnabled={promptDirectorEnabled}
                               />
                             )}
                             {storyAssets.length > 0 && (
@@ -252,6 +255,7 @@ export default async function TodayPage({
                                 hint="BTS · 9:16"
                                 items={storyAssets}
                                 canAutoGenerate={canAutoGenerate}
+                                promptDirectorEnabled={promptDirectorEnabled}
                               />
                             )}
                             {legacy.length > 0 && (
@@ -260,6 +264,7 @@ export default async function TodayPage({
                                 hint="Older assets without slot metadata"
                                 items={legacy}
                                 canAutoGenerate={canAutoGenerate}
+                                promptDirectorEnabled={promptDirectorEnabled}
                               />
                             )}
                           </div>

@@ -5,39 +5,26 @@ import { motion, AnimatePresence } from "motion/react";
 import { Media } from "@/types";
 import { stripPromptHeader } from "@/lib/promptClean";
 import { slotLabel } from "@/lib/slots";
-import PromptDirectorPanel from "./PromptDirectorPanel";
-import type { PromptDirectorTargetModel } from "@/lib/promptDirector";
+import GenerationControls, { AudioStyle, GeneratorSpec } from "./GenerationControls";
 
 /* ─── Generator options ──────────────────────────────────────── */
-const IMAGE_GENERATORS = [
+const IMAGE_GENERATORS: readonly GeneratorSpec[] = [
   { id: "google",    label: "Nano Banana", desc: "Google · Nano Banana 2 · rich environment", model: "google",     loraScale: 0,    steps: 0,  guidance: 0   },
   { id: "google-pro",label: "NB Pro",      desc: "Google · Nano Banana Pro · best environment", model: "google-pro", loraScale: 0,    steps: 0,  guidance: 0   },
   { id: "flux-lora", label: "fal.ai",      desc: "LoRA · faithful face · handles intimate",   model: "flux-lora",  loraScale: 0.85, steps: 45, guidance: 3.2 },
   { id: "higgsfield",label: "Higgsfield",  desc: "Soul 2.0 · najvernejšia tvár · max-intimate · ~2 min", model: "higgsfield", loraScale: 0, steps: 0, guidance: 0 },
-] as const;
+];
 
-const VIDEO_GENERATORS = [
+const VIDEO_GENERATORS: readonly GeneratorSpec[] = [
   { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 i2v · verná tvár + scene audio (mmaudio) · ~4 min · ODPORÚČANÉ pre postavy", model: "kling", loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min · zvláda realistické tváre",  model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
   { id: "veo-quality",   label: "Veo 3.1",         desc: "Google · Veo 3.1 Quality · vyššia kvalita · ~4 min",    model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
   { id: "seedance-ref",  label: "Seedance Ref",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-ref",  loraScale: 0, steps: 0, guidance: 0 },
   { id: "seedance-i2v",  label: "Seedance i2v",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-i2v",  loraScale: 0, steps: 0, guidance: 0 },
   { id: "seedance-fast", label: "Seedance Fast",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-fast", loraScale: 0, steps: 0, guidance: 0 },
-] as const;
+];
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];
-type GeneratorId = typeof GENERATORS[number]["id"];
-
-// Provider binding (prompt_director_v1): an EXPLICIT model choice made in PromptDirectorPanel must
-// win over this component's own ad-hoc default generator, so applying a compiled prompt also
-// switches the active generator to match. higgsfield-video and wan are deliberately absent —
-// PromptDirectorPanel already refuses to hand back a prompt for a non-live model (see its
-// liveIntegration gate), so there is nothing to map them to here.
-const TARGET_MODEL_TO_GENERATOR: Partial<Record<PromptDirectorTargetModel, GeneratorId>> = {
-  soul2: "higgsfield",
-  kling: "kling",
-  seedance: "seedance-i2v",
-};
 
 /* ─── Lightbox ───────────────────────────────────────────────── */
 function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
@@ -105,12 +92,20 @@ function cleanPrompt(raw: string): string {
   return stripPromptHeader(raw);
 }
 
-export default function MediaCard({ media, canAutoGenerate = false }: { media: Media; canAutoGenerate?: boolean }) {
+export default function MediaCard({
+  media,
+  canAutoGenerate = false,
+  promptDirectorEnabled = false,
+}: {
+  media: Media;
+  canAutoGenerate?: boolean;
+  promptDirectorEnabled?: boolean;
+}) {
   const isPhoto     = media.type === "photo";
   const isVideoSlot = media.slot === "reel_video";
   // Engine mix per slot: wide/lifestyle establishing → Google NB; feed/portrait + story → fal LoRA.
   const isWideSlot  = media.slot === "carousel_1" || media.slot === "reel_start_frame";
-  const defaultImageGen: GeneratorId = isWideSlot ? "google" : "flux-lora";
+  const defaultImageGen = isWideSlot ? "google" : "flux-lora";
   const isCarousel  = media.channel === "feed";
   const baseLabel = isPhoto ? "FOTO" : "VIDEO";
   const slotLabelText = slotLabel(media.slot, "");
@@ -118,35 +113,30 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const model = isPhoto ? "Google · Nano Banana" : "Google · Veo 3.1";
   const formatHint = formatHintFor(media);
   const activeGenerators = isVideoSlot ? VIDEO_GENERATORS : IMAGE_GENERATORS;
+  const isReady = media.status === "ready";
 
   const [urlInput, setUrlInput] = useState(media.media_url ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [hookCopied, setHookCopied] = useState(false);
   const [posting, setPosting] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [generateError, setGenerateError] = useState<string | null>(null);
-  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [generator, setGenerator] = useState<GeneratorId>(isVideoSlot ? "kling" : defaultImageGen);
-  const [audioStyle, setAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
-  const [showRegen, setShowRegen] = useState(false);
-  const [regenPrompt, setRegenPrompt] = useState(cleanPrompt(media.higgsfield_prompt));
-  const [regenGenerator, setRegenGenerator] = useState<GeneratorId>(isVideoSlot ? "kling" : defaultImageGen);
-  const [regenAudioStyle, setRegenAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
-  const [regenerating, setRegenerating] = useState(false);
-  const [regenError, setRegenError] = useState<string | null>(null);
-  // prompt_director_v1 preview panel — "Použiť tento prompt" on a pending/generating slot has
-  // nowhere existing to write to (that flow has no promptOverride field, unlike the ready-state
-  // regen panel), so this carries the chosen compiled prompt into the FIRST generation call.
-  const [customPromptOverride, setCustomPromptOverride] = useState<string | null>(null);
 
-  // Elapsed-seconds counter while any generation runs — image gen takes 15–60s,
+  // Unified generation state — ONE provider, ONE prompt, ONE generate action, used whether this is
+  // the first generation or a regeneration. Prompt Director (when active for the selected provider)
+  // writes into `prompt` the same way a hand-edit would — see GenerationControls — so there is never
+  // a second, competing prompt anywhere in this UI.
+  const [generator, setGenerator] = useState<string>(isVideoSlot ? "kling" : defaultImageGen);
+  const [prompt, setPrompt] = useState(cleanPrompt(media.higgsfield_prompt));
+  const [audioStyle, setAudioStyle] = useState<AudioStyle>("scene");
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+
+  // Elapsed-seconds counter while generation runs — image gen takes 15–60s,
   // video up to ~4 min; a static spinner alone reads as frozen.
-  const busy = generating || regenerating;
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (!busy) return;
@@ -222,21 +212,30 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     throw new Error("Higgsfield beží dlhšie — obnov stránku o chvíľu");
   }
 
-  async function generateWithFal() {
-    setGenerating(true);
-    setGenerateError(null);
+  // Single generation entry point for both a first generation and a regeneration — the only
+  // difference (matching today's prior behavior) is forceRestart on the async-video path, so a
+  // regen never silently resumes a stale job from an earlier attempt.
+  async function runGeneration() {
+    setBusy(true);
+    setActionError(null);
     const g = GENERATORS.find((x) => x.id === generator) ?? GENERATORS[0];
+    // Only send an override when the visible prompt actually differs from what's stored (Prompt
+    // Director compiled something new, or the user hand-edited the textarea) — an untouched prompt
+    // (flag OFF, or a provider with no Prompt Director profile) must reproduce today's exact
+    // behavior: the ORIGINAL stored higgsfield_prompt is used as-is and never rewritten in the DB.
+    const promptOverride = prompt.trim() !== cleanPrompt(media.higgsfield_prompt).trim() ? prompt.trim() : undefined;
+    const forceRestart = isReady ? true : undefined;
     try {
       if (isAsyncVideo(g.model)) {
-        const url = await runAsyncVideo(g.model, audioStyle, customPromptOverride ?? undefined);
+        const url = await runAsyncVideo(g.model, audioStyle, promptOverride, forceRestart);
         setGeneratedUrl(url);
-        setTimeout(() => window.location.reload(), 1200);
+        setTimeout(() => window.location.reload(), isReady ? 800 : 1200);
         return;
       }
       if (g.model === "higgsfield") {
-        const url = await runHiggsfield(customPromptOverride ?? undefined);
+        const url = await runHiggsfield(promptOverride);
         setGeneratedUrl(url);
-        setTimeout(() => window.location.reload(), 1200);
+        setTimeout(() => window.location.reload(), isReady ? 800 : 1200);
         return;
       }
       const res = await fetch("/api/characters/generate-media", {
@@ -249,7 +248,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
           steps: g.steps,
           guidance: g.guidance,
           audioStyle,
-          promptOverride: customPromptOverride ?? undefined,
+          promptOverride,
         }),
       });
       const data = await res.json();
@@ -261,54 +260,14 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
       const url = result.url;
       if (url) {
         setGeneratedUrl(url);
-        setTimeout(() => window.location.reload(), 1200);
+        setTimeout(() => window.location.reload(), isReady ? 800 : 1200);
       } else {
         throw new Error("API nevrátilo URL obrázka");
       }
     } catch (err) {
-      setGenerateError(err instanceof Error ? err.message : "Chyba pri generovaní");
+      setActionError(err instanceof Error ? err.message : "Chyba pri generovaní");
     } finally {
-      setGenerating(false);
-    }
-  }
-
-  async function regenerate() {
-    setRegenerating(true);
-    setRegenError(null);
-    const g = GENERATORS.find((x) => x.id === regenGenerator) ?? GENERATORS[0];
-    try {
-      if (isAsyncVideo(g.model)) {
-        await runAsyncVideo(g.model, regenAudioStyle, regenPrompt.trim() || undefined, true);
-        setTimeout(() => window.location.reload(), 800);
-        return;
-      }
-      if (g.model === "higgsfield") {
-        await runHiggsfield(regenPrompt.trim() || undefined);
-        setTimeout(() => window.location.reload(), 800);
-        return;
-      }
-      const res = await fetch("/api/characters/generate-media", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mediaId: media.id,
-          model: g.model,
-          loraScale: g.loraScale,
-          steps: g.steps,
-          guidance: g.guidance,
-          promptOverride: regenPrompt.trim() || undefined,
-          audioStyle: regenAudioStyle,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Chyba ${res.status}`);
-      const result = data.results?.[0];
-      if (!result?.success) throw new Error(result?.error ?? "Regenerácia zlyhala");
-      setTimeout(() => window.location.reload(), 800);
-    } catch (err) {
-      setRegenError(err instanceof Error ? err.message : "Chyba pri regenerácii");
-    } finally {
-      setRegenerating(false);
+      setBusy(false);
     }
   }
 
@@ -338,12 +297,6 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     } finally {
       setSaving(false);
     }
-  }
-
-  async function copyPrompt() {
-    await navigator.clipboard.writeText(cleanPrompt(media.higgsfield_prompt));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   async function approvePost() {
@@ -474,114 +427,23 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
           </div>
         )}
 
-        <PromptDirectorPanel
+        <GenerationControls
           media={media}
-          onUsePrompt={(text, targetModel) => {
-            setRegenPrompt(text);
-            setShowRegen(true);
-            // Explicit Prompt Director model selection takes priority over whatever generator was
-            // previously selected — only when it actually maps to a live one for this slot type.
-            const mapped = TARGET_MODEL_TO_GENERATOR[targetModel];
-            if (mapped && activeGenerators.some((g) => g.id === mapped)) setRegenGenerator(mapped);
-          }}
+          promptDirectorEnabled={promptDirectorEnabled}
+          generators={activeGenerators}
+          generator={generator}
+          setGenerator={setGenerator}
+          isVideoSlot={isVideoSlot}
+          prompt={prompt}
+          setPrompt={setPrompt}
+          audioStyle={audioStyle}
+          setAudioStyle={setAudioStyle}
+          onGenerate={runGeneration}
+          busy={busy}
+          error={actionError}
+          generateLabel={busy ? (isVideoSlot ? "Generujem video" : "Generujem") : "Generovať znova"}
+          elapsed={elapsed}
         />
-
-        {/* Regenerate section */}
-        <div className="border border-border">
-          <button
-            onClick={() => setShowRegen((v) => !v)}
-            className="w-full flex items-center justify-between px-3 py-2 font-mono text-[9px] text-muted hover:text-ink transition-colors"
-          >
-            <span className="uppercase tracking-[0.08em]">Regenerovať s novým promptom</span>
-            <span className="material-symbols-outlined text-[14px]">{showRegen ? "expand_less" : "expand_more"}</span>
-          </button>
-          <AnimatePresence>
-            {showRegen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="px-3 pb-3 flex flex-col gap-2 border-t border-border">
-                  <textarea
-                    value={regenPrompt}
-                    onChange={(e) => setRegenPrompt(e.target.value)}
-                    rows={4}
-                    className="w-full bg-bg border border-border font-mono text-[10px] text-teal p-2 resize-none focus:outline-none focus:border-border2 mt-2"
-                    placeholder="Uprav prompt…"
-                  />
-                  <div className="flex gap-1.5">
-                    {activeGenerators.map((g) => (
-                      <button
-                        key={g.id}
-                        onClick={() => setRegenGenerator(g.id as GeneratorId)}
-                        title={g.desc}
-                        className={`flex-1 font-mono text-[9px] uppercase tracking-[0.06em] py-1 border transition-colors ${
-                          regenGenerator === g.id
-                            ? isVideoSlot
-                              ? "bg-violet-500/10 border-violet-500/40 text-violet-400"
-                              : g.id === "google" || g.id === "google-pro"
-                                ? "bg-teal/10 border-teal/40 text-teal"
-                                : "bg-accent/10 border-accent/40 text-accent"
-                            : "border-border text-muted hover:text-ink hover:border-border2"
-                        }`}
-                      >
-                        {g.label}
-                      </button>
-                    ))}
-                  </div>
-                  {isVideoSlot && (regenGenerator.startsWith("seedance") || regenGenerator === "kling") && (
-                    <div className="flex gap-1 flex-wrap">
-                      {(["scene","ambient","dialogue","silent"] as const).map((a) => (
-                        <button
-                          key={a}
-                          onClick={() => setRegenAudioStyle(a)}
-                          className={`font-mono text-[8px] uppercase tracking-[0.06em] px-2 py-0.5 border transition-colors ${
-                            regenAudioStyle === a ? "border-amber/50 bg-amber/10 text-amber" : "border-border text-muted hover:text-ink"
-                          }`}
-                        >
-                          {a === "scene" ? "🎙 scene" : a === "ambient" ? "🎵 ambient" : a === "dialogue" ? "🗣 dialogue" : "🔇 silent"}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <motion.button
-                    onClick={regenerate}
-                    disabled={regenerating}
-                    className="w-full font-mono text-[9px] uppercase tracking-[0.05em] bg-amber/10 border border-amber/30 text-amber py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                    whileHover={regenerating ? {} : { backgroundColor: "rgba(245,158,11,0.15)" }}
-                    whileTap={regenerating ? {} : { scale: 0.98 }}
-                  >
-                    {regenerating ? (
-                      <span className="flex items-center justify-center gap-1.5">
-                        <motion.span
-                          className="w-2 h-2 border border-amber/60 border-t-amber rounded-full inline-block"
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                        />
-                        {isVideoSlot ? "Regenerujem video" : "Regenerujem"} · {elapsed}s
-                      </span>
-                    ) : "Generovať znova"}
-                  </motion.button>
-                  <AnimatePresence>
-                    {regenError && (
-                      <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="font-mono text-[8px] text-red-400"
-                      >
-                        {regenError}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
 
         <motion.button
           onClick={approvePost}
@@ -647,105 +509,38 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
         )}
       </AnimatePresence>
 
-      <PromptDirectorPanel
-        media={media}
-        onUsePrompt={(text, targetModel) => {
-          setCustomPromptOverride(text);
-          const mapped = TARGET_MODEL_TO_GENERATOR[targetModel];
-          if (mapped && activeGenerators.some((g) => g.id === mapped)) setGenerator(mapped);
-        }}
-      />
-      {customPromptOverride && (
-        <div className="flex items-center justify-between px-2 py-1 bg-teal/5 border border-teal/20">
-          <span className="font-mono text-[8px] text-teal uppercase tracking-[0.06em]">✓ Prompt Director prompt sa použije pri generovaní</span>
-          <button onClick={() => setCustomPromptOverride(null)} className="font-mono text-[8px] text-muted hover:text-ink">✕</button>
-        </div>
-      )}
-
       {/* Generate */}
       <div className="flex flex-col gap-1.5">
         {canAutoGenerate ? (
-          <>
-            {/* Generator selector */}
-            <div className="flex gap-1.5">
-              {activeGenerators.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => setGenerator(g.id as GeneratorId)}
-                  title={g.desc}
-                  className={`flex-1 font-mono text-[9px] uppercase tracking-[0.06em] py-1.5 border transition-colors ${
-                    generator === g.id
-                      ? isVideoSlot
-                        ? "bg-violet-500/10 border-violet-500/40 text-violet-400"
-                        : g.id === "google" || g.id === "google-pro"
-                          ? "bg-teal/10 border-teal/40 text-teal"
-                          : "bg-accent/10 border-accent/40 text-accent"
-                      : "border-border text-muted hover:text-ink hover:border-border2"
-                  }`}
-                >
-                  {g.label}
-                </button>
-              ))}
-            </div>
-            <p className="font-mono text-[8px] text-muted/60">
-              {activeGenerators.find((g) => g.id === generator)?.desc}
-            </p>
-            {isVideoSlot && (generator.startsWith("seedance") || generator === "kling") && (
-              <div className="flex gap-1 flex-wrap">
-                {(["scene","ambient","dialogue","silent"] as const).map((a) => (
-                  <button
-                    key={a}
-                    onClick={() => setAudioStyle(a)}
-                    className={`font-mono text-[8px] uppercase tracking-[0.06em] px-2 py-0.5 border transition-colors ${
-                      audioStyle === a ? "border-amber/50 bg-amber/10 text-amber" : "border-border text-muted hover:text-ink"
-                    }`}
-                  >
-                    {a === "scene" ? "🎙 scene" : a === "ambient" ? "🎵 ambient" : a === "dialogue" ? "🗣 dialogue" : "🔇 silent"}
-                  </button>
-                ))}
-              </div>
-            )}
-            <motion.button
-              onClick={generateWithFal}
-              disabled={generating}
-              className="inline-flex items-center gap-1.5 font-mono text-[9px] bg-accent/10 border border-accent/30 text-accent px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              whileHover={generating ? {} : { backgroundColor: "rgba(74,158,255,0.2)" }}
-              whileTap={generating ? {} : { scale: 0.97 }}
-            >
-              {generating ? (
-                <>
-                  <motion.span
-                    className="w-2 h-2 border border-accent/60 border-t-accent rounded-full"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                  />
-                  {isVideoSlot ? "Generujem video (~2 min)" : generator === "higgsfield" ? "Higgsfield Soul (~2 min)" : "Generujem"} · {elapsed}s
-                </>
-              ) : generatedUrl ? (
-                <>
-                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
-                  Vygenerované
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[12px]">{isVideoSlot ? "movie" : "auto_awesome"}</span>
-                  {isVideoSlot ? "Generovať video" : "Generovať"}
-                </>
-              )}
-            </motion.button>
-            <AnimatePresence>
-              {generateError && (
-                <motion.p
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="font-mono text-[8px] text-red-400"
-                >
-                  {generateError}
-                </motion.p>
-              )}
-            </AnimatePresence>
-          </>
+          <GenerationControls
+            media={media}
+            promptDirectorEnabled={promptDirectorEnabled}
+            generators={activeGenerators}
+            generator={generator}
+            setGenerator={setGenerator}
+            isVideoSlot={isVideoSlot}
+            prompt={prompt}
+            setPrompt={setPrompt}
+            audioStyle={audioStyle}
+            setAudioStyle={setAudioStyle}
+            onGenerate={runGeneration}
+            busy={busy}
+            error={actionError}
+            generateLabel={
+              busy
+                ? isVideoSlot
+                  ? "Generujem video (~2 min)"
+                  : generator === "higgsfield"
+                    ? "Higgsfield Soul (~2 min)"
+                    : "Generujem"
+                : generatedUrl
+                  ? "Vygenerované"
+                  : isVideoSlot
+                    ? "Generovať video"
+                    : "Generovať"
+            }
+            elapsed={elapsed}
+          />
         ) : (
           <p className="font-mono text-[9px] text-muted">Generovanie nie je dostupné pre tento slot</p>
         )}
@@ -792,31 +587,6 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
           </motion.button>
         </div>
       )}
-
-      {/* Prompt block */}
-      <div className="relative">
-        <pre className="bg-bg border border-border p-3 font-mono text-[10px] text-teal leading-relaxed whitespace-pre-wrap break-words pr-20 max-h-72 overflow-y-auto">
-          {cleanPrompt(media.higgsfield_prompt)}
-        </pre>
-        <motion.button
-          onClick={copyPrompt}
-          className="absolute top-2 right-2 font-mono text-[8px] bg-surface border border-border text-muted2 px-2 py-1"
-          whileHover={{ borderColor: "#414752", color: "#e2e2ea" }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={copied ? "ok" : "copy"}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.15 }}
-            >
-              {copied ? "✓ OK" : "Kopírovať"}
-            </motion.span>
-          </AnimatePresence>
-        </motion.button>
-      </div>
 
       {/* URL input */}
       <div className="flex flex-col gap-1.5">
