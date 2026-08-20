@@ -105,15 +105,20 @@ export function buildPoseActionSection(input: PromptDirectorInput): string[] {
 }
 
 // §7B — SCENE (locked exactly to sceneBrief; never invents). Soul 2.0's "SCENE / MICRO-LOCATION"
-// — spatial_setup and wardrobe_lock must reach the compiled prompt verbatim (never paraphrased),
-// but the verbose "Location constraint: X. Location constraint: Y." labeling is condensed to keep
-// this a short, front-loaded block rather than an enumerated list.
+// — spatial_setup and wardrobe_lock must reach the compiled prompt verbatim (never paraphrased).
+// location_constraints is deliberately NOT enumerated here: lib/sceneBrief.ts's own doctrine
+// already writes spatial_setup as a 120-160-word layered depth description and bakes its
+// environment_anchor into that same text (confirmed against real production scene briefs —
+// location_constraints re-states the same facts as a separate array, not new information), so
+// repeating it here was pure duplication, not scene fidelity. environment_anchor is only added as
+// its own line on the rare brief where it ISN'T already part of spatial_setup.
 export function buildSceneSection(input: PromptDirectorInput): string[] {
   const sb = input.sceneBrief;
   const lines: string[] = [sb.spatial_setup];
 
-  const spatialDetails = cleanList([sb.environment_anchor ?? null, ...sb.location_constraints.slice(0, 2)]);
-  if (spatialDetails.length > 0) lines.push(`${spatialDetails.join("; ")}.`);
+  if (sb.environment_anchor && !sb.spatial_setup.includes(sb.environment_anchor)) {
+    lines.push(`${sb.environment_anchor}.`);
+  }
 
   lines.push(`Wearing ${sb.wardrobe_lock}.`);
   if (sb.pet_lock) lines.push(`With ${sb.pet_lock}.`);
