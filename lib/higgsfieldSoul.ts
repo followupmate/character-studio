@@ -66,7 +66,13 @@ export async function generateSoulImage(opts: {
     throw new Error(`${prefix} (${submit.status}): ${JSON.stringify(job).slice(0, 200)}`);
   }
 
-  for (let i = 0; i < 45 && !["completed", "failed", "nsfw"].includes(job.status ?? ""); i++) {
+  // Production finding (app/api/characters/generate-higgsfield/route.ts hit the same thing): the job
+  // can legitimately sit "queued" on Higgsfield's side past 112.5s during their busier periods — not
+  // a bug here. Callers of this function share a wider budget across multiple slots per invocation
+  // (app/api/characters/generate-media/route.ts runs at maxDuration=300 with several slots in a
+  // pool), so this stays a smaller bump than the single-purpose route's — enough extra headroom to
+  // absorb a slow queue without one stuck slot eating the whole shared budget.
+  for (let i = 0; i < 60 && !["completed", "failed", "nsfw"].includes(job.status ?? ""); i++) {
     if (!job.status_url) break;
     await new Promise((r) => setTimeout(r, 2500));
     job = await (await fetch(job.status_url, { headers: { Authorization: auth } })).json();

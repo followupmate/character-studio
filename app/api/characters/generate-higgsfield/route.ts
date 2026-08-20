@@ -148,8 +148,14 @@ export async function POST(req: Request) {
       throw new Error(`Higgsfield submit ${submit.status}: ${job.detail ?? JSON.stringify(job).slice(0, 200)}`);
     }
 
-    // Poll status_url until the job finishes.
-    for (let i = 0; i < 45 && job.status !== "completed" && job.status !== "failed" && job.status !== "nsfw"; i++) {
+    // Poll status_url until the job finishes. Production finding: the job legitimately sits in
+    // "queued" on Higgsfield's own side for well over 112.5s during their busier periods (runtime
+    // logs show intermittent 500s with status still "queued" after the old 45-iteration budget,
+    // alongside other calls completing fine minutes apart) — this is provider-side backlog, not a
+    // bug in this loop. maxDuration is 240s (see above), so 70 * 2.5s = 175s of polling still
+    // leaves ~45-50s of headroom for the submit call plus the download/upload below.
+    const POLL_ITERATIONS = 70;
+    for (let i = 0; i < POLL_ITERATIONS && job.status !== "completed" && job.status !== "failed" && job.status !== "nsfw"; i++) {
       if (!job.status_url) break;
       await new Promise((r) => setTimeout(r, 2500));
       const pr = await fetch(job.status_url, { headers: { Authorization: auth } });
@@ -158,7 +164,11 @@ export async function POST(req: Request) {
 
     if (job.status === "nsfw") throw new Error("Higgsfield flagged the prompt as NSFW — soften the wording.");
     const srcUrl = job.images?.[0]?.url;
-    if (!srcUrl) throw new Error(`Higgsfield returned no image (status: ${job.status ?? "unknown"})`);
+    if (!srcUrl) {
+      const stillQueued = job.status === "queued" || job.status === "processing";
+      const hint = stillQueued ? " — Higgsfield's queue is backed up right now, try again in a minute" : "";
+      throw new Error(`Higgsfield returned no image (status: ${job.status ?? "unknown"})${hint}`);
+    }
 
     // Download + upload to Supabase Storage so the asset lives on our CDN.
     const img = await fetch(srcUrl);
