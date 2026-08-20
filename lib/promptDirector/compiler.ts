@@ -1,11 +1,13 @@
 import type { PromptDirectorInput, PromptPackage, PromptPackageSections, VideoIntent } from "./types";
 import { PRIORITY_HIERARCHY, TALKING_VIDEO_PRIORITY } from "./constants";
 import {
+  buildAestheticSection,
   buildAppearanceSection,
   buildCameraSection,
   buildIdentitySection,
   buildImperfectionsSection,
   buildLightingSection,
+  buildPoseActionSection,
   buildReferenceSection,
   buildRealismSection,
   buildSceneSection,
@@ -44,14 +46,23 @@ function buildPriorityLines(outputType: PromptDirectorInput["outputType"]): stri
 }
 
 async function buildImageSections(input: PromptDirectorInput): Promise<PromptPackageSections> {
+  // Soul 2.0 wants identity + pose/action fused into one front-loaded block rather than a
+  // separate identity paragraph restating what the Soul ID reference already carries — same
+  // "combine two builder outputs, keep both individually addressable" pattern buildVideoSections
+  // uses for humanMovement below.
+  const identity = buildIdentitySection(input);
+  const pose = cleanList([...identity, ...buildPoseActionSection(input)]);
+
   return {
     priority: buildPriorityLines(input.outputType),
     reference: buildReferenceSection(input),
-    identity: buildIdentitySection(input),
+    identity,
+    pose,
     scene: buildSceneSection(input),
     appearance: buildAppearanceSection(input),
     camera: buildCameraSection(input),
     lighting: buildLightingSection(input),
+    aesthetic: buildAestheticSection(input),
     realism: buildRealismSection(input),
     imperfections: buildImperfectionsSection(input),
     negatives: buildNegatives(input),

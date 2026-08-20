@@ -83,10 +83,49 @@ describe("compilePromptDirector — image / soul2", () => {
     expect(pkg.positivePrompt).not.toContain("invented");
   });
 
-  it("carries sacred_details wardrobe anchors and never_show into identity", async () => {
+  it("Soul ID present: suppresses the long visual brief, wardrobe-anchor policy, never-show policy and UUID", async () => {
+    // Higgsfield Soul 2.0 guidance — once a Soul ID is on file, the platform (not the prompt)
+    // enforces identity, so none of this identity-policy text should burn word budget.
     const pkg = await compilePromptDirector(baseInput());
-    expect(pkg.sections.identity?.join(" ")).toContain("thin gold chain");
-    expect(pkg.sections.identity?.join(" ")).toContain("visible tattoos");
+    const identityText = pkg.sections.identity?.join(" ") ?? "";
+    expect(identityText).not.toContain("thin gold chain");
+    expect(identityText).not.toContain("visible tattoos");
+    expect(identityText).not.toContain(CHARACTER.visualBrief);
+    expect(identityText).not.toContain(CHARACTER.soulId);
+    expect(identityText).toContain("Same character identity as the Soul ID reference");
+    expect(pkg.positivePrompt).not.toContain("thin gold chain");
+    expect(pkg.positivePrompt).not.toContain("visible tattoos");
+    expect(pkg.positivePrompt).not.toContain(CHARACTER.soulId);
+  });
+
+  it("no Soul ID: falls back to the full visual brief, wardrobe-anchor and never-show policy", async () => {
+    const pkg = await compilePromptDirector(baseInput({ character: { ...CHARACTER, soulId: null } }));
+    const identityText = pkg.sections.identity?.join(" ") ?? "";
+    expect(identityText).toContain("thin gold chain");
+    expect(identityText).toContain("visible tattoos");
+    expect(identityText).toContain(CHARACTER.visualBrief);
+  });
+
+  it("keeps the Soul 2.0 section order front-loaded: shot, then pose, then scene/lighting/aesthetic/realism", async () => {
+    const pkg = await compilePromptDirector(baseInput());
+    const order = ["camera", "pose", "scene", "lighting", "aesthetic", "realism"] as const;
+    const positions = order.map((key) => pkg.positivePrompt.indexOf(pkg.sections[key]!.join(" ").slice(0, 15)));
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]).toBeGreaterThan(positions[i - 1]);
+    }
+  });
+
+  it("stays within the Soul 2.0 focused-prompt word budget (target 80-150, ceiling ~180)", async () => {
+    const pkg = await compilePromptDirector(baseInput());
+    const body = pkg.positivePrompt.replace(/^Model:.*\n\n/, "");
+    const wordCount = body.trim().split(/\s+/).filter(Boolean).length;
+    expect(wordCount).toBeLessThanOrEqual(180);
+  });
+
+  it("keeps the negative block short for Soul 2.0", async () => {
+    const pkg = await compilePromptDirector(baseInput());
+    const negativeCount = (pkg.negativePrompt ?? "").split(",").filter((s) => s.trim()).length;
+    expect(negativeCount).toBeLessThanOrEqual(8);
   });
 
   it("does not emit the strict reference block when no reference image is supplied", async () => {

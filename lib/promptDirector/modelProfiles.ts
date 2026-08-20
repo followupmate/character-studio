@@ -19,7 +19,13 @@ interface ModelProfileSpec {
 const MODEL_PROFILES: Record<PromptDirectorTargetModel, ModelProfileSpec> = {
   soul2: {
     header: () => "Model: Soul 2 \u{1F5BC}️ Image Prompt",
-    sectionOrder: ["identity", "reference", "scene", "camera", "lighting", "appearance", "realism", "imperfections"],
+    // Higgsfield Soul 2.0 guidance: short, focused prompts with the most important visual info
+    // first, and no restating identity/wardrobe-policy facts the Soul ID reference already
+    // carries. Order = shot -> pose/action -> scene -> lighting -> aesthetic -> realism cues.
+    // `identity`, `reference`, `appearance`, and `imperfections` stay populated in `sections` for
+    // callers/tests, but their content is folded into `pose`/`scene`/`realism` above rather than
+    // rendered as their own blocks — see lib/promptDirector/imageSections.ts.
+    sectionOrder: ["camera", "pose", "scene", "lighting", "aesthetic", "realism"],
     verbosity: "full",
   },
   kling: {

@@ -1,24 +1,11 @@
 import type { PromptDirectorInput } from "./types";
-import { cleanList } from "./helpers";
+import { archetypeAllowsProp, cleanList } from "./helpers";
 
 // Contextual negative-prompt builder (spec §7G / §27). Deliberately NOT a blind 100-term
 // blacklist — base negatives are fixed per output type, contextual ones are added only when the
-// scene/slot actually implies the risk (e.g. "no text" only when the scene could plausibly render
-// text-bearing objects).
-
-const BASE_IMAGE_NEGATIVES = [
-  "beauty filter",
-  "plastic skin",
-  "skin smoothing",
-  "AI face",
-  "identity drift",
-  "perfect facial symmetry",
-  "CGI look",
-  "warped anatomy",
-  "malformed hands",
-  "extra limbs",
-  "distorted face",
-];
+// scene/slot actually implies the risk. For images (soul2), Higgsfield Soul 2.0 guidance calls
+// for a short negative block specifically — see contextualImageNegatives() below.
+const BASE_IMAGE_NEGATIVES = ["beauty filter", "plastic skin", "CGI look", "identity drift", "warped anatomy"];
 
 const BASE_VIDEO_NEGATIVES = [
   "face morphing",
@@ -38,13 +25,19 @@ const TALKING_VIDEO_NEGATIVES = [
   "unnatural articulation",
 ];
 
+// Scene-specific additions only when the scene/slot actually implies the risk — e.g. an
+// archetype that doesn't allow a prop is exactly where an invented prop is a real failure mode;
+// one that does allow a prop already constrains what can appear, so the line would be noise.
+function contextualImageNegatives(input: PromptDirectorInput): string[] {
+  const extra: string[] = [];
+  if (!archetypeAllowsProp(input.archetypeId)) extra.push("no invented props");
+  if (input.sceneBrief.pet_lock) extra.push("no incorrect animal breed or color");
+  return extra;
+}
+
 export function buildNegatives(input: PromptDirectorInput): string[] {
   if (input.outputType === "image") {
-    const negatives = [...BASE_IMAGE_NEGATIVES, "no invented props", "no watermark", "no text"];
-    // Social-realism default (spec §19) actively wants smartphone imperfection, so only ban
-    // studio/fake-DOF/glam looks when the doctrine hasn't explicitly asked for cinematic polish.
-    negatives.push("no studio lighting", "no fake depth of field", "no glam look");
-    return cleanList(negatives);
+    return cleanList([...BASE_IMAGE_NEGATIVES, ...contextualImageNegatives(input)]);
   }
 
   const negatives = [...BASE_VIDEO_NEGATIVES];

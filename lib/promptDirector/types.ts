@@ -82,7 +82,9 @@ export interface PromptPackageSections {
   videoSpecs?: string[];
   scene?: string[];
   camera?: string[];
+  pose?: string[];
   lighting?: string[];
+  aesthetic?: string[];
   appearance?: string[];
   realism?: string[];
   imperfections?: string[];

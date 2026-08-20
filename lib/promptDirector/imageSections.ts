@@ -1,9 +1,14 @@
 import type { PromptDirectorInput } from "./types";
 import { archetypeAllowsProp, cleanList, isCloseUpArchetype, sacredAnatomyAnchors, sacredList } from "./helpers";
-import { SOCIAL_REALISM_PROFILE } from "./constants";
 
 // Deterministic IMAGE section builders (spec §7). These never call an LLM — every fact comes
 // from sceneBrief / character.sacredDetails / slot, per the "no invention" rule (§7B / §22).
+//
+// This file is the Soul 2.0 (soul2) compiler in practice: "image" is the only outputType routed
+// here, and soul2 is the only PromptDirectorTargetModel with supportsImage:true (see
+// lib/promptDirector/constants.ts MODEL_CAPABILITIES). Shaped per Higgsfield's Soul 2.0 guidance:
+// short, front-loaded prompts — most important visual info first, and no restating of core
+// identity/wardrobe-policy facts once a Soul ID is doing that job on the platform side.
 
 // §7A — IDENTITY / REFERENCE, split into two PromptPackage sections: `reference` (the strict
 // "use the provided image" block, only when there IS a reference image) and `identity` (facts
@@ -36,11 +41,35 @@ const ANATOMY_RELEVANCE: Record<string, string[]> = {
   emotional_close: ["jawline", "neck"],
 };
 
-export function buildIdentitySection(input: PromptDirectorInput): string[] {
+// Relevance-filtered anatomy anchor lines for THIS framing only (§ "Relevance filtering" — an
+// anchor is only worth a word budget line when the archetype actually puts that body part on
+// screen). `labeled` controls whether the line carries an explicit "Anatomy anchor (part):"
+// prefix — used for the no-Soul-ID full brief, dropped for the Soul ID short cue where every word
+// counts.
+function anatomyAnchorLines(input: PromptDirectorInput, labeled: boolean): string[] {
+  const relevantParts = ANATOMY_RELEVANCE[input.archetypeId] ?? [];
+  if (relevantParts.length === 0) return [];
+  const anchors = sacredAnatomyAnchors(input.character.sacredDetails);
   const lines: string[] = [];
-  lines.push(`Character visual brief: ${input.character.visualBrief}`);
-  if (input.character.soulId) lines.push(`Soul ID: ${input.character.soulId}`);
+  for (const part of relevantParts) {
+    const marker = anchors[part];
+    if (marker) lines.push(labeled ? `Anatomy anchor (${part}): ${marker}` : marker);
+  }
+  return lines;
+}
 
+export function buildIdentitySection(input: PromptDirectorInput): string[] {
+  if (input.character.soulId) {
+    // Soul ID behavior (Higgsfield Soul 2.0 guidance): identity/wardrobe-anchor/never-show policy
+    // and the Soul ID UUID are the platform's job, not the prompt's — restating them burns word
+    // budget on facts Soul ID already enforces. Only a short cue survives, plus a relevant anatomy
+    // anchor when THIS framing genuinely puts that body part on screen.
+    return cleanList(["Same character identity as the Soul ID reference.", ...anatomyAnchorLines(input, false)]);
+  }
+
+  // No Soul ID on file — nothing on the platform enforces identity, so the full brief is the only
+  // thing keeping the character consistent across generations.
+  const lines: string[] = [`Character visual brief: ${input.character.visualBrief}`];
   const wardrobeAnchors = sacredList(input.character.sacredDetails, "wardrobe_anchors");
   if (wardrobeAnchors.length > 0) {
     lines.push(`Wardrobe anchors (always present, never substituted): ${wardrobeAnchors.join("; ")}`);
@@ -49,34 +78,51 @@ export function buildIdentitySection(input: PromptDirectorInput): string[] {
   if (neverShow.length > 0) {
     lines.push(`Never show: ${neverShow.join("; ")}`);
   }
-
-  const relevantParts = ANATOMY_RELEVANCE[input.archetypeId] ?? [];
-  if (relevantParts.length > 0) {
-    const anchors = sacredAnatomyAnchors(input.character.sacredDetails);
-    for (const part of relevantParts) {
-      const marker = anchors[part];
-      if (marker) lines.push(`Anatomy anchor (${part}): ${marker}`);
-    }
-  }
-
+  lines.push(...anatomyAnchorLines(input, true));
   return cleanList(lines);
 }
 
-// §7B — SCENE (locked exactly to sceneBrief; never invents)
+// §"SUBJECT ACTION / POSE" — Soul 2.0's item 2. Pulls the concrete visible action out of
+// situationTranslation's structured block (rather than dumping the whole multi-paragraph
+// SITUATION text, which alone can blow the 80-150 word target). Never invents an action — if
+// situationTranslation has none, this legitimately returns []. Deliberately does NOT fall back to
+// archetypeGuidance: that field is directorial/meta guidance to whoever is composing the shot
+// ("Establish the room before she enters it.", "Punchline of the visual sentence."), not a visual
+// fact about the frame, and reads as an out-of-place meta-sentence if it reaches the model as-is.
+//
+// TODO: extractVisibleAction() depends on the exact "- Visible action \ pose: ..." line format
+// emitted by translateSituationForSlotPrompt() in lib/situationPlanner.ts. If that upstream
+// template's wording changes, this regex silently stops matching (falls back to no pose line)
+// rather than throwing — worth a shared fixture/contract test if that template is ever revised.
+function extractVisibleAction(situationTranslation?: string): string | undefined {
+  if (!situationTranslation) return undefined;
+  const match = situationTranslation.match(/Visible action\s*\\?\s*pose:\s*([^\n]+)/i);
+  return match?.[1]?.trim();
+}
+
+export function buildPoseActionSection(input: PromptDirectorInput): string[] {
+  return cleanList([extractVisibleAction(input.situationTranslation) ?? null]);
+}
+
+// §7B — SCENE (locked exactly to sceneBrief; never invents). Soul 2.0's "SCENE / MICRO-LOCATION"
+// — spatial_setup and wardrobe_lock must reach the compiled prompt verbatim (never paraphrased),
+// but the verbose "Location constraint: X. Location constraint: Y." labeling is condensed to keep
+// this a short, front-loaded block rather than an enumerated list.
 export function buildSceneSection(input: PromptDirectorInput): string[] {
   const sb = input.sceneBrief;
-  const lines: string[] = [
-    `Spatial setup: ${sb.spatial_setup}`,
-    ...sb.location_constraints.map((c) => `Location constraint: ${c}`),
-  ];
-  if (sb.environment_anchor) lines.push(`Environment anchor (mandatory, keep specific nouns): ${sb.environment_anchor}`);
-  if (input.situationTranslation) lines.push(input.situationTranslation);
+  const lines: string[] = [sb.spatial_setup];
+
+  const spatialDetails = cleanList([sb.environment_anchor ?? null, ...sb.location_constraints.slice(0, 2)]);
+  if (spatialDetails.length > 0) lines.push(`${spatialDetails.join("; ")}.`);
+
+  lines.push(`Wearing ${sb.wardrobe_lock}.`);
+  if (sb.pet_lock) lines.push(`With ${sb.pet_lock}.`);
 
   const allowedProps = sb.allowed_props ?? [];
   if (archetypeAllowsProp(input.archetypeId) && allowedProps.length > 0) {
-    lines.push(`This slot's archetype (${input.archetypeId}) allows exactly one prop from: ${allowedProps.join("; ")}`);
+    lines.push(`May hold: ${allowedProps.join(" or ")}.`);
   } else {
-    lines.push("No carried prop — hands empty, nothing held.");
+    lines.push("Empty hands, nothing held.");
   }
 
   return cleanList(lines);
@@ -84,7 +130,9 @@ export function buildSceneSection(input: PromptDirectorInput): string[] {
 
 // Wardrobe/animal lock as its own PromptPackage section (kept separate from `scene` per the
 // PromptPackage shape) — always locked verbatim from sceneBrief, never invented (§7B "NO
-// INVENTION RULE").
+// INVENTION RULE"). Not rendered as its own block in the Soul 2.0 profile (its content is folded
+// into `scene`, see buildSceneSection above) but kept populated here for callers/tests that read
+// `sections.appearance` directly.
 export function buildAppearanceSection(input: PromptDirectorInput): string[] {
   const sb = input.sceneBrief;
   return cleanList([
@@ -121,18 +169,19 @@ function firstFramePrepLines(input: PromptDirectorInput): string[] {
   return lines;
 }
 
-// §7C — CAMERA. Prompt Director picks ONE concrete camera behavior from the archetype/framing —
-// no random technical jargon, no lens mm unless it's actually useful for this provider.
+// §7C — CAMERA / "SHOT / FRAMING / CAMERA" (Soul 2.0's item 1 — leads the prompt). Prompt
+// Director picks ONE concrete camera behavior from the archetype/framing — no random technical
+// jargon, no lens mm unless it's actually useful for this provider.
 export function buildCameraSection(input: PromptDirectorInput): string[] {
-  const lines: string[] = [`Framing: ${input.slot.framing}`];
+  const lines: string[] = [input.slot.framing];
   if (isCloseUpArchetype(input)) {
-    lines.push("Shot size: close, face or detail fills a large part of the frame.");
+    lines.push("close framing, face or detail fills a large part of the frame");
   } else if (input.slot.family === "environment") {
-    lines.push("Shot size: wide, subject embedded in environment.");
+    lines.push("wide shot, subject embedded in environment");
   } else {
-    lines.push("Shot size: medium.");
+    lines.push("medium shot");
   }
-  lines.push(`Camera language: ${input.sceneBrief.camera_language}`);
+  lines.push(input.sceneBrief.camera_language);
   lines.push(...firstFramePrepLines(input));
   return cleanList(lines);
 }
@@ -140,36 +189,37 @@ export function buildCameraSection(input: PromptDirectorInput): string[] {
 // §7D — LIGHTING. Real, concrete formulations — never "cinematic glow" / "dramatic studio light".
 export function buildLightingSection(input: PromptDirectorInput): string[] {
   const sb = input.sceneBrief;
-  return cleanList([
-    `Light source and direction: ${sb.lighting_state}`,
-    `Time of day: ${sb.time_of_day}`,
-    `Weather: ${sb.weather_implied}`,
-  ]);
+  return cleanList([sb.lighting_state, `${sb.time_of_day}, ${sb.weather_implied}`]);
 }
 
-// §7E — HUMAN REALISM. Close-up gets a stronger block than a wide full-body frame — never the
-// full list on every shot.
+// "AESTHETIC / EMOTIONAL DIRECTION" — Soul 2.0's item 5. Explicit medium/style + mood cues (per
+// Higgsfield guidance: Soul 2.0 responds well to these), chosen from what the scene actually
+// implies rather than a fixed list — never more than a handful of words.
+export function buildAestheticSection(input: PromptDirectorInput): string[] {
+  const sb = input.sceneBrief;
+  const lines = ["candid social-media realism"];
+  lines.push(isCloseUpArchetype(input) ? "intimate, spontaneous energy" : "relaxed, natural body language");
+  if (sb.time_of_day) lines.push(`${sb.time_of_day} mood`);
+  return cleanList(lines);
+}
+
+// §7E — HUMAN REALISM / "MINIMAL REALISM CUES" — Soul 2.0's item 6. Deliberately capped at a
+// handful of cues (2-4) rather than the full social-realism list — Soul 2.0 guidance is explicit
+// that dumping every realism phrase on every shot is counter-productive. Close-up gets the
+// stronger, face-specific set; a wide/full-body frame gets the lighter one.
 export function buildRealismSection(input: PromptDirectorInput): string[] {
-  const base = ["natural skin texture", "no airbrush, no plastic smoothing"];
-  if (!isCloseUpArchetype(input)) {
-    return cleanList([...base, "natural hair strands", ...SOCIAL_REALISM_PROFILE.lines]);
+  if (isCloseUpArchetype(input)) {
+    return cleanList(["natural skin texture", "visible pores", "subtle facial asymmetry", "real hair strands"]);
   }
-  return cleanList([
-    ...base,
-    "visible pores",
-    "subtle skin redness",
-    "minor imperfections",
-    "natural under-eye texture",
-    "realistic lip texture",
-    "subtle facial asymmetry — eyes/eyebrows/lip corners not perfectly aligned",
-    ...SOCIAL_REALISM_PROFILE.lines,
-  ]);
+  return cleanList(["natural skin texture", "realistic clothing folds", "natural phone exposure"]);
 }
 
 // §7F — MICRO IMPERFECTIONS. Only when the model/scene benefit from "real camera ≠ CGI render".
 // Skipped for archetype families that don't read as phone-camera captures (kept conservative: on
 // for subject/detail/bts families, which is where phone-camera imperfection reads as authentic;
-// off for wide environment establishing shots where it adds nothing).
+// off for wide environment establishing shots where it adds nothing). Not rendered as its own
+// block in the Soul 2.0 profile (folded into the realism cues above) but kept populated here for
+// callers/tests that read `sections.imperfections` directly.
 export function buildImperfectionsSection(input: PromptDirectorInput): string[] {
   if (input.slot.family === "environment") return [];
   return cleanList([
