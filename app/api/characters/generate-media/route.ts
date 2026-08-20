@@ -21,6 +21,23 @@ const SLOT_IMAGE_SIZE: Record<string, { width: number; height: number }> = {
 
 const VIDEO_SLOTS = new Set(["reel_video"]);
 
+// Provider binding (prompt_director_v1): when the caller leaves `model` at its "auto" default, an
+// explicit provider chosen by Prompt Director (persisted at chs_media.visual_signature.
+// prompt_director.model — see lib/dailyBatch.ts's mergeVisualSignature) takes priority over this
+// route's own ad-hoc default chain (Google-first for images, Veo-if-available for video, etc.).
+// An EXPLICIT `model` param from the caller (a UI generator button click, a manual regen) is never
+// overridden — this only fills in what "auto" itself resolves to.
+//
+// Deliberately mirrors lib/promptDirector/constants.ts's MODEL_CAPABILITIES.liveIntegration:
+// "higgsfield" (video stub) and "wan" are absent on purpose — there is no real call behind them in
+// this repo yet, so an "auto" request for a slot compiled against one of those falls through to the
+// existing ad-hoc chain unchanged rather than trying to invoke a provider that doesn't exist.
+const PROMPT_DIRECTOR_LIVE_MODEL_MAP: Partial<Record<string, string>> = {
+  soul2: "higgsfield-soul",
+  kling: "kling",
+  seedance: "seedance-i2v",
+};
+
 // Veo video generation models
 // veo-3.1-fast-generate-preview = Veo 3.1 Fast (fastest, business-accessible)
 // veo-3.1-generate-preview      = Veo 3.1 (highest quality)
@@ -653,7 +670,7 @@ export async function POST(req: Request) {
     if (mediaId) {
       const { data, error } = await supabase
         .from("chs_media")
-        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status")
+        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status, visual_signature")
         .eq("id", mediaId)
         .single();
       if (error || !data) return NextResponse.json({ error: "Media not found" }, { status: 404 });
@@ -661,7 +678,7 @@ export async function POST(req: Request) {
     } else {
       const { data, error } = await supabase
         .from("chs_media")
-        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status, media_url")
+        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status, media_url, visual_signature")
         .eq("batch_id", batchId!);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const hasVeo = !!googleApiKey;
@@ -741,27 +758,37 @@ export async function POST(req: Request) {
 
       const prompt = `${triggerWord}, ${effectivePrompt}`;
 
+      // Provider binding (prompt_director_v1): "auto" defers to whatever Prompt Director already
+      // decided for this slot (persisted PromptPackage.model) BEFORE falling into this route's own
+      // ad-hoc chain below. An explicit `model` from the caller always wins outright — this only
+      // resolves what "auto" itself means for this specific slot.
+      const directorModel = media.visual_signature?.prompt_director?.model;
+      const directorMappedModel = directorModel ? PROMPT_DIRECTOR_LIVE_MODEL_MAP[directorModel] : undefined;
+      const effectiveModel = model === "auto" && directorMappedModel ? directorMappedModel : model;
+
       // Determine provider
       // kling               → Kling i2v via fal.ai (best video quality)
       // veo / veo-quality   → Veo 3.1 Fast / Veo 3.1 for video slots
       // google / google-pro → Nano Banana (2 or Pro) for image slots
+      // higgsfield-soul     → Higgsfield Soul V2 direct (Prompt Director's "soul2" binding)
       // bfl                 → BFL FLUX.2 multi-ref (fallback)
       // flux-lora           → fal.ai LoRA (scene consistency fallback)
-      const useSeedanceRef  = isVideoSlot && model === "seedance-ref";
-      const useSeedanceI2V  = isVideoSlot && model === "seedance-i2v";
-      const useSeedanceFast = isVideoSlot && model === "seedance-fast";
-      const useKling       = isVideoSlot && model === "kling";
-      const useVeoQuality  = model === "veo-quality";
+      const useSeedanceRef  = isVideoSlot && effectiveModel === "seedance-ref";
+      const useSeedanceI2V  = isVideoSlot && effectiveModel === "seedance-i2v";
+      const useSeedanceFast = isVideoSlot && effectiveModel === "seedance-fast";
+      const useKling       = isVideoSlot && effectiveModel === "kling";
+      const useVeoQuality  = effectiveModel === "veo-quality";
       const anySeedance    = useSeedanceRef || useSeedanceI2V || useSeedanceFast;
-      const useVeo         = isVideoSlot && !useKling && !anySeedance && !!googleApiKey && (model === "veo" || model === "veo-quality" || model === "auto");
-      const useGooglePro   = !isVideoSlot && model === "google-pro";
+      const useVeo         = isVideoSlot && !useKling && !anySeedance && !!googleApiKey && (effectiveModel === "veo" || effectiveModel === "veo-quality" || effectiveModel === "auto");
+      const useHiggsfieldSoulDirect = !isVideoSlot && effectiveModel === "higgsfield-soul";
+      const useGooglePro   = !isVideoSlot && effectiveModel === "google-pro";
       // Engine strategy (auto): Google Nano Banana FIRST for all image slots — it produces the
       // richest, populated, real-world environments (user-confirmed: gym/café excellent; fal LoRA
       // leaves her "alone" in empty scenes). On a Google safety block (intimate/suggestive) or
       // failure, auto-fall back to fal LoRA (faithful face, handles intimate). Explicit model overrides.
-      const useGoogle      = !isVideoSlot && (model === "google" || model === "google-pro" || (model === "auto" && hasGoogle));
-      const useBFL         = !useGoogle && !useVeo && !useKling && !anySeedance && (model === "bfl");
-      const useFluxPro     = model === "flux-pro";
+      const useGoogle      = !isVideoSlot && !useHiggsfieldSoulDirect && (effectiveModel === "google" || effectiveModel === "google-pro" || (effectiveModel === "auto" && hasGoogle));
+      const useBFL         = !useGoogle && !useVeo && !useKling && !anySeedance && !useHiggsfieldSoulDirect && (effectiveModel === "bfl");
+      const useFluxPro     = effectiveModel === "flux-pro";
 
       try {
         let mediaUrl: string;
@@ -831,6 +858,16 @@ export async function POST(req: Request) {
               throw gerr; // explicit Google request → surface the real error
             }
           }
+        } else if (useHiggsfieldSoulDirect) {
+          // Prompt Director explicitly compiled this slot for "soul2" (persisted in
+          // visual_signature.prompt_director.model) — call Higgsfield Soul V2 directly instead of
+          // falling through to the Google-first ad-hoc default.
+          if (!soulConfigured()) throw new Error("Higgsfield not configured (HIGGSFIELD_API_KEY)");
+          const soulId = (char.soul_id as string | null) ?? FALLBACK_SOUL_ID;
+          const isVerticalSlot = ["reel_start_frame", "story_bts"].includes(media.slot ?? "");
+          const soulAspect = isVerticalSlot ? "9:16" : "3:4";
+          mediaUrl = await generateSoulImage({ prompt: effectivePrompt, soulId, aspect: soulAspect, mediaId: media.id });
+          provider = "higgsfield-soul-director";
         } else if (useBFL) {
           mediaUrl = await generateWithBFL(
             `The woman from the reference images. ${effectivePrompt}`,
@@ -931,6 +968,7 @@ interface MediaRecord {
   higgsfield_prompt: string;
   batch_id: string;
   generation_status: string | null;
+  visual_signature?: { prompt_director?: { model?: string } } | null;
   media_url?: string | null;
 }
 

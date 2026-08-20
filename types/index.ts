@@ -1,3 +1,5 @@
+import type { PromptPackage } from "@/lib/promptDirector";
+
 export type CharacterPlatform = "instagram" | "youtube" | "tiktok";
 export type MediaType = "photo" | "video";
 export type MediaStatus = "pending" | "generating" | "ready" | "posted" | "failed";
@@ -150,6 +152,9 @@ export interface Media {
       location_family: string | null;
       continuity_phase: string | null;
     };
+    // prompt_director_v1 — additive provenance (lib/dailyBatch.ts's mergeVisualSignature()),
+    // present only when the slot was compiled via lib/promptDirector instead of lib/slotPrompts.ts.
+    prompt_director?: PromptPackage;
   } | null;
   hook_text: string | null;
   created_at: string;

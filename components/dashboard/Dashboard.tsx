@@ -400,6 +400,8 @@ function CharacterCard({
   const [savingDoctrine, setSavingDoctrine] = useState(false);
   const [discoveryOn, setDiscoveryOn] = useState<boolean>(!!char.feature_flags?.discovery_mode);
   const [savingDiscovery, setSavingDiscovery] = useState(false);
+  const [promptDirectorOn, setPromptDirectorOn] = useState<boolean>(!!char.feature_flags?.prompt_director_v1);
+  const [savingPromptDirector, setSavingPromptDirector] = useState(false);
 
   async function toggleDiscovery() {
     const next = !discoveryOn;
@@ -411,6 +413,21 @@ function CharacterCard({
       body: JSON.stringify({ characterId: char.id, feature_flag: { flag: "discovery_mode", value: next } }),
     });
     setSavingDiscovery(false);
+  }
+
+  // prompt_director_v1 — swaps lib/slotPrompts.ts's doctrine flow for lib/promptDirector's
+  // compiler on the NEXT daily batch this character generates (see lib/dailyBatch.ts's runSlot()).
+  // Existing already-generated media/prompts are untouched either way.
+  async function togglePromptDirector() {
+    const next = !promptDirectorOn;
+    setPromptDirectorOn(next);
+    setSavingPromptDirector(true);
+    await fetch("/api/characters/update", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ characterId: char.id, feature_flag: { flag: "prompt_director_v1", value: next } }),
+    });
+    setSavingPromptDirector(false);
   }
 
   async function savePhoto() {
@@ -689,6 +706,26 @@ function CharacterCard({
           </span>
           <span className={`font-mono text-[8px] tracking-[0.1em] uppercase ${discoveryOn ? "text-teal" : "text-muted"}`}>
             {savingDiscovery ? "…" : discoveryOn ? "ON" : "OFF"}
+          </span>
+        </button>
+
+        {/* Prompt Director v1 (prompt_director_v1 flag) — new prompt compiler for the NEXT batch */}
+        <button
+          onClick={togglePromptDirector}
+          disabled={savingPromptDirector}
+          className={`w-full flex items-center justify-between border px-3 py-2 transition-colors disabled:opacity-50 ${
+            promptDirectorOn ? "bg-violet-500/10 border-violet-500/40" : "bg-surface-low border-border"
+          }`}
+          title="Nový centrálny prompt compiler (lib/promptDirector) namiesto slotPrompts doktrín — od ďalšieho denného batchu"
+        >
+          <span className="flex items-center gap-1.5">
+            <span className={`material-symbols-outlined text-[13px] ${promptDirectorOn ? "text-violet-400" : "text-muted"}`}>tune</span>
+            <span className={`font-mono text-[8px] tracking-[0.1em] uppercase ${promptDirectorOn ? "text-violet-400" : "text-muted"}`}>
+              Prompt Director v1
+            </span>
+          </span>
+          <span className={`font-mono text-[8px] tracking-[0.1em] uppercase ${promptDirectorOn ? "text-violet-400" : "text-muted"}`}>
+            {savingPromptDirector ? "…" : promptDirectorOn ? "ON" : "OFF"}
           </span>
         </button>
 

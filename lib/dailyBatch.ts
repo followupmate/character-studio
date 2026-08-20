@@ -17,12 +17,108 @@ import { maybeCreateFanvueUnlock } from "@/lib/fanvueUnlock";
 import { pickReelFormat, ReelFormat } from "@/lib/reelFormats";
 import { extractSituation, translateSituationForSlotPrompt, compactSituationTranslation, situationContextForSceneBrief, normalizeOutfitArchetypeFamily, normalizePoseArchetype, classifyOutfitCategory, GenerativeSituation } from "@/lib/situationPlanner";
 import { getStrategyInputByProvenance } from "@/lib/creativeIntelligence/generationStrategyAdapter";
+import { compilePromptDirector } from "@/lib/promptDirector";
+import type { PromptDirectorInput, PromptPackage } from "@/lib/promptDirector";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek", "nano_banana", "caption"];
 
 function resolveDoctrine(raw: unknown): DoctrineKey {
   const v = typeof raw === "string" ? raw.toLowerCase() : "";
   return (ALLOWED_DOCTRINES as string[]).includes(v) ? (v as DoctrineKey) : "cinematic";
+}
+
+// prompt_director_v1 — A/B seam (see lib/promptDirector/). OFF preserves the existing
+// generateSlotPrompt() doctrine flow byte-for-byte; ON compiles the SAME SceneBrief/slot/archetype
+// through the new compiler instead. Never changes story logic, SceneBrief content, styling or
+// archetype selection — only how the final prompt string is worded for the target provider.
+//
+// Default target model per slot type: photo slots compile for "soul2" (Higgsfield Soul V2 is the
+// identity-locked image path this app already prefers — see lib/higgsfieldSoul.ts), the video slot
+// compiles for "kling" (the one video provider with a real, working end-to-end call in this repo —
+// see lib/klingProvider.ts). This mapping is intentionally simple for v1; a future iteration can
+// let the UI pick targetModel per slot (spec §24).
+export function promptDirectorTargetForSlot(slot: SlotSpec): Pick<PromptDirectorInput, "outputType" | "generationMode" | "targetModel"> {
+  if (slot.type === "video") {
+    return { outputType: "video", generationMode: "image_to_video", targetModel: "kling" };
+  }
+  return { outputType: "image", generationMode: "text_to_image", targetModel: "soul2" };
+}
+
+interface SlotGenerationResult {
+  prompt: string;
+  visualSignature: { palette: string; lens: string; movement: string } | null;
+  hookText: string | null;
+  // Only set on the prompt_director_v1 path — full structured provenance persisted alongside the
+  // compiled prompt (see mergeVisualSignature below).
+  promptPackage?: PromptPackage;
+}
+
+// §21 — deterministic minimal plannedVideoIntent.action, derived from the REEL_VIDEO slot's own
+// archetype (the "motion" family archetype picked for TODAY's batch — see lib/archetypeDeck.ts /
+// chs_shot_archetypes), not invented. Each entry just restates that archetype's own seeded
+// migration.sql description ("Sustained walking shot...", "Slow motion of a single gesture...",
+// "Light shifting across subject... subject relatively still") as an imperative action sentence.
+// No LLM call — this is a static lookup, same posture as OBSERVABLE_BEHAVIOR_MAP in
+// performanceTransformer.ts. These are the only three "motion" family archetypes that exist today
+// (verified against supabase/migration.sql); an archetype not in this table (future/unknown) simply
+// gets no action, and firstFramePrepLines() already has a generic anatomically-sustainable fallback
+// for exactly that case — never a hard requirement.
+const REEL_ARCHETYPE_ACTION: Record<string, string> = {
+  walking_motion: "she walks, continuing forward motion",
+  gesture_motion: "she makes a single small, self-contained gesture — turning her head, raising a cup, adjusting a sleeve",
+  light_motion: "light shifts across her — she stays relatively still while the environment moves",
+};
+
+// Exported so app/api/characters/prompt-director-preview/route.ts can compute the SAME default
+// (single source of truth) when the caller hasn't supplied a manual override — see that route's
+// own comment for how the override relationship works.
+export function plannedActionForReelArchetype(archetypeId: string | undefined): string | undefined {
+  return archetypeId ? REEL_ARCHETYPE_ACTION[archetypeId] : undefined;
+}
+
+async function generateSlotPromptViaDirector(args: {
+  slot: SlotSpec;
+  archetypeId: string;
+  archetypeGuidance: string;
+  sceneBriefJson: import("@/lib/sceneBrief").SceneBriefJson;
+  character: { id: string; name: string; visual_brief: string; sacred_details: Record<string, unknown> | null; soul_id: string | null };
+  situationTranslation?: string;
+  // Only meaningful for the reel_start_frame slot — the archetype id chosen for THIS batch's
+  // reel_video sibling, so the start frame can be prepped for what actually happens next
+  // (plannedActionForReelArchetype above). Unused for every other slot.
+  reelVideoArchetypeId?: string;
+}): Promise<SlotGenerationResult> {
+  const target = promptDirectorTargetForSlot(args.slot);
+  const input: PromptDirectorInput = {
+    character: {
+      id: args.character.id,
+      name: args.character.name,
+      visualBrief: args.character.visual_brief,
+      sacredDetails: args.character.sacred_details,
+      soulId: args.character.soul_id,
+    },
+    sceneBrief: args.sceneBriefJson,
+    slot: args.slot,
+    archetypeId: args.archetypeId,
+    archetypeGuidance: args.archetypeGuidance,
+    situationTranslation: args.situationTranslation,
+    // Every real photo generation in this app supplies SOME identity reference (Soul custom_reference_id,
+    // Google's character sheet, BFL's reference images), and the video slot is always image-to-video
+    // (fed the reel_start_frame) — text_to_video is not exercised by the daily batch today.
+    hasReferenceImage: true,
+    // §21 — "motion_only" stays the honest default MODE for reel_start_frame (the daily batch has
+    // no user-configured speech), but the ACTION is now derived deterministically from the actual
+    // reel_video archetype instead of being left blank — see REEL_ARCHETYPE_ACTION above. This is
+    // what makes lib/promptDirector/imageSections.ts's firstFramePrepLines() give walking_motion
+    // "leave room to move" guidance specifically, rather than only the generic fallback line.
+    plannedVideoIntent:
+      args.slot.slot === "reel_start_frame"
+        ? { mode: "motion_only", action: plannedActionForReelArchetype(args.reelVideoArchetypeId) }
+        : undefined,
+    ...target,
+  };
+  const pkg = await compilePromptDirector(input);
+  return { prompt: pkg.positivePrompt, visualSignature: null, hookText: null, promptPackage: pkg };
 }
 
 export interface DailyBatchResult {
@@ -340,6 +436,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   const generated: DailyBatchResult["generated"] = [];
 
   const doctrine = resolveDoctrine(character.prompt_doctrine);
+  const promptDirectorOn = isFlagOn(character.feature_flags, "prompt_director_v1");
 
   const characterForGen = character;
 
@@ -363,6 +460,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           situationTranslation,
           compactSituationTranslation: compactSituationTranslationText,
           situationTags,
+          promptDirectorOn,
+          reelVideoArchetypeId: archetypeMap["reel_video"],
         })
       )
     );
@@ -406,6 +505,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           situationTranslation,
           compactSituationTranslation: compactSituationTranslationText,
           situationTags,
+          promptDirectorOn,
+          reelVideoArchetypeId: archetypeMap["reel_video"],
         });
       })
     );
@@ -557,12 +658,20 @@ interface SituationTags {
   outfit_category: string | null;
 }
 
+// prompt_director_v1 provenance (spec §25) is stored additively under visual_signature.prompt_director
+// — same pattern as situation_tags below, no migration needed (chs_media.visual_signature is
+// already a generic jsonb column).
 function mergeVisualSignature(
   base: { palette: string; lens: string; movement: string } | null,
-  situationTags?: SituationTags
+  situationTags?: SituationTags,
+  promptDirector?: PromptPackage
 ): (Record<string, unknown>) | null {
-  if (!situationTags) return base;
-  return { ...(base ?? {}), situation_tags: situationTags };
+  if (!situationTags && !promptDirector) return base;
+  return {
+    ...(base ?? {}),
+    ...(situationTags ? { situation_tags: situationTags } : {}),
+    ...(promptDirector ? { prompt_director: promptDirector } : {}),
+  };
 }
 
 interface RunSlotArgs {
@@ -572,6 +681,8 @@ interface RunSlotArgs {
   sceneBriefJson: import("@/lib/sceneBrief").SceneBriefJson;
   sceneBriefDoctrine: string;
   character: {
+    id: string;
+    name: string;
     visual_brief: string;
     sacred_details: Record<string, unknown> | null;
     soul_id: string | null;
@@ -587,6 +698,14 @@ interface RunSlotArgs {
   situationTranslation?: string;
   compactSituationTranslation?: string;
   situationTags?: SituationTags;
+  // prompt_director_v1 (see lib/promptDirector/) — resolved ONCE per batch from
+  // character.feature_flags, threaded to every slot exactly like `doctrine` above. false/undefined
+  // reproduces today's generateSlotPrompt() flow byte-for-byte.
+  promptDirectorOn?: boolean;
+  // §21 — this batch's reel_video archetype id, threaded to every slot (only actually consumed
+  // when compiling reel_start_frame) so plannedActionForReelArchetype() can derive a deterministic
+  // plannedVideoIntent.action without a second lookup inside runSlot() itself.
+  reelVideoArchetypeId?: string;
 }
 
 async function runSlot(args: RunSlotArgs): Promise<void> {
@@ -600,25 +719,35 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
     .eq("slot", args.slot.slot);
 
   try {
-    const result = await generateSlotPrompt({
-      doctrine: args.doctrine,
-      slot: args.slot,
-      archetypeId: args.archetypeId,
-      archetypeGuidance: args.archetypeGuidance,
-      sceneBriefJson: args.sceneBriefJson,
-      sceneBriefDoctrine: args.sceneBriefDoctrine,
-      character: args.character,
-      arcPosition: args.arcPosition,
-      carouselSlide: args.carouselSlide,
-      situationTranslation: args.situationTranslation,
-      compactSituationTranslation: args.compactSituationTranslation,
-    });
+    const result: SlotGenerationResult = args.promptDirectorOn
+      ? await generateSlotPromptViaDirector({
+          slot: args.slot,
+          archetypeId: args.archetypeId,
+          archetypeGuidance: args.archetypeGuidance,
+          sceneBriefJson: args.sceneBriefJson,
+          character: args.character,
+          situationTranslation: args.situationTranslation,
+          reelVideoArchetypeId: args.reelVideoArchetypeId,
+        })
+      : await generateSlotPrompt({
+          doctrine: args.doctrine,
+          slot: args.slot,
+          archetypeId: args.archetypeId,
+          archetypeGuidance: args.archetypeGuidance,
+          sceneBriefJson: args.sceneBriefJson,
+          sceneBriefDoctrine: args.sceneBriefDoctrine,
+          character: args.character,
+          arcPosition: args.arcPosition,
+          carouselSlide: args.carouselSlide,
+          situationTranslation: args.situationTranslation,
+          compactSituationTranslation: args.compactSituationTranslation,
+        });
 
     const { error: updErr } = await supabase
       .from("chs_media")
       .update({
         higgsfield_prompt: result.prompt,
-        visual_signature: mergeVisualSignature(result.visualSignature, args.situationTags),
+        visual_signature: mergeVisualSignature(result.visualSignature, args.situationTags, result.promptPackage),
         hook_text: result.hookText ?? null,
         generation_status: "completed",
         last_error: null,
@@ -704,6 +833,21 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
 
     const guidance = await getArchetypeGuidance(row.shot_archetype);
     const doctrine = resolveDoctrine((char as { prompt_doctrine?: unknown }).prompt_doctrine);
+    const rcPromptDirectorOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "prompt_director_v1");
+
+    // §21 — a retried reel_start_frame needs its sibling reel_video's archetype too (see
+    // REEL_ARCHETYPE_ACTION above); the batch-level archetypeMap generateDailyBatch() has isn't in
+    // scope here, so look the one row up directly. Only fires for this one slot/flag combination.
+    let rcReelVideoArchetypeId: string | undefined;
+    if (rcPromptDirectorOn && row.slot === "reel_start_frame") {
+      const { data: reelVideoRow } = await supabase
+        .from("chs_media")
+        .select("shot_archetype")
+        .eq("batch_id", row.batch_id)
+        .eq("slot", "reel_video")
+        .maybeSingle();
+      rcReelVideoArchetypeId = reelVideoRow?.shot_archetype ?? undefined;
+    }
 
     try {
       await supabase
@@ -714,22 +858,31 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
         })
         .eq("id", row.id);
 
-      const result = await generateSlotPrompt({
-        doctrine,
-        slot,
-        archetypeId: row.shot_archetype,
-        archetypeGuidance: guidance,
-        sceneBriefJson: row.chs_daily_plans.scene_brief,
-        sceneBriefDoctrine: row.chs_daily_plans.scene_brief_doctrine,
-        character: char,
-        arcPosition: storyDay.arc_position,
-      });
+      const result: SlotGenerationResult = rcPromptDirectorOn
+        ? await generateSlotPromptViaDirector({
+            slot,
+            archetypeId: row.shot_archetype,
+            archetypeGuidance: guidance,
+            sceneBriefJson: row.chs_daily_plans.scene_brief,
+            character: char,
+            reelVideoArchetypeId: rcReelVideoArchetypeId,
+          })
+        : await generateSlotPrompt({
+            doctrine,
+            slot,
+            archetypeId: row.shot_archetype,
+            archetypeGuidance: guidance,
+            sceneBriefJson: row.chs_daily_plans.scene_brief,
+            sceneBriefDoctrine: row.chs_daily_plans.scene_brief_doctrine,
+            character: char,
+            arcPosition: storyDay.arc_position,
+          });
 
       await supabase
         .from("chs_media")
         .update({
           higgsfield_prompt: result.prompt,
-          visual_signature: result.visualSignature,
+          visual_signature: mergeVisualSignature(result.visualSignature, undefined, result.promptPackage),
           hook_text: result.hookText ?? null,
           generation_status: "completed",
           last_error: null,

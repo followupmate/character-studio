@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { Media } from "@/types";
 import { stripPromptHeader } from "@/lib/promptClean";
 import { slotLabel } from "@/lib/slots";
+import PromptDirectorPanel from "./PromptDirectorPanel";
+import type { PromptDirectorTargetModel } from "@/lib/promptDirector";
 
 /* ─── Generator options ──────────────────────────────────────── */
 const IMAGE_GENERATORS = [
@@ -25,6 +27,17 @@ const VIDEO_GENERATORS = [
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];
 type GeneratorId = typeof GENERATORS[number]["id"];
+
+// Provider binding (prompt_director_v1): an EXPLICIT model choice made in PromptDirectorPanel must
+// win over this component's own ad-hoc default generator, so applying a compiled prompt also
+// switches the active generator to match. higgsfield-video and wan are deliberately absent —
+// PromptDirectorPanel already refuses to hand back a prompt for a non-live model (see its
+// liveIntegration gate), so there is nothing to map them to here.
+const TARGET_MODEL_TO_GENERATOR: Partial<Record<PromptDirectorTargetModel, GeneratorId>> = {
+  soul2: "higgsfield",
+  kling: "kling",
+  seedance: "seedance-i2v",
+};
 
 /* ─── Lightbox ───────────────────────────────────────────────── */
 function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
@@ -126,6 +139,10 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
   const [regenAudioStyle, setRegenAudioStyle] = useState<"scene" | "ambient" | "dialogue" | "silent">("scene");
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
+  // prompt_director_v1 preview panel — "Použiť tento prompt" on a pending/generating slot has
+  // nowhere existing to write to (that flow has no promptOverride field, unlike the ready-state
+  // regen panel), so this carries the chosen compiled prompt into the FIRST generation call.
+  const [customPromptOverride, setCustomPromptOverride] = useState<string | null>(null);
 
   // Elapsed-seconds counter while any generation runs — image gen takes 15–60s,
   // video up to ~4 min; a static spinner alone reads as frozen.
@@ -211,13 +228,13 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
     const g = GENERATORS.find((x) => x.id === generator) ?? GENERATORS[0];
     try {
       if (isAsyncVideo(g.model)) {
-        const url = await runAsyncVideo(g.model, audioStyle);
+        const url = await runAsyncVideo(g.model, audioStyle, customPromptOverride ?? undefined);
         setGeneratedUrl(url);
         setTimeout(() => window.location.reload(), 1200);
         return;
       }
       if (g.model === "higgsfield") {
-        const url = await runHiggsfield();
+        const url = await runHiggsfield(customPromptOverride ?? undefined);
         setGeneratedUrl(url);
         setTimeout(() => window.location.reload(), 1200);
         return;
@@ -232,6 +249,7 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
           steps: g.steps,
           guidance: g.guidance,
           audioStyle,
+          promptOverride: customPromptOverride ?? undefined,
         }),
       });
       const data = await res.json();
@@ -456,6 +474,18 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
           </div>
         )}
 
+        <PromptDirectorPanel
+          media={media}
+          onUsePrompt={(text, targetModel) => {
+            setRegenPrompt(text);
+            setShowRegen(true);
+            // Explicit Prompt Director model selection takes priority over whatever generator was
+            // previously selected — only when it actually maps to a live one for this slot type.
+            const mapped = TARGET_MODEL_TO_GENERATOR[targetModel];
+            if (mapped && activeGenerators.some((g) => g.id === mapped)) setRegenGenerator(mapped);
+          }}
+        />
+
         {/* Regenerate section */}
         <div className="border border-border">
           <button
@@ -616,6 +646,21 @@ export default function MediaCard({ media, canAutoGenerate = false }: { media: M
           </motion.div>
         )}
       </AnimatePresence>
+
+      <PromptDirectorPanel
+        media={media}
+        onUsePrompt={(text, targetModel) => {
+          setCustomPromptOverride(text);
+          const mapped = TARGET_MODEL_TO_GENERATOR[targetModel];
+          if (mapped && activeGenerators.some((g) => g.id === mapped)) setGenerator(mapped);
+        }}
+      />
+      {customPromptOverride && (
+        <div className="flex items-center justify-between px-2 py-1 bg-teal/5 border border-teal/20">
+          <span className="font-mono text-[8px] text-teal uppercase tracking-[0.06em]">✓ Prompt Director prompt sa použije pri generovaní</span>
+          <button onClick={() => setCustomPromptOverride(null)} className="font-mono text-[8px] text-muted hover:text-ink">✕</button>
+        </div>
+      )}
 
       {/* Generate */}
       <div className="flex flex-col gap-1.5">
