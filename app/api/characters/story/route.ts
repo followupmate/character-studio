@@ -66,21 +66,33 @@ export async function GET() {
       const arcOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "arc_planner_v1");
 
       let arcId: string | null = null;
+      let arcType: string | null = null;
       let episodeLabel: string | null = null;
       let arcContextText: string | undefined;
       let arcCityOverride: string | undefined;
 
       if (arcOn) {
-        await maybeAutoPlanArc(char.id, today);
-        const arc = await getActiveArc(char.id, today);
-        if (arc) {
-          arcId = arc.id;
-          const ctx = getArcDayContext(arc, today);
-          if (ctx) {
-            episodeLabel = `${arc.city} — day ${ctx.dayIndex}/${ctx.dayCount}`;
-            arcContextText = arcContextBlock(ctx, arc);
-            arcCityOverride = arc.city;
+        // Non-fatal by design (same contract as maybeCreateLifeEvent below): the arc layer is
+        // guidance — a failed plan/fetch must never take down the day's story generation.
+        try {
+          await maybeAutoPlanArc(char.id, today);
+        } catch (err) {
+          console.error(`[story] maybeAutoPlanArc non-fatal failure for ${char.slug}:`, err);
+        }
+        try {
+          const arc = await getActiveArc(char.id, today);
+          if (arc) {
+            arcId = arc.id;
+            arcType = arc.arc_type;
+            const ctx = getArcDayContext(arc, today);
+            if (ctx) {
+              episodeLabel = `${arc.city} — day ${ctx.dayIndex}/${ctx.dayCount}`;
+              arcContextText = arcContextBlock(ctx, arc);
+              arcCityOverride = arc.city;
+            }
           }
+        } catch (err) {
+          console.error(`[story] getActiveArc non-fatal failure for ${char.slug}:`, err);
         }
       }
 
@@ -90,7 +102,6 @@ export async function GET() {
         targetDate: today,
         historyRows: (history as StoryDay[]) ?? [],
         arcContext: arcContextText,
-        arcCityOverride,
       });
 
       // Prepare life_state with arc city override if needed
@@ -145,10 +156,17 @@ export async function GET() {
       if (storyError) throw storyError;
 
       // LIFE LAYER: occasionally spawn a small everyday event for upcoming days (never daily).
-      // With arc_planner, events only spawn during home_interlude arcs (micro-beats, not during trips).
-      const shouldSpawnEvent = !arcOn || (arcId && arcContextText?.includes("home_interlude"));
+      // With arc_planner, events only spawn during home_interlude arcs (micro-beats at home;
+      // trips come exclusively from planned arcs, so weekend_trip is excluded from the deck).
+      const shouldSpawnEvent = !arcOn || arcType === "home_interlude";
       if (lifeOn && shouldSpawnEvent) {
-        try { await maybeCreateLifeEvent({ characterId: char.id, date: today }); } catch { /* non-fatal */ }
+        try {
+          await maybeCreateLifeEvent({
+            characterId: char.id,
+            date: today,
+            ...(arcOn ? { excludeEventTypes: ["weekend_trip"] } : {}),
+          });
+        } catch { /* non-fatal */ }
       }
       storyResults.push({
         char,

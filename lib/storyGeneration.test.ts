@@ -145,3 +145,38 @@ describe("buildSystemPrompt — situationMode on", () => {
     );
   });
 });
+
+describe("buildSystemPrompt — arc context + serial captions gating", () => {
+  const base = {
+    character: fixtureCharacter(),
+    tier: "everyday_life" as const,
+    driftSeeds: [],
+    dayNumber: 3,
+    historyText: "First day. No history yet.",
+  };
+  const arcContext = "ARC CONTEXT (today is day 2/4 of \"Three days in Lisbon\")";
+
+  it("omitting arcContext produces no arc or serial content", () => {
+    const prompt = buildSystemPrompt(base);
+    expect(prompt).not.toContain("ARC CONTEXT");
+    expect(prompt).not.toContain("SERIAL RULES");
+  });
+
+  it("arcContext alone injects the arc block but NOT the serial rules (serial_captions_v1 is its own flag)", () => {
+    const prompt = buildSystemPrompt({ ...base, arcContext });
+    expect(prompt).toContain("ARC CONTEXT");
+    expect(prompt).not.toContain("SERIAL RULES");
+  });
+
+  it("arcContext + serialCaptions injects both blocks", () => {
+    const prompt = buildSystemPrompt({ ...base, arcContext, serialCaptions: true });
+    expect(prompt).toContain("ARC CONTEXT");
+    expect(prompt).toContain("SERIAL RULES");
+    expect(prompt).toContain("forward tease");
+  });
+
+  it("serialCaptions without arcContext is a no-op", () => {
+    const prompt = buildSystemPrompt({ ...base, serialCaptions: true });
+    expect(prompt).not.toContain("SERIAL RULES");
+  });
+});

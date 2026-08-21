@@ -124,21 +124,23 @@ export function validateArcPlan(
     }
   }
 
-  // Rule 2: max 1 trip per ~10 days
+  // Rule 2: max 1 trip per ~10 days — measured trip-start → trip-start against the most
+  // recent TRIP arc specifically (measuring against the last arc of ANY type would make the
+  // intended trip → home_interlude(2–4d) → trip cadence permanently invalid).
   const arcDays = Math.floor(
     (new Date(arc.end_date + "T00:00:00Z").getTime() -
      new Date(arc.start_date + "T00:00:00Z").getTime()) / (24 * 60 * 60 * 1000)
   ) + 1;
 
   if (arc.arc_type === "trip") {
-    const tripCount = previousArcs.filter((a) => a.arc_type === "trip").length;
-    if (tripCount > 0) {
-      const daysSinceLast = Math.floor(
+    const lastTrip = previousArcs.find((a) => a.arc_type === "trip");
+    if (lastTrip) {
+      const daysSinceLastTripStart = Math.floor(
         (new Date(arc.start_date + "T00:00:00Z").getTime() -
-         new Date(previousArcs[0].end_date + "T00:00:00Z").getTime()) / (24 * 60 * 60 * 1000)
+         new Date(lastTrip.start_date + "T00:00:00Z").getTime()) / (24 * 60 * 60 * 1000)
       );
-      if (daysSinceLast < 10) {
-        errors.push(`Only ${daysSinceLast} days since last trip; need ≥10 days between trips`);
+      if (daysSinceLastTripStart < 10) {
+        errors.push(`Only ${daysSinceLastTripStart} days since last trip started; need ≥10 days between trip starts`);
       }
     }
     if (arcDays > 5) {
@@ -210,7 +212,8 @@ async function generateNextArc(
     tier_b: ["Mykonos", "Porto", "Florence", "Nice", "Capri", "Valletta", "Split"],
   };
 
-  const currentSeason = new Date().getMonth() < 6 ? "spring" : new Date().getMonth() < 9 ? "summer" : "fall";
+  const month = new Date().getMonth();
+  const currentSeason = month >= 2 && month < 6 ? "spring" : month >= 6 && month < 9 ? "summer" : month >= 9 && month < 11 ? "fall" : "winter";
 
   const previousArcsText =
     previousArcs.length > 0
@@ -277,7 +280,7 @@ OUTPUT: Return a JSON object (valid JSON only, no markdown) with:
   const systemPrompt = "You are a narrative planner for a luxury lifestyle character. Generate coherent, data-respecting arc plans.";
 
   const response = await claudeWithRetry({
-    model: "claude-opus-4-1-20250805",
+    model: "claude-sonnet-4-6",
     max_tokens: 1500,
     system: systemPrompt,
     messages: [{ role: "user", content: prompt }],
@@ -289,7 +292,7 @@ OUTPUT: Return a JSON object (valid JSON only, no markdown) with:
   const parsed = JSON.parse(jsonText);
 
   const arcData: Arc = {
-    id: crypto.randomUUID?.() || `arc-${Date.now()}`,
+    id: crypto.randomUUID(),
     character_id: character.id,
     arc_type: parsed.arc_type,
     title: parsed.title,
@@ -346,11 +349,12 @@ export async function maybeAutoPlanArc(
   // Generate and insert new arc
   const newArc = await generateNextArc(character as Character, previousArcs, date);
 
-  const { data: inserted } = await supabase
+  const { data: inserted, error: insertError } = await supabase
     .from("chs_arcs")
     .insert(newArc)
     .select()
     .single();
+  if (insertError) throw new Error(`maybeAutoPlanArc insert failed: ${insertError.message}`);
 
   return (inserted as Arc) || null;
 }

@@ -273,3 +273,22 @@ Added to `lib/featureFlags.ts`:
 
 **Implementation complete for Phases 0, 1, 2.**  
 **Ready for flag activation and production testing.**
+
+---
+
+## Fix-up review (2026-08-21, Fable 5)
+
+Overenie implementacie naslo a opravilo tieto problemy (commit "fix(arc-planner): harden Phase 0-2"):
+
+1. `maybeAutoPlanArc`/`getActiveArc` v story route su teraz non-fatal (try/catch) - zlyhanie planovania arcu uz nezhodi denne generovanie pribehu.
+2. Pravidlo "max 1 trip za ~10 dni" sa meria trip-start -> trip-start proti poslednemu TRIP arcu (predtym proti koncu posledneho akehokolvek arcu, co by permanentne blokovalo rytmus trip -> home_interlude -> trip a hadzalo vynimky).
+3. SERIAL RULES su realne gatovane za `serial_captions_v1` (predtym flag existoval len v type a blok bezal vzdy s arcom).
+4. Micro-eventy sa spustaju podla `arc.arc_type === "home_interlude"` (predtym sa hladal retazec "home_interlude" v texte arc bloku, ktory ho nikdy neobsahuje - eventy by boli s flagom navzdy mrtve). `weekend_trip` je s arc flagom vyluceny z EVENT_DECK - tripy vznikaju uz len z planovanych arcov.
+5. POST `/api/characters/arcs` ma auth guard (konvencia generate-media: browser origin alebo CRON_SECRET).
+6. Model planovaca zjednoteny na `claude-sonnet-4-6`; insert error sa uz nezahadzuje; season pozna zimu; odstranene nepouzite argumenty.
+
+### KRITICKE - poradie aktivacie
+
+1. **Najprv** spustit novy blok `supabase/migration.sql` v Supabase SQL editore (chs_arcs + arc_id/episode_label + Phase 0 UPDATE). `/today` teraz joinuje `chs_arcs` bezpodmienecne - deploy pred migraciou rozbije stranku aj s vypnutym flagom.
+2. Potom deploy.
+3. Az potom zapnut `arc_planner_v1` (a volitelne `serial_captions_v1`) pre Vivienne a skontrolovat prvy vygenerovany arc v /today.

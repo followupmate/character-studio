@@ -54,6 +54,7 @@ export interface BuildSystemPromptArgs {
   family?: MomentFamily | null; // lived_moments: today's world
   magnetism?: MagnetismLevel | null; // lived_moments: today's intensity
   arcContext?: string; // arc_planner_v1: narrative guidance from the active arc
+  serialCaptions?: boolean; // serial_captions_v1: only with arcContext — adds the SERIAL RULES caption block
   // open_life_generation_v1 — all optional/additive. Omitting every one of these reproduces the
   // exact pre-existing prompt string (see lib/storyGeneration.test.ts's byte-identical check).
   situationMode?: boolean;
@@ -71,7 +72,7 @@ export interface BuildSystemPromptArgs {
 // generate-forward/route.ts's independent copy had drifted without. Byte-identical to that
 // version whenever every open_life_generation_v1 field above is omitted.
 export function buildSystemPrompt(args: BuildSystemPromptArgs): string {
-  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism, arcContext, situationMode, sexualEnergyGuidance, situationSchemaBlock: situationSchema, situationOutputSpec, ciGuidance } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism, arcContext, serialCaptions, situationMode, sexualEnergyGuidance, situationSchemaBlock: situationSchema, situationOutputSpec, ciGuidance } = args;
   const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
@@ -100,7 +101,7 @@ ${lifeContext ? `\n${lifeContext}\n` : ""}
 ${arcContext ? `\n${arcContext}\n` : ""}
 VOICE ANCHOR — read recent history ONLY to avoid repeating the same city or scene two days in a row. If recent history drifted toward influencer fluff or hollow affirmations, IGNORE THE DRIFT and reset to the voice doctrine above.
 ${ciGuidance ? `\n${ciGuidance}\n` : ""}
-${arcContext ? `
+${arcContext && serialCaptions ? `
 SERIAL RULES (arc active):
 - ig_caption MUST anchor today in the arc naturally (e.g. "day 2 in lisbon and i'm not ok", "packing. again. you'll see why tomorrow") — never a generic caption.
 - if tomorrow continues the arc (not the last day): END the caption with a forward tease — one short clause that makes tomorrow a promise ("tomorrow: the boat.").
@@ -159,11 +160,9 @@ export interface GenerateStoryDayArgs {
   dayNumber: number;
   targetDate: string;
   historyRows: Array<{ day_number: number; location: string; mood: string; narrative: string; arc_position: string }>;
-  // arc_planner_v1: arc context and day metadata for narrative guidance
+  // arc_planner_v1: arc narrative guidance block (the current_city override itself is applied
+  // by the caller — app/api/characters/story/route.ts — on the persisted life_state, not here)
   arcContext?: string;
-  arcDayIndex?: number;
-  arcDayCount?: number;
-  arcCityOverride?: string;
   // Injectable for tests (mirrors the `rng: () => number` injection pattern already used by
   // lib/storyTier.ts's pickMomentFamily/pickMagnetismLevel) — lets the retry-loop CONTROL FLOW
   // (does it stop at SITUATION_MAX_ATTEMPTS? does it null out situation on exhaustion?) be unit
@@ -193,10 +192,13 @@ export interface GenerateStoryDayResult {
 const defaultClaudeCall: ClaudeCallFn = (params) => claudeWithRetry(params) as unknown as Promise<ClaudeMessageLike>;
 
 export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promise<GenerateStoryDayResult> {
-  const { character, dayNumber, targetDate, historyRows, arcContext, arcCityOverride } = args;
+  const { character, dayNumber, targetDate, historyRows, arcContext } = args;
   const claudeCall = args.claudeCall ?? defaultClaudeCall;
   const flags = (character as { feature_flags?: unknown }).feature_flags;
   const arcOn = arcContext !== undefined;
+  // serial_captions_v1 — own flag on top of arc_planner_v1 (house rule: each layer's behavior
+  // change requires its own flag). Without it, arc days keep the original caption rules.
+  const serialCaptionsOn = arcOn && isFlagOn(flags, "serial_captions_v1");
 
   const reversed = historyRows.slice().reverse();
   const historyText =
@@ -374,6 +376,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
       family,
       magnetism,
       arcContext,
+      serialCaptions: serialCaptionsOn,
       situationMode,
       sexualEnergyGuidance: sexualEnergyGuidanceText,
       situationSchemaBlock: situationSchemaBlockText,

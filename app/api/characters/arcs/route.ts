@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { getActiveArc, maybeAutoPlanArc, type Arc } from "@/lib/arcPlanner";
+import { getActiveArc, maybeAutoPlanArc } from "@/lib/arcPlanner";
+import { cronAuthorized } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+// Auth: same convention as generate-media — CRON_SECRET for server-to-server (fail-closed via
+// cronAuthorized), browser requests from the app UI allowed without a secret (see M1-3 in
+// docs/AUDIT for the deferred Origin-bypass closure once a UI session/password exists).
+function unauthorized(req: Request): NextResponse | null {
+  const origin = req.headers.get("origin") ?? "";
+  const appUrl = process.env.APP_URL ?? "";
+  const isBrowserRequest = origin.includes("vercel.app") || origin.includes("localhost") || origin === appUrl;
+  if (!isBrowserRequest && !cronAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return null;
+}
 
 export async function GET(req: Request) {
   try {
@@ -41,6 +55,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const deny = unauthorized(req);
+  if (deny) return deny;
   try {
     const body = await req.json();
     const { character_id: characterId, action, arc_id: arcId } = body;

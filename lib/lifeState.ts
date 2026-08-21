@@ -175,8 +175,12 @@ export function microEventOutputSpec(event: LifeEvent, phaseCandidates: Continui
 }
 
 // Occasionally spawn a new small life event (every ~3–5 days, mostly everyday/low-weight).
-export async function maybeCreateLifeEvent(args: { characterId: string; date: string }): Promise<LifeEvent | null> {
+// excludeEventTypes (optional, additive): lets the arc planner keep travel out of the random
+// deck — with arc_planner_v1 on, trips come exclusively from planned arcs, so weekend_trip is
+// excluded here. Omitting the field keeps the original behaviour byte-identical.
+export async function maybeCreateLifeEvent(args: { characterId: string; date: string; excludeEventTypes?: string[] }): Promise<LifeEvent | null> {
   const { characterId, date } = args;
+  const excluded = new Set(args.excludeEventTypes ?? []);
   const { data: last } = await supabase
     .from("chs_life_events")
     .select("starts_at")
@@ -193,7 +197,9 @@ export async function maybeCreateLifeEvent(args: { characterId: string; date: st
   if (Math.random() > gate) return null;
 
   // 85% everyday, 15% rare/bigger.
-  const pool = Math.random() < 0.85 ? EVENT_DECK.filter((e) => !e.rare) : EVENT_DECK.filter((e) => e.rare);
+  const basePool = Math.random() < 0.85 ? EVENT_DECK.filter((e) => !e.rare) : EVENT_DECK.filter((e) => e.rare);
+  const pool = basePool.filter((e) => !excluded.has(e.event_type));
+  if (pool.length === 0) return null;
   const pick = pool[Math.floor(Math.random() * pool.length)];
   const ends_at = pick.days > 1 ? addDays(date, pick.days - 1) : null;
 

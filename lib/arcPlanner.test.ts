@@ -203,3 +203,67 @@ describe("arcPlanner", () => {
     });
   });
 });
+
+describe("validateArcPlan — trip spacing (Rule 2, trip-start to trip-start)", () => {
+  const baseTrip: Arc = {
+    id: "arc-t1",
+    character_id: "char-123",
+    arc_type: "trip",
+    title: "Three days in Lisbon",
+    premise: "Exploring Alfama",
+    city: "Lisbon",
+    start_date: "2026-08-01",
+    end_date: "2026-08-04",
+    day_plan: [
+      { day_index: 0, phase: "anticipation", focus: "packing", location_hint: "apartment" },
+      { day_index: 1, phase: "arrival", focus: "check-in", location_hint: "hotel" },
+      { day_index: 2, phase: "peak", focus: "golden hour", location_hint: "terrace" },
+      { day_index: 3, phase: "departure", focus: "leaving", location_hint: "airport" },
+    ],
+    status: "done",
+    created_at: new Date().toISOString(),
+  };
+  const homeAfter: Arc = {
+    id: "arc-h1",
+    character_id: "char-123",
+    arc_type: "home_interlude",
+    title: "Back home",
+    premise: "Recovering and nesting",
+    city: "Barcelona",
+    start_date: "2026-08-05",
+    end_date: "2026-08-07",
+    day_plan: [
+      { day_index: 0, phase: "aftermath", focus: "unpacking", location_hint: "apartment" },
+      { day_index: 1, phase: "setup", focus: "errands", location_hint: "neighbourhood" },
+      { day_index: 2, phase: "build", focus: "routine", location_hint: "gym" },
+    ],
+    status: "done",
+    created_at: new Date().toISOString(),
+  };
+
+  it("allows trip -> home_interlude -> trip when >=10 days passed since last TRIP START", () => {
+    // last trip started 08-01; new trip starts 08-12 = 11 days later. previousArcs[0] is the
+    // home interlude that ended 08-07 — the old buggy rule measured from THAT and failed.
+    const nextTrip: Arc = {
+      ...baseTrip,
+      id: "arc-t2",
+      city: "Amalfi",
+      start_date: "2026-08-12",
+      end_date: "2026-08-15",
+    };
+    const errors = validateArcPlan(nextTrip, [homeAfter, baseTrip]);
+    expect(errors).toHaveLength(0);
+  });
+
+  it("rejects a new trip starting <10 days after the previous trip started", () => {
+    const tooSoon: Arc = {
+      ...baseTrip,
+      id: "arc-t3",
+      city: "Amalfi",
+      start_date: "2026-08-08",
+      end_date: "2026-08-11",
+    };
+    const errors = validateArcPlan(tooSoon, [homeAfter, baseTrip]);
+    expect(errors.some((e) => e.includes("days since last trip started"))).toBe(true);
+  });
+});
