@@ -66,11 +66,11 @@ function anatomyAnchorLines(input: PromptDirectorInput, labeled: boolean): strin
 
 export function buildIdentitySection(input: PromptDirectorInput): string[] {
   if (input.character.soulId) {
-    // Soul ID behavior (Higgsfield Soul 2.0 guidance): identity/wardrobe-anchor/never-show policy
-    // and the Soul ID UUID are the platform's job, not the prompt's — restating them burns word
-    // budget on facts Soul ID already enforces. Only a short cue survives, plus a relevant anatomy
-    // anchor when THIS framing genuinely puts that body part on screen.
-    return cleanList(["Same character identity as the Soul ID reference.", ...anatomyAnchorLines(input, false)]);
+    // F0.2 — Soul ID behavior (Higgsfield Soul 2.0 guidance): identity/wardrobe-anchor/never-show
+    // policy and the Soul ID UUID are the platform's job, not the prompt's — restating them burns
+    // word budget on facts Soul ID already enforces. Replace meta "Same character identity as the
+    // Soul ID reference" with neutral visual lock.
+    return cleanList(["One woman alone in the frame.", ...anatomyAnchorLines(input, false)]);
   }
 
   // No Soul ID on file — nothing on the platform enforces identity, so the full brief is the only
@@ -94,6 +94,7 @@ export function buildIdentitySection(input: PromptDirectorInput): string[] {
 // the compiled prompt can never exceed these regardless of how verbose the upstream SceneBrief/
 // slot.framing text is. Sub-budgets inside SCENE (spatial/wardrobe/prop) are allocated so no
 // single long fact can silently starve the others of their share of the section's word count.
+// F0.6 — expanded budgets (180→220, scene 45→70, spatial 28→45) to preserve atmosphere detail
 export const SOUL2_WORD_BUDGET = {
   // slot.framing gets its OWN sub-budget rather than sharing the flat camera cap — a long
   // sanitized framing string must never be able to silently push shot-size/camera_language out
@@ -101,13 +102,13 @@ export const SOUL2_WORD_BUDGET = {
   cameraFraming: 22,
   camera: 35,
   pose: 30,
-  sceneSpatial: 28,
-  sceneWardrobe: 14,
-  scene: 45,
-  lighting: 20,
+  sceneSpatial: 45, // increased from 28 to preserve spatial detail
+  sceneWardrobe: 20, // increased from 14
+  scene: 70, // increased from 45
+  lighting: 25, // increased from 20
   aesthetic: 13,
   realism: 12,
-  total: 180,
+  total: 220, // increased from 180
 } as const;
 
 // Truncates to at most maxWords words WITHOUT ever cutting a clause/detail mid-way (production
@@ -214,6 +215,19 @@ export function buildPoseActionSection(input: PromptDirectorInput): string[] {
 // for verbatim delivery to an image model. sanitizeFramingForSoul2() is a deterministic (no LLM)
 // translation layer, soul2-only — it does NOT touch the shared SlotSpec.framing string itself, so
 // Nano Banana (lib/slotPrompts.ts) keeps receiving exactly what it always has.
+
+// F0.1 — Direct visual framing descriptors per slot (no meta-language, no internal references)
+type SlotName = "carousel_1" | "carousel_2" | "carousel_3" | "carousel_4" | "carousel_5" | "reel_start_frame" | "story_bts";
+const SOUL2_SLOT_FRAMING: Partial<Record<SlotName, string>> = {
+  carousel_1: "Wide establishing shot, subject small in a layered environment, off-center composition.",
+  carousel_2: "Medium shot, subject present in the space, natural stance.",
+  carousel_3: "Close detail shot of hands, fabric or surface texture, face out of frame.",
+  carousel_4: "Medium close-up, subject absorbed in the moment, not looking at camera.",
+  carousel_5: "Close-up on face, direct expressive moment, eyes carrying the emotion.",
+  reel_start_frame: "Vertical 9:16 shot with one clearly dominant subject and immediate visual focus, single continuous scene, subject mid-action in a natural sustainable pose, face clearly visible, clean negative space in the top third.",
+  story_bts: "Vertical 9:16 candid frame, relaxed unposed moment, natural imperfect framing.",
+};
+
 const SOUL2_FORBIDDEN_TERMS = [
   "kling",
   "seedance",
@@ -235,6 +249,14 @@ const SOUL2_FORBIDDEN_TERMS = [
   "carousel",
   "overlay",
   "scene lock",
+  // F0.1 — meta-references to other shots or video continuation (replaces "the earlier shot" rewrite with filtering)
+  "earlier shot",
+  "previous shot",
+  "the shot",
+  "motion continues",
+  "continues from",
+  "soul id",
+  "reference",
 ];
 
 // Ordered, first-match rewrites for the SPECIFIC patterns actually present in
@@ -275,9 +297,6 @@ const TARGETED_FRAMING_REWRITES: Array<[RegExp, string]> = [
   // not text" rule above so the comma-continuation is already gone and this matches the clean
   // sentence boundary.
   [/REEL COVER\s*—\s*stop-scroll first frame\.?/i, "Vertical 9:16 shot with one clearly dominant subject and immediate visual focus."],
-  // "established by carousel_1" / "as carousel" — internal slot-naming; the real visual intent is
-  // continuity with the shot that established the scene, not a reference to an internal id.
-  [/\bcarousel(?:_\d+)?\b/gi, "the earlier shot"],
 ];
 
 function sanitizeFramingForSoul2(rawFraming: string): string {
@@ -377,8 +396,12 @@ export function buildAppearanceSection(input: PromptDirectorInput): string[] {
 // is run through sanitizeFramingForSoul2() first (see above), then capped to its OWN sub-budget
 // BEFORE joining with shot-size/camera_language — a long sanitized framing string must never be
 // able to push those out of a shared cap entirely, which an earlier version of this fix did.
+// F0.1 — prefer SOUL2_SLOT_FRAMING[slot] when available (direct visual facts), fallback to
+// sanitized input.slot.framing for unknown slots (backward-compatible).
 export function buildCameraSection(input: PromptDirectorInput): string[] {
-  const framingLine = capWords(sanitizeFramingForSoul2(input.slot.framing), SOUL2_WORD_BUDGET.cameraFraming);
+  const slotName = (input.slot.slot as SlotName | undefined) ?? undefined;
+  const framingText = (slotName && SOUL2_SLOT_FRAMING[slotName]) ?? sanitizeFramingForSoul2(input.slot.framing);
+  const framingLine = capWords(framingText, SOUL2_WORD_BUDGET.cameraFraming);
   const lines: string[] = [framingLine];
   if (isCloseUpArchetype(input)) {
     lines.push("close framing, face or detail fills a large part of the frame");
@@ -391,10 +414,27 @@ export function buildCameraSection(input: PromptDirectorInput): string[] {
   return capSection(lines, SOUL2_WORD_BUDGET.camera);
 }
 
+// F0.4 — Humanize time_of_day enum to natural language (golden_hour → "golden hour light")
+function humanizeTimeOfDay(timeOfDay: string): string {
+  const map: Record<string, string> = {
+    golden_hour: "golden hour light",
+    blue_hour: "blue hour dusk",
+    indoor_lamp: "warm lamp-lit interior",
+    fluorescent: "cool artificial light",
+    midday: "midday light",
+    overcast: "overcast diffuse light",
+    moonlight: "moonlight",
+    dawn: "dawn light",
+    dusk: "dusk light",
+  };
+  return map[timeOfDay] || timeOfDay.replace(/_/g, " ");
+}
+
 // §7D — LIGHTING. Real, concrete formulations — never "cinematic glow" / "dramatic studio light".
 export function buildLightingSection(input: PromptDirectorInput): string[] {
   const sb = input.sceneBrief;
-  const lines = cleanList([sb.lighting_state, `${sb.time_of_day}, ${sb.weather_implied}`]);
+  const timeOfDayText = humanizeTimeOfDay(sb.time_of_day);
+  const lines = cleanList([sb.lighting_state, `${timeOfDayText}, ${sb.weather_implied}`]);
   return capSection(lines, SOUL2_WORD_BUDGET.lighting);
 }
 

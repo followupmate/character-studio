@@ -35,6 +35,7 @@ export function classifyHiggsfieldFailure(submitStatus?: number, jobStatus?: str
 
 export async function generateSoulImage(opts: {
   prompt: string;
+  negativePrompt?: string; // F0.5 — optional negative prompt
   soulId: string;
   aspect: string; // "9:16" | "3:4" | "1:1"
   mediaId: string;
@@ -43,16 +44,24 @@ export async function generateSoulImage(opts: {
   if (!credentials || !credentials.includes(":")) throw new Error("HIGGSFIELD_API_KEY not configured");
   const auth = `Key ${credentials}`;
 
+  // F0.5 — build request body with optional negative_prompt field
+  const requestBody: Record<string, unknown> = {
+    prompt: stripPromptHeader(opts.prompt),
+    aspect_ratio: opts.aspect,
+    resolution: "1080p",
+    enhance_prompt: false,
+    custom_reference_id: opts.soulId,
+  };
+
+  // Include negative prompt if provided (Higgsfield Soul V2 API accepts it)
+  if (opts.negativePrompt) {
+    requestBody.negative_prompt = opts.negativePrompt;
+  }
+
   const submit = await fetch(`${BASE}/${SOUL_MODEL}`, {
     method: "POST",
     headers: { Authorization: auth, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      prompt: stripPromptHeader(opts.prompt),
-      aspect_ratio: opts.aspect,
-      resolution: "1080p",
-      enhance_prompt: false,
-      custom_reference_id: opts.soulId,
-    }),
+    body: JSON.stringify(requestBody),
   });
   let job = (await submit.json().catch(() => ({}))) as {
     status?: string; status_url?: string; images?: Array<{ url?: string }>; detail?: unknown;

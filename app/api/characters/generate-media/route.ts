@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { generateSoulImage, soulConfigured, FALLBACK_SOUL_ID } from "@/lib/higgsfieldSoul";
 import { sanitizePrompt, stripPromptHeader } from "@/lib/promptClean";
 import { cronAuthorized } from "@/lib/apiAuth";
+import { getBaseImageNegatives } from "@/lib/promptDirector/negativeBuilder"; // F0.5
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -847,7 +848,14 @@ export async function POST(req: Request) {
               const soulAspect = isVerticalSlot ? "9:16" : "3:4"; // feed 4:5 → closest Soul ratio 3:4
               try {
                 if (!soulConfigured()) throw new Error("Higgsfield not configured");
-                mediaUrl = await generateSoulImage({ prompt: effectivePrompt, soulId, aspect: soulAspect, mediaId: media.id });
+                // F0.5 — include base image negatives
+                mediaUrl = await generateSoulImage({
+                  prompt: effectivePrompt,
+                  negativePrompt: getBaseImageNegatives(),
+                  soulId,
+                  aspect: soulAspect,
+                  mediaId: media.id,
+                });
                 provider = "higgsfield-soul-fallback";
               } catch (herr) {
                 console.warn("[generate-media] Higgsfield fallback failed, dropping to fal LoRA:", herr instanceof Error ? herr.message : herr);
@@ -866,7 +874,14 @@ export async function POST(req: Request) {
           const soulId = (char.soul_id as string | null) ?? FALLBACK_SOUL_ID;
           const isVerticalSlot = ["reel_start_frame", "story_bts"].includes(media.slot ?? "");
           const soulAspect = isVerticalSlot ? "9:16" : "3:4";
-          mediaUrl = await generateSoulImage({ prompt: effectivePrompt, soulId, aspect: soulAspect, mediaId: media.id });
+          // F0.5 — include base image negatives
+          mediaUrl = await generateSoulImage({
+            prompt: effectivePrompt,
+            negativePrompt: getBaseImageNegatives(),
+            soulId,
+            aspect: soulAspect,
+            mediaId: media.id,
+          });
           provider = "higgsfield-soul-director";
         } else if (useBFL) {
           mediaUrl = await generateWithBFL(

@@ -67,9 +67,17 @@ function sectionToConcise(lines: string[]): string {
   return lines.join(", ").replace(/\.\s*,/g, ",").replace(/,\s*$/, ".");
 }
 
+// F0.3 — sectionToFull: ensure each line ends with punctuation, join with spaces, avoid fragment runs
 function sectionToFull(key: PromptPackageSectionKey, lines: string[]): string {
   const label = SECTION_LABEL[key];
-  return label ? `${label}: ${lines.join(" ")}` : lines.join(" ");
+  // Ensure each line ends with punctuation
+  const punctuatedLines = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return "";
+    return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+  }).filter(Boolean);
+  const joined = punctuatedLines.join(" ");
+  return label ? `${label}: ${joined}` : joined;
 }
 
 export function compilePositivePrompt(

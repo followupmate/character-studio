@@ -5,7 +5,20 @@ import { archetypeAllowsProp, cleanList } from "./helpers";
 // blacklist — base negatives are fixed per output type, contextual ones are added only when the
 // scene/slot actually implies the risk. For images (soul2), Higgsfield Soul 2.0 guidance calls
 // for a short negative block specifically — see contextualImageNegatives() below.
-const BASE_IMAGE_NEGATIVES = ["beauty filter", "plastic skin", "CGI look", "identity drift", "warped anatomy"];
+// F0.5 — added anti-doubling terms (from production incident diagnosis)
+const BASE_IMAGE_NEGATIVES = [
+  "beauty filter",
+  "plastic skin",
+  "CGI look",
+  "identity drift",
+  "warped anatomy",
+  "split frame",
+  "diptych",
+  "collage",
+  "two panels",
+  "duplicated person",
+  "second copy of the same woman",
+];
 
 // Text-rendering protection (production incident, day 82) — Higgsfield rendered visible text
 // into a reel_start_frame image, most likely primed by "text overlay" language that leaked into
@@ -54,4 +67,10 @@ export function buildNegatives(input: PromptDirectorInput): string[] {
     negatives.push(...TALKING_VIDEO_NEGATIVES);
   }
   return cleanList(negatives);
+}
+
+// F0.5 — helper to compile image-only negatives without a full PromptDirectorInput
+// (used when generateSoulImage is called without access to scene/archetype context)
+export function getBaseImageNegatives(): string {
+  return [...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES].join(", ");
 }

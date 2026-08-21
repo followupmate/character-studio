@@ -92,7 +92,8 @@ describe("compilePromptDirector — image / soul2", () => {
     expect(identityText).not.toContain("visible tattoos");
     expect(identityText).not.toContain(CHARACTER.visualBrief);
     expect(identityText).not.toContain(CHARACTER.soulId);
-    expect(identityText).toContain("Same character identity as the Soul ID reference");
+    // F0.2 — identity with Soul ID changed to "One woman alone in the frame" (neutral visual lock)
+    expect(identityText).toContain("One woman alone in the frame.");
     expect(pkg.positivePrompt).not.toContain("thin gold chain");
     expect(pkg.positivePrompt).not.toContain("visible tattoos");
     expect(pkg.positivePrompt).not.toContain(CHARACTER.soulId);
@@ -145,8 +146,9 @@ describe("compilePromptDirector — image / soul2", () => {
     const wc = (s?: string[]) => (s ?? []).join(" ").trim().split(/\s+/).filter(Boolean).length;
     expect(wc(oversized.sections.camera)).toBeLessThanOrEqual(35);
     expect(wc(oversized.sections.pose)).toBeLessThanOrEqual(30);
-    expect(wc(oversized.sections.scene)).toBeLessThanOrEqual(45);
-    expect(wc(oversized.sections.lighting)).toBeLessThanOrEqual(20);
+    // F0.6 — expanded word budgets (scene 45→70, lighting 20→25)
+    expect(wc(oversized.sections.scene)).toBeLessThanOrEqual(70);
+    expect(wc(oversized.sections.lighting)).toBeLessThanOrEqual(25);
     expect(wc(oversized.sections.aesthetic)).toBeLessThanOrEqual(13);
     expect(wc(oversized.sections.realism)).toBeLessThanOrEqual(12);
 
@@ -197,7 +199,8 @@ describe("compilePromptDirector — image / soul2", () => {
   it("keeps the negative block short for Soul 2.0 (base + text-rendering protection, no blind blacklist)", async () => {
     const pkg = await compilePromptDirector(baseInput());
     const negativeCount = (pkg.negativePrompt ?? "").split(",").filter((s) => s.trim()).length;
-    expect(negativeCount).toBeLessThanOrEqual(15);
+    // F0.5 — increased from 15 to 20 to accommodate anti-doubling negatives (split frame, diptych, etc.)
+    expect(negativeCount).toBeLessThanOrEqual(20);
     expect(pkg.negativePrompt).toContain("no text");
   });
 

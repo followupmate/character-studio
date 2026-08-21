@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { soulConfigured, FALLBACK_SOUL_ID, generateSoulImage } from "@/lib/higgsfieldSoul";
+import { getBaseImageNegatives } from "@/lib/promptDirector/negativeBuilder"; // F0.5
 import { providerFor } from "@/lib/fanvueMediaProvider";
 import type { FanvueContinuationPlan, ShotStep } from "@/lib/fanvueContinuation";
 
@@ -125,8 +126,10 @@ export async function POST(req: Request) {
     const legacyErrors: string[] = [];
     for (let i = 0; i < n; i++) {
       try {
+        // F0.5 — include base image negatives
         const url = await generateSoulImage({
           prompt: `${unlock.fanvue_prompt} ${ANGLES[i % ANGLES.length]}`,
+          negativePrompt: getBaseImageNegatives(),
           soulId,
           aspect: "3:4",
           mediaId: `fanvue-${unlockId}-${i + 1}`,
