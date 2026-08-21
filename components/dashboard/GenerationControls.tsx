@@ -140,7 +140,11 @@ export default function GenerationControls({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Chyba ${res.status}`);
       setCompiledPackage(data.promptPackage);
-      setPrompt(cleanPrompt(data.promptPackage.positivePrompt));
+      // finalPrompt is the F2-rewritten (prompt_writer_v1) prompt when that flag is on for this
+      // character, else the raw deterministic compile — same precedence as a real batch run (see
+      // lib/dailyBatch.ts's generateSlotPromptViaDirector). Falls back to positivePrompt for safety
+      // if an older API response shape is ever cached.
+      setPrompt(cleanPrompt(data.finalPrompt ?? data.promptPackage.positivePrompt));
       // §8 — audioStyle stays a real param the actual provider call uses (Kling's mmaudio bolt-on,
       // Seedance's generate_audio flag) even though it's no longer a separate control while Prompt
       // Director drives the UI — derive it from Speech instead of showing a second, redundant row.

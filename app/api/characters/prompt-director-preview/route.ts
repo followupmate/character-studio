@@ -3,6 +3,8 @@ import { supabase } from "@/lib/supabase";
 import { DAILY_SLOTS, getArchetypeGuidance } from "@/lib/archetypeDeck";
 import { promptDirectorTargetForSlot, plannedActionForReelArchetype } from "@/lib/dailyBatch";
 import { compilePromptDirector } from "@/lib/promptDirector";
+import { writeSoul2Prompt } from "@/lib/promptDirector/promptWriter";
+import { isFlagOn } from "@/lib/featureFlags";
 import type { PromptDirectorInput, PromptDirectorOutputType, PromptDirectorTargetModel, VideoIntent, VideoIntentMode, SpeechSource } from "@/lib/promptDirector";
 
 export const runtime = "nodejs";
@@ -55,17 +57,28 @@ export async function POST(req: Request) {
 
     const { data: plan, error: planErr } = await supabase
       .from("chs_daily_plans")
-      .select("character_id, scene_brief")
+      .select("character_id, scene_brief, story_day_id")
       .eq("id", media.batch_id)
       .single();
     if (planErr || !plan?.scene_brief) return NextResponse.json({ error: "Scene brief not found for this batch" }, { status: 404 });
 
     const { data: character, error: charErr } = await supabase
       .from("chs_characters")
-      .select("id, name, visual_brief, sacred_details, soul_id")
+      .select("id, name, visual_brief, sacred_details, soul_id, feature_flags")
       .eq("id", plan.character_id)
       .single();
     if (charErr || !character) return NextResponse.json({ error: "Character not found" }, { status: 404 });
+
+    // F1/F3 — same tier/day-number context real batch generation feeds into the director (see
+    // lib/dailyBatch.ts's generateSlotPromptViaDirector). Without this, the preview silently
+    // diverged from what a real generation actually compiles/stores — the exact production
+    // incident this fixes (2026-08-22): switching provider in the UI showed a stale, pre-F1/F2/F3
+    // structure instead of what chs_media.higgsfield_prompt genuinely contains.
+    const { data: storyDay } = plan.story_day_id
+      ? await supabase.from("chs_story_days").select("tier, day_number").eq("id", plan.story_day_id).maybeSingle()
+      : { data: null as { tier?: string | null; day_number?: number | null } | null };
+    const luxuryWorldEnabled = isFlagOn((character as { feature_flags?: unknown }).feature_flags, "luxury_world_v1");
+    const promptWriterOn = isFlagOn((character as { feature_flags?: unknown }).feature_flags, "prompt_writer_v1");
 
     // The exact SlotSpec instance used at generation time isn't persisted (only slot NAME/type/
     // channel are, on chs_media) — DAILY_SLOTS carries the same framing text for a given slot name
@@ -142,11 +155,29 @@ export async function POST(req: Request) {
       hasReferenceImage: true,
       videoIntent,
       plannedVideoIntent,
+      luxuryWorldEnabled,
+      tier: storyDay?.tier ?? null,
+      dayNumber: storyDay?.day_number ?? null,
     };
 
     const promptPackage = await compilePromptDirector(input);
 
-    return NextResponse.json({ success: true, promptPackage, existingPrompt: media.higgsfield_prompt });
+    // F2 — mirror lib/dailyBatch.ts's generateSlotPromptViaDirector exactly: image outputs get the
+    // LLM rewrite pass when prompt_writer_v1 is on, with a guaranteed fallback to the deterministic
+    // compile above on any failure. `promptPackage` itself stays the raw deterministic sections
+    // (still shown as "Advanced Prompt Details" in the UI) — `finalPrompt` is what the visible
+    // textbox / actual generation call should use, exactly matching what a real batch run produces.
+    const finalPrompt =
+      promptWriterOn && outputType === "image"
+        ? await writeSoul2Prompt(
+            promptPackage.positivePrompt,
+            plan.scene_brief.wardrobe_lock,
+            plan.scene_brief.spatial_setup,
+            promptPackage.positivePrompt
+          )
+        : promptPackage.positivePrompt;
+
+    return NextResponse.json({ success: true, promptPackage, finalPrompt, existingPrompt: media.higgsfield_prompt });
   } catch (err) {
     console.error("[prompt-director-preview]", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 422 });
