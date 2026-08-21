@@ -20,7 +20,11 @@
       "Bash(npx tsc *)",
       "Bash(npx eslint *)",
       "Bash(powershell -c \"\\(Get-Content lib/creative_intelligence.py | Measure-Object -Line\\).Lines\")",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "mcp__claude_ai_Vercel__list_deployments",
+      "Bash(curl -s -X POST 'https://character-studio-mocha.vercel.app/api/characters/regenerate-prompts?date=2026-08-12&character=vivienne' -w '\\\\nHTTP_STATUS:%{http_code}\\\\n' -o /tmp/regen_day73.json)",
+      "Bash(curl -s -I \"https://nlqilxuclwccgncxlgpw.supabase.co/storage/v1/object/public/vivien-media/lora/vivien_lora_v2_batch1_1786003807944.zip\")",
+      "Bash(npm test *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\owner\\Desktop\\projekty\\projekt_9\\Character_studio"

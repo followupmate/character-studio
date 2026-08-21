@@ -6,6 +6,7 @@ import { Character, StoryDay } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
 import { maybeCreateLifeEvent } from "@/lib/lifeState";
 import { generateStoryDayContent } from "@/lib/storyGeneration";
+import { maybeAutoPlanArc, getActiveArc, getArcDayContext, arcContextBlock } from "@/lib/arcPlanner";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -62,13 +63,44 @@ export async function GET() {
 
       const dayNumber = ((history as StoryDay[])?.[0]?.day_number ?? 0) + 1;
       const lifeOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "life_layer");
+      const arcOn = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "arc_planner_v1");
+
+      let arcId: string | null = null;
+      let episodeLabel: string | null = null;
+      let arcContextText: string | undefined;
+      let arcCityOverride: string | undefined;
+
+      if (arcOn) {
+        await maybeAutoPlanArc(char.id, today);
+        const arc = await getActiveArc(char.id, today);
+        if (arc) {
+          arcId = arc.id;
+          const ctx = getArcDayContext(arc, today);
+          if (ctx) {
+            episodeLabel = `${arc.city} — day ${ctx.dayIndex}/${ctx.dayCount}`;
+            arcContextText = arcContextBlock(ctx, arc);
+            arcCityOverride = arc.city;
+          }
+        }
+      }
 
       const { story, tier, driftSeeds, family, magnetism, strategyInput } = await generateStoryDayContent({
         character: char,
         dayNumber,
         targetDate: today,
         historyRows: (history as StoryDay[]) ?? [],
+        arcContext: arcContextText,
+        arcCityOverride,
       });
+
+      // Prepare life_state with arc city override if needed
+      let lifeStateToInsert = story.life_state;
+      if (arcOn && arcCityOverride && lifeStateToInsert) {
+        lifeStateToInsert = {
+          ...(lifeStateToInsert as Record<string, unknown>),
+          current_city: arcCityOverride,
+        };
+      }
 
       const { data: storyDay, error: storyError } = await supabase
         .from("chs_story_days")
@@ -90,7 +122,9 @@ export async function GET() {
           ig_caption: story.ig_caption,
           hashtags: story.hashtags,
           ...(story.hook_text ? { hook_text: story.hook_text } : {}),
-          ...(lifeOn && story.life_state ? { life_state: story.life_state } : {}),
+          ...(lifeOn && lifeStateToInsert ? { life_state: lifeStateToInsert } : {}),
+          ...(arcId ? { arc_id: arcId } : {}),
+          ...(episodeLabel ? { episode_label: episodeLabel } : {}),
           // creative_intelligence_generation_v1 — provenance, written ONLY when a real CI
           // recommendation was actually applied today; otherwise all 5 columns stay NULL
           // (never a placeholder value) so `WHERE strategy_snapshot_id IS NOT NULL` cleanly
@@ -111,7 +145,9 @@ export async function GET() {
       if (storyError) throw storyError;
 
       // LIFE LAYER: occasionally spawn a small everyday event for upcoming days (never daily).
-      if (lifeOn) {
+      // With arc_planner, events only spawn during home_interlude arcs (micro-beats, not during trips).
+      const shouldSpawnEvent = !arcOn || (arcId && arcContextText?.includes("home_interlude"));
+      if (lifeOn && shouldSpawnEvent) {
         try { await maybeCreateLifeEvent({ characterId: char.id, date: today }); } catch { /* non-fatal */ }
       }
       storyResults.push({

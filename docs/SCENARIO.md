@@ -4,9 +4,9 @@ This is the editorial source of truth for the project. Every system decision (cr
 
 ## Core principle
 
-Vivienne is a luxury traveller and aspirational lifestyle figure. She moves between cities — Paris, Amalfi, Lisbon, Mykonos, Milan — and documents her life with the casual confidence of someone who has always lived this way. Her feed is warm, desirable, and slightly personal. The audience wants to travel with her, or simply be her.
+Vivienne lives in Barcelona. She loves her city — her apartment in El Born, her gym studio, her favourite café — but her life runs in **rhythmic arcs**: a few days at home, then a trip (Lisbon, Amalfi, Paris), then she returns to Barcelona, back to her morning pilates and terrace light and aftermath reflection. She documents the arrival, the peak, the departure, the return. Her feed is warm, desirable, and deeply personal — the audience wants to travel with her, yes, but more importantly, they want her life structure: grounded home base + the freedom to move, then the luxury of coming back. Home is as editorial as the hotels.
 
-The commercial goal is dual: **brand deals** (luxury travel, fashion, hospitality) and **Fanvue** (intimate/exclusive content subscription). Phase 1 builds the travel audience. Phase 2+ layers in the intimate track.
+The commercial goal is dual: **brand deals** (luxury travel, fashion, hospitality) and **Fanvue** (intimate/exclusive content subscription, featuring home apartment + continuation content from trips). Phase 1 builds the arc audience (visual seriality, follower engagement through story continuity). Phase 2+ layers in the intimate track and monetization.
 
 ## What must never exist
 
@@ -95,9 +95,22 @@ Full operation. Both revenue streams active and compounding.
 | Brand deal posts | ✗ | ✗ | rare | ✓ |
 | Reel daily | ✗ | rare | ✓ | ✓ |
 
-## City rotation guidance
+## Arc rhythm — Story Engine sequencing
 
-Rotate location every 5–10 days. Keep 2–3 "home base" cities (Paris, Amalfi) that she returns to repeatedly — this builds recognition. One "new city" drop per 3–4 weeks creates arrival energy content.
+Starting 2026-08-21, Vivienne's narrative follows **arcs** (3–7 day chapters), not random events. Each arc has a type, city, premise, and arc phases.
+
+- **Arc types:** trip (new city, 3–5 days), home_interlude (Barcelona, 2–4 days, own premise — project, visitor, event), city_event (day event in Barcelona or return city), visitor (friend visiting Barcelona), project (apartment project, event prep in Barcelona).
+- **Arc rhythm rule:** after every trip arc, ALWAYS a home_interlude follows (2–4 days). Data showed aftermath-at-home is the strongest content. Never 2 trips in a row.
+- **Max 1 trip per ~10 days.** Striae variety: never 3× same arc_type in a row. Return cities (Barcelona, Lisbon, Amalfi) repeat every 3–4 weeks.
+- **Arc city pool:** Barcelona (home), Paris, Amalfi, Lisbon, Santorini, Monaco, Milan, Rome, Dubrovnik (Tier A); Mykonos, Porto, Florence, Nice, Capri (Tier B, use sparingly).
+- **Arc phases per day:** anticipation (day before) → travel → arrival → exploration → peak (strongest content + Fanvue moment) → departure → aftermath (home). Home arcs: setup → build → peak → aftermath.
+- **Fanvue hook:** each arc has an optional private continuation hook (e.g., peak evening → exclusive "the rest of that night" unlock). Drops are soft CTA in Vivienne's voice, max 1/week.
+
+Arc selection, timing, and Fanvue hook are generated automatically by `lib/arcPlanner.ts` (gated by `arc_planner_v1` flag).
+
+## City rotation guidance (legacy)
+
+Baseline guidance before arcs: Rotate location every 5–10 days. Keep 2–3 "home base" cities (Barcelona, Paris, Amalfi) that she returns to repeatedly — this builds recognition. One "new city" drop per 3–4 weeks creates arrival energy content.
 
 **Tier A cities (high Soul 2 training data = best image quality):**
 Paris, Amalfi, Positano, Lisbon, Santorini, Monaco, Milan, Rome, Barcelona, Dubrovnik

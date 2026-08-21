@@ -553,3 +553,53 @@ ALTER TABLE chs_oauth_tokens ENABLE ROW LEVEL SECURITY;
 
 -- IG → Fanvue funnel: default link per character (bio/tracking link).
 ALTER TABLE chs_characters ADD COLUMN IF NOT EXISTS fanvue_link text;
+
+-- =============================================
+-- PHASE 0 (2026-08-21): Vivienne — Barcelona home base + rhythm reconciliation
+-- Story Engine integration: align DNA with traveller-with-home concept
+-- =============================================
+UPDATE chs_characters SET
+  backstory = 'Vivienne lives in Barcelona — El Born neighbourhood — where she has her apartment, her gym, her favourite café. She loves her city. But her life runs in a rhythm: a few days at home, then she''s somewhere else — three days in Lisbon, a week in Amalfi, a long weekend in Paris. She books hotels with south-facing rooms and always asks for late checkout. Her suitcase is mostly silk and sunscreen. She documents the light, the terraces, the mornings before the city wakes up — and the hotel rooms that were too good not to share. Then she comes home, back to Barcelona, to her morning pilates, her café, the terrace of her apartment where the light does something different in August.',
+  sacred_details = jsonb_set(
+    sacred_details,
+    '{recurring_environment}',
+    '[
+      "her Barcelona apartment — morning light through linen curtains, terrace with plants",
+      "Barcelona gym studio — mirrors, yoga mats, post-class glow",
+      "Barcelona café — corner table, espresso, notebook",
+      "hotel terraces with city or coast view",
+      "Mediterranean coastline — Lisbon, Amalfi, Positano, new cities",
+      "luxury suite interiors — window light, white linen, warm lamp",
+      "a recurring rhythm of trips — hotel rooms, terraces, coastlines, new cities — always returning home after"
+    ]'::jsonb
+  )
+WHERE slug = 'vivienne';
+
+-- =============================================
+-- PHASE 1 (2026-08-21): Arc Planner — narrative-driven chapters
+-- arc_planner_v1 feature flag gates all arc logic; without it, life behaves as before.
+-- =============================================
+CREATE TABLE IF NOT EXISTS chs_arcs (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  character_id  uuid NOT NULL REFERENCES chs_characters(id) ON DELETE CASCADE,
+  arc_type      text NOT NULL CHECK (arc_type IN ('trip','home_interlude','city_event','visitor','project')),
+  title         text NOT NULL,
+  premise       text NOT NULL,
+  city          text NOT NULL,
+  start_date    date NOT NULL,
+  end_date      date NOT NULL,
+  day_plan      jsonb NOT NULL,
+  fanvue_hook   text,
+  status        text NOT NULL DEFAULT 'planned' CHECK (status IN ('planned','active','done','cancelled')),
+  tracking_link_url text,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_chs_arcs_character_dates ON chs_arcs(character_id, start_date, end_date);
+
+-- Link story days to their parent arc, and attach episode labeling
+ALTER TABLE chs_story_days ADD COLUMN IF NOT EXISTS arc_id uuid REFERENCES chs_arcs(id);
+ALTER TABLE chs_story_days ADD COLUMN IF NOT EXISTS episode_label text;
+
+-- Add new feature flags for Phases 2–5
+ALTER TABLE chs_characters ADD COLUMN IF NOT EXISTS feature_flags jsonb
+  DEFAULT '{"arc_planner_v1":false,"serial_captions_v1":false,"storyboard_reel_v1":false,"fanvue_arc_funnel_v1":false,"arc_analytics_v1":false}'::jsonb;

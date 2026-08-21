@@ -9,6 +9,8 @@ import DateNav from "@/components/today/DateNav";
 import GenerateForwardButton from "@/components/today/GenerateForwardButton";
 import GenerateDayButton from "@/components/today/GenerateDayButton";
 import PublishText from "@/components/today/PublishText";
+import ArcPanel from "@/components/today/ArcPanel";
+import { getArcDayContext, type Arc } from "@/lib/arcPlanner";
 
 // Always render fresh — otherwise generated images don't appear after reload (page was cached).
 export const dynamic = "force-dynamic";
@@ -17,6 +19,7 @@ export const revalidate = 0;
 type TodayStory = StoryDay & {
   chs_media: Media[];
   chs_characters: Character;
+  chs_arcs: Arc | null;
   hook_text?: string | null;
 };
 
@@ -65,7 +68,7 @@ export default async function TodayPage({
 
   const { data } = await supabase
     .from("chs_story_days")
-    .select("*, chs_media(*), chs_characters(*)")
+    .select("*, chs_media(*), chs_characters(*), chs_arcs(*)")
     .eq("date", viewDate)
     .order("created_at", { ascending: false });
 
@@ -166,6 +169,23 @@ export default async function TodayPage({
                     </div>
 
                     <div className="p-6 space-y-6">
+                      {/* Arc Panel if active */}
+                      {(() => {
+                        const arc = (story as TodayStory).chs_arcs;
+                        if (!arc) return null;
+                        const ctx = getArcDayContext(arc, viewDate);
+                        if (!ctx) return null;
+                        // Fetch next planned arc
+                        return (
+                          <ArcPanel
+                            arc={arc}
+                            dayContext={ctx}
+                            nextPlannedArc={null}
+                            characterId={char?.id ?? ""}
+                          />
+                        );
+                      })()}
+
                       {/* Location + mood + emotional beat + drift seeds */}
                       <div className="flex items-center gap-3 flex-wrap">
                         <div className="font-mono text-[11px] text-teal tracking-wider">📍 {story.location}</div>

@@ -53,6 +53,7 @@ export interface BuildSystemPromptArgs {
   discoveryMode?: boolean; // discovery_mode: reach-first caption/hook editorial
   family?: MomentFamily | null; // lived_moments: today's world
   magnetism?: MagnetismLevel | null; // lived_moments: today's intensity
+  arcContext?: string; // arc_planner_v1: narrative guidance from the active arc
   // open_life_generation_v1 — all optional/additive. Omitting every one of these reproduces the
   // exact pre-existing prompt string (see lib/storyGeneration.test.ts's byte-identical check).
   situationMode?: boolean;
@@ -70,7 +71,7 @@ export interface BuildSystemPromptArgs {
 // generate-forward/route.ts's independent copy had drifted without. Byte-identical to that
 // version whenever every open_life_generation_v1 field above is omitted.
 export function buildSystemPrompt(args: BuildSystemPromptArgs): string {
-  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism, situationMode, sexualEnergyGuidance, situationSchemaBlock: situationSchema, situationOutputSpec, ciGuidance } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism, arcContext, situationMode, sexualEnergyGuidance, situationSchemaBlock: situationSchema, situationOutputSpec, ciGuidance } = args;
   const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
@@ -96,6 +97,7 @@ ${tierGuidance(tier, { family, magnetism, situationMode, sexualEnergyGuidance })
 
 ${driftSeedGuidance(driftSeeds)}
 ${lifeContext ? `\n${lifeContext}\n` : ""}
+${arcContext ? `\n${arcContext}\n` : ""}
 VOICE ANCHOR — read recent history ONLY to avoid repeating the same city or scene two days in a row. If recent history drifted toward influencer fluff or hollow affirmations, IGNORE THE DRIFT and reset to the voice doctrine above.
 ${ciGuidance ? `\n${ciGuidance}\n` : ""}
 RECENT HISTORY (last 7 days, oldest first):
@@ -150,6 +152,11 @@ export interface GenerateStoryDayArgs {
   dayNumber: number;
   targetDate: string;
   historyRows: Array<{ day_number: number; location: string; mood: string; narrative: string; arc_position: string }>;
+  // arc_planner_v1: arc context and day metadata for narrative guidance
+  arcContext?: string;
+  arcDayIndex?: number;
+  arcDayCount?: number;
+  arcCityOverride?: string;
   // Injectable for tests (mirrors the `rng: () => number` injection pattern already used by
   // lib/storyTier.ts's pickMomentFamily/pickMagnetismLevel) — lets the retry-loop CONTROL FLOW
   // (does it stop at SITUATION_MAX_ATTEMPTS? does it null out situation on exhaustion?) be unit
@@ -179,9 +186,10 @@ export interface GenerateStoryDayResult {
 const defaultClaudeCall: ClaudeCallFn = (params) => claudeWithRetry(params) as unknown as Promise<ClaudeMessageLike>;
 
 export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promise<GenerateStoryDayResult> {
-  const { character, dayNumber, targetDate, historyRows } = args;
+  const { character, dayNumber, targetDate, historyRows, arcContext, arcCityOverride } = args;
   const claudeCall = args.claudeCall ?? defaultClaudeCall;
   const flags = (character as { feature_flags?: unknown }).feature_flags;
+  const arcOn = arcContext !== undefined;
 
   const reversed = historyRows.slice().reverse();
   const historyText =
@@ -358,6 +366,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
       discoveryMode,
       family,
       magnetism,
+      arcContext,
       situationMode,
       sexualEnergyGuidance: sexualEnergyGuidanceText,
       situationSchemaBlock: situationSchemaBlockText,
