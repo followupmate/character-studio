@@ -26,14 +26,16 @@ export type AudioStyle = "scene" | "ambient" | "dialogue" | "silent";
 
 // UI provider -> Prompt Director model profile. ONLY providers with a real, live-wired profile are
 // mapped (lib/promptDirector/constants.ts MODEL_CAPABILITIES.liveIntegration). Nano Banana / NB Pro
-// / fal.ai / Veo have no Prompt Director profile — backend architecture is unchanged here, so those
-// selections simply keep showing the legacy stored prompt, same as flag OFF.
+// / fal.ai have no Prompt Director profile — backend architecture is unchanged here, so those
+// selections simply keep showing the stored prompt as-is, same as flag OFF.
 export const GENERATOR_TO_TARGET_MODEL: Record<string, PromptDirectorTargetModel> = {
   higgsfield: "soul2",
   kling: "kling",
   "seedance-ref": "seedance",
   "seedance-i2v": "seedance",
   "seedance-fast": "seedance",
+  veo: "veo",
+  "veo-quality": "veo",
 };
 
 const VIDEO_MODES: VideoIntentMode[] = ["motion_only", "voice_over", "talking_to_camera"];

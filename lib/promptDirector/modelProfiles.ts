@@ -54,6 +54,16 @@ const MODEL_PROFILES: Record<PromptDirectorTargetModel, ModelProfileSpec> = {
     sectionOrder: ["reference", "identity", "humanMovement", "camera", "stability"],
     verbosity: "concise",
   },
+  veo: {
+    header: () => "Model: Veo \u{1F3AC} Video Prompt",
+    // generateWithVeo always sources the reel_start_frame as the i2v anchor when one exists (see
+    // constants.ts's veo capability comment), so scene/lighting/appearance are redundant here —
+    // same reasoning as Kling. "full" verbosity (not "concise") because the EXACT SPOKEN LINE
+    // instruction in the speech section needs to stand out as its own labeled block, not get
+    // folded into a comma-joined run where a quoted line could be misread as scene description.
+    sectionOrder: ["reference", "identity", "camera", "humanMovement", "environmentMovement", "speech", "audio", "stability"],
+    verbosity: "full",
+  },
 };
 
 const SECTION_LABEL: Partial<Record<PromptPackageSectionKey, string>> = {

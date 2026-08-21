@@ -408,6 +408,63 @@ describe("compilePromptDirector — video / kling (image-to-video)", () => {
   });
 });
 
+describe("compilePromptDirector — video / veo (image-to-video, native dialogue)", () => {
+  function veoInput(overrides: Partial<PromptDirectorInput> = {}): PromptDirectorInput {
+    return baseInput({
+      outputType: "video",
+      generationMode: "image_to_video",
+      targetModel: "veo",
+      hasReferenceImage: true,
+      slot: slot({ slot: "reel_video", type: "video", family: "motion", sequence_index: null, framing: "5-9 seconds, 9:16." }),
+      videoIntent: {
+        mode: "motion_only",
+        durationSec: 6,
+        action: "she shifts her weight onto one leg and turns her head slightly toward the lens",
+        cameraBehavior: "static camera",
+      },
+      ...overrides,
+    });
+  }
+
+  it("produces a well-formed Veo PromptPackage with the start-frame reference block", async () => {
+    const pkg = await compilePromptDirector(veoInput());
+    expect(pkg.model).toBe("veo");
+    expect(pkg.positivePrompt).toContain("Model: Veo");
+    expect(pkg.sections.reference?.join(" ")).toContain("exact starting frame");
+  });
+
+  it("carries manual speech verbatim (Veo's native dialogue/audio capability)", async () => {
+    const pkg = await compilePromptDirector(
+      veoInput({
+        videoIntent: {
+          mode: "voice_over",
+          durationSec: 6,
+          speech: { source: "manual", text: "Watch this for a second.", language: "en" },
+        },
+      })
+    );
+    expect(pkg.positivePrompt).toContain('EXACT SPOKEN LINE — DO NOT CHANGE WORDING:\n"Watch this for a second."');
+    expect(pkg.positivePrompt).toContain("Language: en");
+  });
+
+  it("includes the audio section (native audio capability)", async () => {
+    const pkg = await compilePromptDirector(veoInput());
+    expect(pkg.sections.audio?.length).toBeGreaterThan(0);
+  });
+
+  it("adds subtitle/caption negatives specific to Veo's native dialogue rendering", async () => {
+    const pkg = await compilePromptDirector(veoInput());
+    expect(pkg.negativePrompt).toContain("no subtitles");
+    expect(pkg.negativePrompt).toContain("no captions");
+  });
+
+  it("never emits speech/audio sections for Kling in the same scenario (capability gate still holds)", async () => {
+    const pkg = await compilePromptDirector({ ...veoInput(), targetModel: "kling" });
+    expect(pkg.negativePrompt).not.toContain("no subtitles");
+    expect(pkg.sections.audio).toBeUndefined();
+  });
+});
+
 describe("compilePromptDirector — talking_video", () => {
   it("adds facial-integrity-first lipsync priority and talking face behavior", async () => {
     const pkg = await compilePromptDirector(

@@ -120,6 +120,26 @@ export const MODEL_CAPABILITIES: Record<PromptDirectorTargetModel, ModelCapabili
     liveIntegration: false,
     focus: ["image-to-video continuation", "one clear action", "stable identity", "restrained camera/movement", "avoid verbose redundant scene description"],
   },
+  veo: {
+    id: "veo",
+    label: "Google Veo 3.1 (video, Gemini) — app/api/characters/generate-media/route.ts's generateWithVeo",
+    supportsImage: false,
+    supportsVideo: true,
+    // generate-media/route.ts always looks up the batch's reel_start_frame and passes it as the
+    // i2v source when present, falling back to text-to-video only when no start frame exists yet.
+    supportsImageToVideo: true,
+    supportsTextToVideo: true,
+    // Veo 3's headline feature over Veo 2: native audio generation — dialogue, ambient sound and
+    // lip-synced speech rendered directly from the prompt text, not a bolt-on second call (unlike
+    // Kling's separate mmaudio pass or Seedance's generate_audio flag). Documented Google
+    // capability, verified against this repo's real generateWithVeo call (Gemini video-generation
+    // API, no separate audio step exists or is needed for Veo).
+    supportsAudio: true,
+    supportsSpeech: true,
+    supportsLipSync: true,
+    liveIntegration: true,
+    focus: ["start frame", "subject motion", "camera motion", "native dialogue/audio", "temporal identity", "concise negative/stability rules"],
+  },
 };
 
 // Default realism posture for Character Studio content (spec §19) — NOT automatically

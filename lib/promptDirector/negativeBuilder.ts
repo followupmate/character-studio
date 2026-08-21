@@ -48,6 +48,12 @@ const TALKING_VIDEO_NEGATIVES = [
   "unnatural articulation",
 ];
 
+// Veo's native audio/dialogue generation can render on-screen captions/subtitles alongside
+// spoken lines unless told not to — no equivalent risk on Kling/Seedance since neither renders
+// text from a dialogue instruction (Kling has no native audio; Seedance's dialogue is a
+// generate_audio flag, not a caption-prone feature).
+const VEO_TEXT_NEGATIVES = ["no subtitles", "no captions", "no on-screen text", "no karaoke-style lyrics"];
+
 // Scene-specific additions only when the scene/slot actually implies the risk — e.g. an
 // archetype that doesn't allow a prop is exactly where an invented prop is a real failure mode;
 // one that does allow a prop already constrains what can appear, so the line would be noise.
@@ -68,6 +74,9 @@ export function buildNegatives(input: PromptDirectorInput, luxuryWorldEnabled?: 
   const negatives = [...BASE_VIDEO_NEGATIVES];
   if (input.outputType === "talking_video") {
     negatives.push(...TALKING_VIDEO_NEGATIVES);
+  }
+  if (input.targetModel === "veo") {
+    negatives.push(...VEO_TEXT_NEGATIVES);
   }
   return cleanList(negatives);
 }

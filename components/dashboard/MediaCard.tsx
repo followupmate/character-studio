@@ -17,11 +17,13 @@ const IMAGE_GENERATORS: readonly GeneratorSpec[] = [
 
 const VIDEO_GENERATORS: readonly GeneratorSpec[] = [
   { id: "kling",         label: "Kling Pro",      desc: "fal.ai · Kling 2.1 i2v · verná tvár + scene audio (mmaudio) · ~4 min · ODPORÚČANÉ pre postavy", model: "kling", loraScale: 0, steps: 0, guidance: 0 },
-  { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min · zvláda realistické tváre",  model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
-  { id: "veo-quality",   label: "Veo 3.1",         desc: "Google · Veo 3.1 Quality · vyššia kvalita · ~4 min",    model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
-  { id: "seedance-ref",  label: "Seedance Ref",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-ref",  loraScale: 0, steps: 0, guidance: 0 },
-  { id: "seedance-i2v",  label: "Seedance i2v",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-i2v",  loraScale: 0, steps: 0, guidance: 0 },
-  { id: "seedance-fast", label: "Seedance Fast",  desc: "⚠ Seedance odmieta realistické tváre (content policy) — pre postavy nefunguje", model: "seedance-fast", loraScale: 0, steps: 0, guidance: 0 },
+  { id: "veo",           label: "Veo 3.1 Fast",    desc: "Google · Veo 3.1 Fast · ~2 min · natívny dialóg/zvuk (Prompt Director → Speech)",  model: "veo",         loraScale: 0, steps: 0, guidance: 0 },
+  { id: "veo-quality",   label: "Veo 3.1",         desc: "Google · Veo 3.1 Quality · vyššia kvalita · ~4 min · natívny dialóg/zvuk (Prompt Director → Speech)",    model: "veo-quality", loraScale: 0, steps: 0, guidance: 0 },
+  // Not a hard block — fal.ai's content-policy rejection is intermittent, scene/prompt-dependent,
+  // not a guaranteed failure for every photorealistic character (confirmed working generations).
+  { id: "seedance-ref",  label: "Seedance Ref",  desc: "fal.ai · Seedance reference-to-video · zvyčajne funguje aj s reálnou tvárou, zriedka narazí na content-policy", model: "seedance-ref",  loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-i2v",  label: "Seedance i2v",  desc: "fal.ai · Seedance i2v, 1080p · zvyčajne funguje aj s reálnou tvárou, zriedka narazí na content-policy", model: "seedance-i2v",  loraScale: 0, steps: 0, guidance: 0 },
+  { id: "seedance-fast", label: "Seedance Fast",  desc: "fal.ai · Seedance i2v, 720p rýchla verzia · zvyčajne funguje aj s reálnou tvárou, zriedka narazí na content-policy", model: "seedance-fast", loraScale: 0, steps: 0, guidance: 0 },
 ];
 
 const GENERATORS = [...IMAGE_GENERATORS, ...VIDEO_GENERATORS];

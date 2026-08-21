@@ -15,7 +15,7 @@ export type PromptDirectorGenerationMode = "text_to_image" | "image_to_video" | 
 // spec's model-profile section. That video path has no live provider call in this repo today (see
 // lib/promptDirector/constants.ts MODEL_CAPABILITIES.higgsfield.liveIntegration) — the compiler
 // still produces a well-formed prompt for it, but nothing calls a real API with it yet.
-export type PromptDirectorTargetModel = "soul2" | "kling" | "higgsfield" | "seedance" | "wan";
+export type PromptDirectorTargetModel = "soul2" | "kling" | "higgsfield" | "seedance" | "wan" | "veo";
 
 export type VideoIntentMode = "motion_only" | "voice_over" | "talking_to_camera";
 

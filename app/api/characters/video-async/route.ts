@@ -61,11 +61,13 @@ function falErr(err: unknown): string {
   }
   if (!text) text = err instanceof Error ? err.message : String(err);
 
-  // ByteDance/Seedance blocks realistic human likenesses (anti-deepfake partner
-  // validation). Our characters are photorealistic, so Seedance i2v always fails
-  // here — translate the opaque policy error into an actionable instruction.
+  // ByteDance/Seedance's anti-deepfake partner validation can reject a given generation as too
+  // close to a real human likeness — but this is intermittent and scene/prompt-dependent, NOT a
+  // guaranteed failure for photorealistic characters (confirmed: real generations complete fine).
+  // When this specific rejection does occur, translate the opaque policy error into an actionable
+  // instruction rather than leaving it as raw API text.
   if (/content_policy_violation|likenesses of real people|partner_validation_failed/i.test(text)) {
-    return "Seedance odmieta realistické ľudské tváre (content policy). Pre reely s postavou použi Kling (default) alebo Veo — tie i2v s tvárou zvládajú.";
+    return "Seedance zamietol tento konkrétny záber (content policy — anti-deepfake kontrola). Skús to znova alebo uprav prompt; Kling a Veo tento typ kontroly nemajú.";
   }
   return text.slice(0, 400);
 }
