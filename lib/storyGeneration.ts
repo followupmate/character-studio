@@ -100,6 +100,13 @@ ${lifeContext ? `\n${lifeContext}\n` : ""}
 ${arcContext ? `\n${arcContext}\n` : ""}
 VOICE ANCHOR — read recent history ONLY to avoid repeating the same city or scene two days in a row. If recent history drifted toward influencer fluff or hollow affirmations, IGNORE THE DRIFT and reset to the voice doctrine above.
 ${ciGuidance ? `\n${ciGuidance}\n` : ""}
+${arcContext ? `
+SERIAL RULES (arc active):
+- ig_caption MUST anchor today in the arc naturally (e.g. "day 2 in lisbon and i'm not ok", "packing. again. you'll see why tomorrow") — never a generic caption.
+- if tomorrow continues the arc (not the last day): END the caption with a forward tease — one short clause that makes tomorrow a promise ("tomorrow: the boat.").
+- aftermath day: caption references the trip physically, not sentimentally (new details from what she brought back, not just feeling).
+- hook_text (overlay): on arc days ALWAYS provide it, aligned with the arc ("lisbon, day 2", "she's back", "wait for tomorrow").
+` : ""}
 RECENT HISTORY (last 7 days, oldest first):
 ${historyText}
 

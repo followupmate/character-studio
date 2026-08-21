@@ -21,6 +21,7 @@ type TodayStory = StoryDay & {
   chs_characters: Character;
   chs_arcs: Arc | null;
   hook_text?: string | null;
+  episode_label?: string | null;
 };
 
 const arcColors: Record<string, string> = {
@@ -157,6 +158,11 @@ export default async function TodayPage({
                         <span className="font-mono text-[9px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-wider">
                           DAY {story.day_number}
                         </span>
+                        {(story as TodayStory).episode_label && (
+                          <span className="font-mono text-[9px] bg-purple/10 border border-purple/20 text-purple px-2 py-0.5 tracking-wider">
+                            {(story as TodayStory).episode_label}
+                          </span>
+                        )}
                         {story.tier && (
                           <span className={`font-mono text-[9px] border px-2 py-0.5 tracking-wider uppercase ${tierColors[story.tier] ?? "text-muted2 border-border bg-bg3"}`}>
                             {tierLabel(story.tier)}
