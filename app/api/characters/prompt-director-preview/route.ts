@@ -100,7 +100,11 @@ export async function POST(req: Request) {
       videoIntent = {
         mode: videoMode ?? "motion_only",
         durationSec,
-        action: action?.trim() || undefined,
+        // §22 fix — default to the archetype-derived action (same lookup lib/dailyBatch.ts uses
+        // for the automated batch) when the operator hasn't typed one manually, so the preview/
+        // regen path doesn't silently produce a frozen-body video whose start frame clearly implies
+        // motion (e.g. stepping out of a pool). An explicit Action field entry always wins.
+        action: action?.trim() || plannedActionForReelArchetype(media.shot_archetype ?? undefined),
         cameraBehavior: cameraBehavior?.trim() || undefined,
         speech:
           speechSource && speechSource !== "none"

@@ -6,6 +6,7 @@ import { Media } from "@/types";
 import { stripPromptHeader } from "@/lib/promptClean";
 import type { PromptDirectorTargetModel, PromptPackage, PromptPackageSectionKey, SpeechSource, VideoIntentMode } from "@/lib/promptDirector";
 import { MODEL_CAPABILITIES } from "@/lib/promptDirector/constants";
+import { plannedActionForReelArchetype } from "@/lib/reelArchetypeAction";
 
 // Prompt Director v1 is now the engine BEHIND the existing generation UI, not a parallel workflow
 // (see docs/PROMPT_DIRECTOR_V1_REPORT.md's UX revision) — one provider row, one prompt, Prompt
@@ -96,7 +97,12 @@ export default function GenerationControls({
   const capability = targetModel ? MODEL_CAPABILITIES[targetModel] : undefined;
 
   const [videoMode, setVideoMode] = useState<VideoIntentMode>("motion_only");
-  const [action, setAction] = useState("");
+  // §22 fix — seed the Action field with what this slot's own archetype actually implies (e.g.
+  // "she steps out of the pool, continuing forward motion") instead of leaving it blank. An empty
+  // default meant the compiled motion prompt had NO body action at all — only generic head/blink
+  // micro-motion — producing a frozen-body video whenever the operator didn't manually retype the
+  // obvious action every time. Still fully editable/clearable.
+  const [action, setAction] = useState(() => plannedActionForReelArchetype(media.shot_archetype ?? undefined) ?? "");
   const [speechSource, setSpeechSource] = useState<SpeechSource>("none");
   const [speechText, setSpeechText] = useState("");
   const [speechLanguage, setSpeechLanguage] = useState("en");
@@ -236,15 +242,17 @@ export default function GenerationControls({
                 </button>
               ))}
             </div>
-            {videoMode !== "talking_to_camera" && (
-              <input
-                type="text"
-                value={action}
-                onChange={(e) => setAction(e.target.value)}
-                placeholder="Action (voliteľné) — napr. she walks toward the window"
-                className="form-input-base w-full mt-1.5"
-              />
-            )}
+            {/* §22 fix — body action and talking are not mutually exclusive (she can step out of
+                the pool AND say the line), so this field stays visible in every video mode,
+                including talking_to_camera. Hiding it here used to make it impossible to describe
+                any body motion once talking mode was selected. */}
+            <input
+              type="text"
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
+              placeholder="Action — napr. she walks toward the window"
+              className="form-input-base w-full mt-1.5"
+            />
           </div>
 
           {/* Speech — only shown for a provider that can actually carry it (§17: Kling has no

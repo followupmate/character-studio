@@ -64,18 +64,12 @@ interface SlotGenerationResult {
 // (verified against supabase/migration.sql); an archetype not in this table (future/unknown) simply
 // gets no action, and firstFramePrepLines() already has a generic anatomically-sustainable fallback
 // for exactly that case — never a hard requirement.
-const REEL_ARCHETYPE_ACTION: Record<string, string> = {
-  walking_motion: "she walks, continuing forward motion",
-  gesture_motion: "she makes a single small, self-contained gesture — turning her head, raising a cup, adjusting a sleeve",
-  light_motion: "light shifts across her — she stays relatively still while the environment moves",
-};
-
-// Exported so app/api/characters/prompt-director-preview/route.ts can compute the SAME default
-// (single source of truth) when the caller hasn't supplied a manual override — see that route's
-// own comment for how the override relationship works.
-export function plannedActionForReelArchetype(archetypeId: string | undefined): string | undefined {
-  return archetypeId ? REEL_ARCHETYPE_ACTION[archetypeId] : undefined;
-}
+// Moved to lib/reelArchetypeAction.ts (a pure module free of server-only imports) so
+// components/dashboard/GenerationControls.tsx — a CLIENT component — can also import it directly.
+// Re-exported here so every existing `from "@/lib/dailyBatch"` import (tests, the preview route)
+// keeps working unchanged.
+export { plannedActionForReelArchetype } from "@/lib/reelArchetypeAction";
+import { plannedActionForReelArchetype } from "@/lib/reelArchetypeAction";
 
 async function generateSlotPromptViaDirector(args: {
   slot: SlotSpec;
@@ -118,12 +112,25 @@ async function generateSlotPromptViaDirector(args: {
     hasReferenceImage: true,
     // §21 — "motion_only" stays the honest default MODE for reel_start_frame (the daily batch has
     // no user-configured speech), but the ACTION is now derived deterministically from the actual
-    // reel_video archetype instead of being left blank — see REEL_ARCHETYPE_ACTION above. This is
+    // reel_video archetype instead of being left blank — see lib/reelArchetypeAction.ts. This is
     // what makes lib/promptDirector/imageSections.ts's firstFramePrepLines() give walking_motion
     // "leave room to move" guidance specifically, rather than only the generic fallback line.
     plannedVideoIntent:
       args.slot.slot === "reel_start_frame"
         ? { mode: "motion_only", action: plannedActionForReelArchetype(args.reelVideoArchetypeId) }
+        : undefined,
+    // §22 fix (production finding, 2026-08-22) — this slot's OWN motion must reflect what the
+    // start frame's pose actually implies (e.g. "stepping out of the pool"), not just generic
+    // head/blink micro-motion. Before this, plannedActionForReelArchetype() was only ever wired to
+    // the SIBLING reel_start_frame's plannedVideoIntent (prepping the still photo's pose) — the
+    // reel_video slot's own compiled prompt never got an action at all, so a video whose start
+    // frame showed a mid-motion pose (leg back, stepping out of a pool) rendered as a frozen body
+    // with only head/talking movement. args.archetypeId here IS this slot's own "motion" family
+    // archetype (walking_motion/gesture_motion/light_motion) — the same lookup, just applied to
+    // the right slot. The UI's manual Action field (GenerationControls.tsx) still overrides this.
+    videoIntent:
+      args.slot.type === "video"
+        ? { mode: "motion_only", action: plannedActionForReelArchetype(args.archetypeId) }
         : undefined,
     ...target,
   };

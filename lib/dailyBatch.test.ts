@@ -57,6 +57,18 @@ describe("plannedVideoIntent is actually wired into the reel_start_frame compile
   });
 });
 
+describe("§22 fix — the reel_video slot's OWN videoIntent.action is wired (not just the sibling reel_start_frame's plannedVideoIntent)", () => {
+  // Real-world finding (2026-08-22): a reel_video whose start frame clearly implied motion
+  // (stepping out of a pool) rendered with a frozen body and only head/talking movement — because
+  // plannedActionForReelArchetype() was ONLY ever wired into reel_start_frame's plannedVideoIntent
+  // (prepping the still photo's pose), never into the reel_video slot's own compiled motion prompt.
+  it("generateSlotPromptViaDirector() sets videoIntent.action from this slot's own archetype for every video-type slot", () => {
+    const fn = src.slice(src.indexOf("async function generateSlotPromptViaDirector"), src.indexOf("export interface DailyBatchResult"));
+    expect(fn).toMatch(/videoIntent:\s*\n?\s*args\.slot\.type === "video"/);
+    expect(fn).toMatch(/mode:\s*"motion_only",\s*action:\s*plannedActionForReelArchetype\(args\.archetypeId\)/);
+  });
+});
+
 describe("plannedActionForReelArchetype (§21 — deterministic, no LLM call)", () => {
   it("maps each of today's three motion archetypes to a concrete action, per their own semantics", () => {
     expect(plannedActionForReelArchetype("walking_motion")).toMatch(/walk/i);
