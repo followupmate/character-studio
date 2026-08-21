@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { soulConfigured, FALLBACK_SOUL_ID, generateSoulImage } from "@/lib/higgsfieldSoul";
 import { getBaseImageNegatives } from "@/lib/promptDirector/negativeBuilder"; // F0.5
+import { isFlagOn } from "@/lib/featureFlags";
 import { providerFor } from "@/lib/fanvueMediaProvider";
 import type { FanvueContinuationPlan, ShotStep } from "@/lib/fanvueContinuation";
 
@@ -43,10 +44,11 @@ export async function POST(req: Request) {
 
     const { data: character } = await supabase
       .from("chs_characters")
-      .select("soul_id")
+      .select("soul_id, feature_flags")
       .eq("id", unlock.character_id)
       .single();
     const soulId = (character?.soul_id as string | null) ?? FALLBACK_SOUL_ID;
+    const luxuryWorldOn = isFlagOn(character?.feature_flags, "luxury_world_v1");
 
     if (unlock.pipeline_version === "paid_continuation_v1") {
       const plan = unlock.continuation_plan as FanvueContinuationPlan | null;
@@ -129,7 +131,7 @@ export async function POST(req: Request) {
         // F0.5 — include base image negatives
         const url = await generateSoulImage({
           prompt: `${unlock.fanvue_prompt} ${ANGLES[i % ANGLES.length]}`,
-          negativePrompt: getBaseImageNegatives(),
+          negativePrompt: getBaseImageNegatives(luxuryWorldOn),
           soulId,
           aspect: "3:4",
           mediaId: `fanvue-${unlockId}-${i + 1}`,

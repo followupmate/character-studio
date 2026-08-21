@@ -16,6 +16,7 @@ import {
 import type { MomentFamily, MagnetismLevel, SexualEnergyLevel, ContinuityPhase } from "@/types";
 import { Character } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
+import { LUXURY_ENVIRONMENT_DOCTRINE } from "@/lib/luxuryWorld";
 import { VOICE_DOCTRINE, DISCOVERY_DOCTRINE } from "@/lib/storyPrompt";
 import {
   getLatestLifeState,
@@ -55,6 +56,7 @@ export interface BuildSystemPromptArgs {
   magnetism?: MagnetismLevel | null; // lived_moments: today's intensity
   arcContext?: string; // arc_planner_v1: narrative guidance from the active arc
   serialCaptions?: boolean; // serial_captions_v1: only with arcContext — adds the SERIAL RULES caption block
+  luxuryWorld?: boolean; // luxury_world_v1: injects the LUXURY_ENVIRONMENT_DOCTRINE + premium-location rule
   // open_life_generation_v1 — all optional/additive. Omitting every one of these reproduces the
   // exact pre-existing prompt string (see lib/storyGeneration.test.ts's byte-identical check).
   situationMode?: boolean;
@@ -72,7 +74,7 @@ export interface BuildSystemPromptArgs {
 // generate-forward/route.ts's independent copy had drifted without. Byte-identical to that
 // version whenever every open_life_generation_v1 field above is omitted.
 export function buildSystemPrompt(args: BuildSystemPromptArgs): string {
-  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism, arcContext, serialCaptions, situationMode, sexualEnergyGuidance, situationSchemaBlock: situationSchema, situationOutputSpec, ciGuidance } = args;
+  const { character, tier, driftSeeds, historyText, lifeContext, discoveryMode, family, magnetism, arcContext, serialCaptions, luxuryWorld, situationMode, sexualEnergyGuidance, situationSchemaBlock: situationSchema, situationOutputSpec, ciGuidance } = args;
   const lifeOn = lifeContext !== undefined;
   const personality = character.personality ?? {};
   const sacred = (character as Character & { sacred_details?: unknown }).sacred_details ?? null;
@@ -97,6 +99,7 @@ ${discoveryMode ? `\n${DISCOVERY_DOCTRINE}\n` : ""}
 ${tierGuidance(tier, { family, magnetism, situationMode, sexualEnergyGuidance })}
 
 ${driftSeedGuidance(driftSeeds)}
+${luxuryWorld ? `\n${LUXURY_ENVIRONMENT_DOCTRINE}\nRULE: today's 'location' must be a concrete premium micro-location that fits this doctrine — name an architectural or material detail (stone, wood, brass, linen, marble) directly in the location text. Never a bare concrete terrace, a generic apartment, or an anonymous rental-grade space.\n` : ""}
 ${lifeContext ? `\n${lifeContext}\n` : ""}
 ${arcContext ? `\n${arcContext}\n` : ""}
 VOICE ANCHOR — read recent history ONLY to avoid repeating the same city or scene two days in a row. If recent history drifted toward influencer fluff or hollow affirmations, IGNORE THE DRIFT and reset to the voice doctrine above.
@@ -199,6 +202,8 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
   // serial_captions_v1 — own flag on top of arc_planner_v1 (house rule: each layer's behavior
   // change requires its own flag). Without it, arc days keep the original caption rules.
   const serialCaptionsOn = arcOn && isFlagOn(flags, "serial_captions_v1");
+  // luxury_world_v1 — premium environment doctrine for the day's location.
+  const luxuryWorldOn = isFlagOn(flags, "luxury_world_v1");
 
   const reversed = historyRows.slice().reverse();
   const historyText =
@@ -377,6 +382,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
       magnetism,
       arcContext,
       serialCaptions: serialCaptionsOn,
+      luxuryWorld: luxuryWorldOn,
       situationMode,
       sexualEnergyGuidance: sexualEnergyGuidanceText,
       situationSchemaBlock: situationSchemaBlockText,

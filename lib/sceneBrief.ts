@@ -1,6 +1,7 @@
 import { claudeWithRetry } from "@/lib/generatePrompts";
 import { StylingProfile } from "@/lib/stylingDeck";
 import { ensureEnvironmentAnchored } from "@/lib/shotDirection";
+import { LUXURY_ENVIRONMENT_DOCTRINE } from "@/lib/luxuryWorld";
 
 export interface SceneBriefJson {
   camera_language: string;
@@ -55,6 +56,7 @@ interface GenerateArgs {
   lifeNote?: string; // life_layer: short mood/energy continuity note (optional, never overrides tier)
   situationContext?: string; // open_life_generation_v1: today's situation summary (sibling to lifeNote, never replaces it)
   activityContext?: { activity: string; continuityPhase: string }; // sensual_visual_language_v1: passed through to buildStylingRule's ACTIVITY/PHASE WINS rule
+  luxuryWorld?: boolean; // luxury_world_v1: injects LUXURY_ENVIRONMENT_DOCTRINE into the brief's system prompt
 }
 
 function driftRulesForBrief(seeds: Array<{ kind: string; detail?: string }> | null): string[] {
@@ -120,7 +122,7 @@ function safeJsonExtract(raw: string): SceneBriefJson {
   }
 }
 
-export async function generateSceneBrief({ storyScene, character, recentBriefs, stylingProfile, lifeNote, situationContext, activityContext }: GenerateArgs): Promise<SceneBriefResult> {
+export async function generateSceneBrief({ storyScene, character, recentBriefs, stylingProfile, lifeNote, situationContext, activityContext, luxuryWorld }: GenerateArgs): Promise<SceneBriefResult> {
   const sacredText = character.sacred_details
     ? `SACRED DETAILS (invariant across all 7 assets — never change):\n${JSON.stringify(character.sacred_details, null, 2)}`
     : "";
@@ -196,6 +198,7 @@ ${stylingText2}
 ${tierText}
 ${environmentDepth}
 ${contemporaryWorld}
+${luxuryWorld ? `\n${LUXURY_ENVIRONMENT_DOCTRINE}\n` : ""}
 ${livedMomentsBrief}
 ${rotationText}
 

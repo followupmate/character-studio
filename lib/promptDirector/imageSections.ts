@@ -106,7 +106,9 @@ export const SOUL2_WORD_BUDGET = {
   sceneWardrobe: 20, // increased from 14
   scene: 70, // increased from 45
   lighting: 25, // increased from 20
-  aesthetic: 13,
+  // F3 — aesthetic carries tier direction + mood + the day's photo-style cue; 13 words silently
+  // truncated the style cue away, so the budget grows with the section's new content.
+  aesthetic: 22,
   realism: 12,
   total: 220, // increased from 180
 } as const;
@@ -438,14 +440,46 @@ export function buildLightingSection(input: PromptDirectorInput): string[] {
   return capSection(lines, SOUL2_WORD_BUDGET.lighting);
 }
 
+// F3 — tier-derived editorial direction. Replaces the fixed "candid social-media realism" line
+// that used to stamp every image with the same aesthetic fingerprint (and pushed the whole feed
+// toward a phone-snap look that fights the luxury positioning). Tier unknown/absent falls back to
+// the original fixed line, so pre-F3 callers keep byte-identical output.
+const TIER_AESTHETIC: Record<string, string> = {
+  intimate_aesthetic: "quiet editorial intimacy",
+  lived_moments: "warm candid social energy",
+  luxe_car: "polished nocturnal editorial",
+  wellness_fitness: "clean morning athleticism",
+  everyday_life: "effortless polished daily life",
+  lifestyle_travel: "aspirational travel editorial",
+};
+
+// F3 — photography style deck, rotated deterministically per day (same seed pattern as
+// lib/reelFormats.ts pickReelFormat) so the feed doesn't carry one uniform photographic
+// signature. One short lens/exposure cue per day — never more.
+export const PHOTO_STYLE_DECK = [
+  "35mm editorial look, shallow depth of field",
+  "50mm natural-light portrait feel",
+  "medium-format editorial look, soft fine grain",
+  "backlit golden exposure, restrained flare",
+  "crisp daylight editorial, true-to-life color",
+  "soft window-light exposure, gentle contrast",
+] as const;
+
+export function pickPhotoStyle(seed: number): string {
+  const s = Number.isFinite(seed) ? Math.trunc(seed) : 0;
+  const i = ((s % PHOTO_STYLE_DECK.length) + PHOTO_STYLE_DECK.length) % PHOTO_STYLE_DECK.length;
+  return PHOTO_STYLE_DECK[i];
+}
+
 // "AESTHETIC / EMOTIONAL DIRECTION" — Soul 2.0's item 5. Explicit medium/style + mood cues (per
 // Higgsfield guidance: Soul 2.0 responds well to these), chosen from what the scene actually
 // implies rather than a fixed list — never more than a handful of words.
 export function buildAestheticSection(input: PromptDirectorInput): string[] {
   const sb = input.sceneBrief;
-  const lines = ["candid social-media realism"];
+  const lines = [(input.tier && TIER_AESTHETIC[input.tier]) || "candid social-media realism"];
   lines.push(isCloseUpArchetype(input) ? "intimate, spontaneous energy" : "relaxed, natural body language");
-  if (sb.time_of_day) lines.push(`${sb.time_of_day} mood`);
+  if (sb.time_of_day) lines.push(`${humanizeTimeOfDay(sb.time_of_day)} mood`);
+  if (input.dayNumber != null) lines.push(pickPhotoStyle(input.dayNumber));
   return capSection(cleanList(lines), SOUL2_WORD_BUDGET.aesthetic);
 }
 
@@ -454,9 +488,11 @@ export function buildAestheticSection(input: PromptDirectorInput): string[] {
 // that dumping every realism phrase on every shot is counter-productive. Close-up gets the
 // stronger, face-specific set; a wide/full-body frame gets the lighter one.
 export function buildRealismSection(input: PromptDirectorInput): string[] {
+  // F3 — "natural phone exposure" only where the phone-snap look is the point (story_bts);
+  // feed/reel slots keep editorial realism cues instead of being pushed toward a casual look.
   const lines = isCloseUpArchetype(input)
     ? ["natural skin texture", "visible pores", "subtle facial asymmetry", "real hair strands"]
-    : ["natural skin texture", "realistic clothing folds", "natural phone exposure"];
+    : ["natural skin texture", "realistic clothing folds", input.slot.slot === "story_bts" ? "natural phone exposure" : "true-to-life exposure"];
   return capSection(cleanList(lines), SOUL2_WORD_BUDGET.realism);
 }
 

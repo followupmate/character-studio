@@ -73,7 +73,10 @@ export function buildNegatives(input: PromptDirectorInput, luxuryWorldEnabled?: 
 }
 
 // F0.5 — helper to compile image-only negatives without a full PromptDirectorInput
-// (used when generateSoulImage is called without access to scene/archetype context)
-export function getBaseImageNegatives(): string {
-  return [...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES].join(", ");
+// (used when generateSoulImage is called without access to scene/archetype context).
+// F1 — pass luxuryWorldEnabled (character's luxury_world_v1 flag) to also append the
+// premium-environment negatives at the API call site.
+export function getBaseImageNegatives(luxuryWorldEnabled?: boolean): string {
+  const lux = luxuryWorldEnabled ? LUXURY_NEGATIVES : [];
+  return [...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES, ...lux].join(", ");
 }

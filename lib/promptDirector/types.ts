@@ -75,6 +75,10 @@ export interface PromptDirectorInput {
   hasReferenceImage?: boolean;
   // F1 — luxury world doctrine enabled for this generation
   luxuryWorldEnabled?: boolean;
+  // F3 — today's story tier (drives TIER_AESTHETIC direction) and day number (deterministic
+  // photo-style rotation seed). Both optional: absent reproduces pre-F3 output exactly.
+  tier?: string | null;
+  dayNumber?: number | null;
 }
 
 export interface PromptPackageSections {

@@ -18,6 +18,7 @@ import { pickReelFormat, ReelFormat } from "@/lib/reelFormats";
 import { extractSituation, translateSituationForSlotPrompt, compactSituationTranslation, situationContextForSceneBrief, normalizeOutfitArchetypeFamily, normalizePoseArchetype, classifyOutfitCategory, GenerativeSituation } from "@/lib/situationPlanner";
 import { getStrategyInputByProvenance } from "@/lib/creativeIntelligence/generationStrategyAdapter";
 import { compilePromptDirector } from "@/lib/promptDirector";
+import { writeSoul2Prompt } from "@/lib/promptDirector/promptWriter";
 import type { PromptDirectorInput, PromptPackage } from "@/lib/promptDirector";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek", "nano_banana", "caption"];
@@ -81,14 +82,20 @@ async function generateSlotPromptViaDirector(args: {
   archetypeId: string;
   archetypeGuidance: string;
   sceneBriefJson: import("@/lib/sceneBrief").SceneBriefJson;
-  character: { id: string; name: string; visual_brief: string; sacred_details: Record<string, unknown> | null; soul_id: string | null };
+  character: { id: string; name: string; visual_brief: string; sacred_details: Record<string, unknown> | null; soul_id: string | null; feature_flags?: unknown };
   situationTranslation?: string;
   // Only meaningful for the reel_start_frame slot — the archetype id chosen for THIS batch's
   // reel_video sibling, so the start frame can be prepped for what actually happens next
   // (plannedActionForReelArchetype above). Unused for every other slot.
   reelVideoArchetypeId?: string;
+  // F3 — today's tier + day number, threaded into the director for aesthetic direction and
+  // deterministic photo-style rotation. Optional: absent reproduces pre-F3 output.
+  tier?: string | null;
+  dayNumber?: number | null;
 }): Promise<SlotGenerationResult> {
   const target = promptDirectorTargetForSlot(args.slot);
+  const luxuryWorldOn = isFlagOn(args.character.feature_flags, "luxury_world_v1");
+  const promptWriterOn = isFlagOn(args.character.feature_flags, "prompt_writer_v1");
   const input: PromptDirectorInput = {
     character: {
       id: args.character.id,
@@ -102,6 +109,9 @@ async function generateSlotPromptViaDirector(args: {
     archetypeId: args.archetypeId,
     archetypeGuidance: args.archetypeGuidance,
     situationTranslation: args.situationTranslation,
+    luxuryWorldEnabled: luxuryWorldOn,
+    tier: args.tier,
+    dayNumber: args.dayNumber,
     // Every real photo generation in this app supplies SOME identity reference (Soul custom_reference_id,
     // Google's character sheet, BFL's reference images), and the video slot is always image-to-video
     // (fed the reel_start_frame) — text_to_video is not exercised by the daily batch today.
@@ -118,6 +128,21 @@ async function generateSlotPromptViaDirector(args: {
     ...target,
   };
   const pkg = await compilePromptDirector(input);
+
+  // F2 — prompt_writer_v1: an LLM pass rewrites the deterministic section output into one
+  // continuous editorial brief. Image slots only; writeSoul2Prompt returns the deterministic
+  // prompt as fallback on ANY failure (validation, meta-leakage, API error) — it never throws,
+  // so a writer problem can never take down slot generation.
+  if (promptWriterOn && input.outputType === "image") {
+    const written = await writeSoul2Prompt(
+      pkg.positivePrompt,
+      args.sceneBriefJson.wardrobe_lock,
+      args.sceneBriefJson.spatial_setup,
+      pkg.positivePrompt
+    );
+    return { prompt: written, visualSignature: null, hookText: null, promptPackage: pkg };
+  }
+
   return { prompt: pkg.positivePrompt, visualSignature: null, hookText: null, promptPackage: pkg };
 }
 
@@ -315,6 +340,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       lifeNote,
       situationContext,
       activityContext: sensualLanguageOn && situation ? { activity: situation.activity, continuityPhase: situation.continuity_phase } : undefined,
+      luxuryWorld: isFlagOn(character.feature_flags, "luxury_world_v1"),
     });
 
     sceneBriefJson = brief.json as unknown as Record<string, unknown>;
@@ -462,6 +488,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           situationTags,
           promptDirectorOn,
           reelVideoArchetypeId: archetypeMap["reel_video"],
+          tier: storyDay.tier ?? null,
+          dayNumber: Number(storyDay.day_number) || null,
         })
       )
     );
@@ -507,6 +535,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           situationTags,
           promptDirectorOn,
           reelVideoArchetypeId: archetypeMap["reel_video"],
+          tier: storyDay.tier ?? null,
+          dayNumber: Number(storyDay.day_number) || null,
         });
       })
     );
@@ -686,6 +716,7 @@ interface RunSlotArgs {
     visual_brief: string;
     sacred_details: Record<string, unknown> | null;
     soul_id: string | null;
+    feature_flags?: unknown;
   };
   arcPosition: string;
   batchId: string;
@@ -706,6 +737,9 @@ interface RunSlotArgs {
   // when compiling reel_start_frame) so plannedActionForReelArchetype() can derive a deterministic
   // plannedVideoIntent.action without a second lookup inside runSlot() itself.
   reelVideoArchetypeId?: string;
+  // F3 — today's tier + day number for the director's aesthetic direction / photo-style seed.
+  tier?: string | null;
+  dayNumber?: number | null;
 }
 
 async function runSlot(args: RunSlotArgs): Promise<void> {
@@ -728,6 +762,8 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
           character: args.character,
           situationTranslation: args.situationTranslation,
           reelVideoArchetypeId: args.reelVideoArchetypeId,
+          tier: args.tier,
+          dayNumber: args.dayNumber,
         })
       : await generateSlotPrompt({
           doctrine: args.doctrine,
@@ -866,6 +902,8 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
             sceneBriefJson: row.chs_daily_plans.scene_brief,
             character: char,
             reelVideoArchetypeId: rcReelVideoArchetypeId,
+            tier: (storyDay as { tier?: string | null }).tier ?? null,
+            dayNumber: Number((storyDay as { day_number?: number }).day_number) || null,
           })
         : await generateSlotPrompt({
             doctrine,

@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { generateSoulImage, soulConfigured, FALLBACK_SOUL_ID } from "@/lib/higgsfieldSoul";
 import { sanitizePrompt, stripPromptHeader } from "@/lib/promptClean";
 import { cronAuthorized } from "@/lib/apiAuth";
+import { isFlagOn } from "@/lib/featureFlags";
 import { getBaseImageNegatives } from "@/lib/promptDirector/negativeBuilder"; // F0.5
 
 export const runtime = "nodejs";
@@ -709,7 +710,7 @@ export async function POST(req: Request) {
 
     const { data: character } = await supabase
       .from("chs_characters")
-      .select("id, name, lora_model_id, lora_trigger_word, reference_image_urls, character_sheet_url, soul_id")
+      .select("id, name, lora_model_id, lora_trigger_word, reference_image_urls, character_sheet_url, soul_id, feature_flags")
       .eq("id", plan.character_id)
       .single();
 
@@ -848,10 +849,10 @@ export async function POST(req: Request) {
               const soulAspect = isVerticalSlot ? "9:16" : "3:4"; // feed 4:5 → closest Soul ratio 3:4
               try {
                 if (!soulConfigured()) throw new Error("Higgsfield not configured");
-                // F0.5 — include base image negatives
+                // F0.5 — include base image negatives (+ luxury negatives when luxury_world_v1 on)
                 mediaUrl = await generateSoulImage({
                   prompt: effectivePrompt,
-                  negativePrompt: getBaseImageNegatives(),
+                  negativePrompt: getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1")),
                   soulId,
                   aspect: soulAspect,
                   mediaId: media.id,
@@ -874,10 +875,10 @@ export async function POST(req: Request) {
           const soulId = (char.soul_id as string | null) ?? FALLBACK_SOUL_ID;
           const isVerticalSlot = ["reel_start_frame", "story_bts"].includes(media.slot ?? "");
           const soulAspect = isVerticalSlot ? "9:16" : "3:4";
-          // F0.5 — include base image negatives
+          // F0.5 — include base image negatives (+ luxury negatives when luxury_world_v1 on)
           mediaUrl = await generateSoulImage({
             prompt: effectivePrompt,
-            negativePrompt: getBaseImageNegatives(),
+            negativePrompt: getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1")),
             soulId,
             aspect: soulAspect,
             mediaId: media.id,

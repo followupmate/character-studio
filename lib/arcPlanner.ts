@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { claudeWithRetry } from "@/lib/generatePrompts";
+import { isFlagOn } from "@/lib/featureFlags";
 import { Character } from "@/types";
 
 // Arc types match the CHECK constraint in chs_arcs table
@@ -225,8 +226,13 @@ async function generateNextArc(
           .join("\n")
       : "No previous arcs.";
 
+  const luxuryOn = isFlagOn((character as { feature_flags?: unknown }).feature_flags, "luxury_world_v1");
+  const luxuryHint = luxuryOn
+    ? `\n- Every day_plan location_hint must be a genuinely premium anchor (boutique hotel suite, private terrace, historic-quarter street, coastal stone path, five-star spa) — never a generic rental, bare concrete space, or mass-market venue. No brand names.`
+    : "";
+
   const arcRhythmRules = `
-MANDATORY ARC RHYTHM:
+MANDATORY ARC RHYTHM:${luxuryHint}
 - After a "trip" arc, the next arc MUST be "home_interlude" (Barcelona, 2–4 days).
 - Never 2 trips in a row. Never 3 same arc_type in a row.
 - Max 1 trip per ~10 days. Trip duration: 3–5 days. Home interlude: 2–4 days.
