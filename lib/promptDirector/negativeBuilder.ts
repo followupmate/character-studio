@@ -7,6 +7,15 @@ import { archetypeAllowsProp, cleanList } from "./helpers";
 // for a short negative block specifically — see contextualImageNegatives() below.
 const BASE_IMAGE_NEGATIVES = ["beauty filter", "plastic skin", "CGI look", "identity drift", "warped anatomy"];
 
+// Text-rendering protection (production incident, day 82) — Higgsfield rendered visible text
+// into a reel_start_frame image, most likely primed by "text overlay" language that leaked into
+// the positive prompt from slot.framing (see lib/promptDirector/imageSections.ts's
+// sanitizeFramingForSoul2()). This is the second layer of defense: even a clean positive prompt
+// benefits from an explicit negative, so image generation never defaults to rendering UI/caption
+// elements. SceneBriefJson has no field for "this scene explicitly needs visible text" today — if
+// one is ever added, gate this on its absence rather than always including it.
+const TEXT_RENDERING_NEGATIVES = ["no text", "no captions", "no typography", "no labels", "no UI elements", "no watermark"];
+
 const BASE_VIDEO_NEGATIVES = [
   "face morphing",
   "identity drift",
@@ -37,7 +46,7 @@ function contextualImageNegatives(input: PromptDirectorInput): string[] {
 
 export function buildNegatives(input: PromptDirectorInput): string[] {
   if (input.outputType === "image") {
-    return cleanList([...BASE_IMAGE_NEGATIVES, ...contextualImageNegatives(input)]);
+    return cleanList([...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES, ...contextualImageNegatives(input)]);
   }
 
   const negatives = [...BASE_VIDEO_NEGATIVES];

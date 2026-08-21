@@ -122,10 +122,83 @@ describe("compilePromptDirector — image / soul2", () => {
     expect(wordCount).toBeLessThanOrEqual(180);
   });
 
-  it("keeps the negative block short for Soul 2.0", async () => {
+  it("enforces a HARD per-section word cap even against deliberately oversized SceneBrief/framing content — never a warning, always a fail-safe truncation", async () => {
+    // Stress test: every field here is 3-10x longer than the toy fixture above and shaped like
+    // real production SceneBrief prose — comma-separated "details" (lib/sceneBrief.ts's own
+    // doctrine writes spatial_setup/wardrobe_lock exactly this way), not a punctuation-free wall
+    // of words. If any section builder's cap were advisory rather than structural, this would
+    // produce a multi-hundred-word prompt like the pre-fix day-82 incident did.
+    const detailList = (label: string, n: number) => Array.from({ length: n }, (_, i) => `${label} detail ${i}`).join(", ");
+    const oversized = await compilePromptDirector(
+      baseInput({
+        sceneBrief: {
+          ...SCENE_BRIEF,
+          spatial_setup: `Her kitchen — ${detailList("counter", 20)}.`,
+          wardrobe_lock: detailList("garment", 15),
+          location_constraints: [detailList("constraint", 10), detailList("constraint2", 10)],
+          lighting_state: detailList("light", 12),
+        },
+        slot: slot({ framing: `Mid shot, ${detailList("framingword", 15)}.` }),
+      })
+    );
+
+    const wc = (s?: string[]) => (s ?? []).join(" ").trim().split(/\s+/).filter(Boolean).length;
+    expect(wc(oversized.sections.camera)).toBeLessThanOrEqual(35);
+    expect(wc(oversized.sections.pose)).toBeLessThanOrEqual(30);
+    expect(wc(oversized.sections.scene)).toBeLessThanOrEqual(45);
+    expect(wc(oversized.sections.lighting)).toBeLessThanOrEqual(20);
+    expect(wc(oversized.sections.aesthetic)).toBeLessThanOrEqual(13);
+    expect(wc(oversized.sections.realism)).toBeLessThanOrEqual(12);
+
+    const body = oversized.positivePrompt.replace(/^Model:.*\n\n/, "");
+    expect(body.trim().split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(180);
+
+    // Regression: truncation must always land on a whole detail/clause boundary — never a
+    // mid-phrase fragment like the pre-fix "thin single delicate.." bug.
+    expect(oversized.positivePrompt).not.toMatch(/\.\./); // no double-terminator artifact
+    expect(oversized.positivePrompt).not.toMatch(/,\s*\./); // no dangling comma before a cut
+  });
+
+  it("never produces a mid-phrase fragment when compressing a long, comma-separated wardrobe/scene detail list", async () => {
+    // Regression for the real day-82 bug: compressWardrobe used to cut "...thin single delicate
+    // gold chain necklace..." off mid-item, producing "thin single delicate..". Every kept detail
+    // must be a complete comma-delimited unit.
+    const pkg = await compilePromptDirector(
+      baseInput({
+        sceneBrief: {
+          ...SCENE_BRIEF,
+          wardrobe_lock:
+            "white matte-stretch swimsuit, off-white linen overshirt worn open and loose, barefoot, thin single delicate gold chain necklace at collarbone height, small gold stud earrings under 8mm plain",
+        },
+      })
+    );
+    const scene = pkg.sections.scene?.join(" ") ?? "";
+    expect(scene).not.toMatch(/\.\./);
+    // Either the phrase survives whole, or it's cleanly absent — never truncated mid-word.
+    if (scene.includes("thin single delicate")) {
+      expect(scene).toMatch(/thin single delicate gold chain necklace(?: at collarbone height)?[,.]/);
+    }
+  });
+
+  it("positivePrompt's provider-bound content (after stripping the debug 'Model: ...' header) starts directly with a visual instruction", async () => {
+    // The "Model: Soul 2 🖼️ Image Prompt" line is display/debug scaffolding only — every real
+    // generation call site (lib/higgsfieldSoul.ts, generate-media/route.ts, generate-higgsfield/
+    // route.ts, video-async/route.ts) runs the prompt through stripPromptHeader() before it ever
+    // reaches Higgsfield, so this asserts what the PROVIDER actually receives, not the raw field.
+    const { stripPromptHeader } = await import("@/lib/promptClean");
+    const pkg = await compilePromptDirector(baseInput());
+    const providerBound = stripPromptHeader(pkg.positivePrompt);
+    expect(providerBound.toLowerCase()).not.toMatch(/^model:/);
+    expect(providerBound.length).toBeGreaterThan(0);
+    // First real content is the (sanitized) shot/framing line, not a label or header artifact.
+    expect(providerBound.startsWith(pkg.sections.camera?.join(" ") ?? "")).toBe(true);
+  });
+
+  it("keeps the negative block short for Soul 2.0 (base + text-rendering protection, no blind blacklist)", async () => {
     const pkg = await compilePromptDirector(baseInput());
     const negativeCount = (pkg.negativePrompt ?? "").split(",").filter((s) => s.trim()).length;
-    expect(negativeCount).toBeLessThanOrEqual(8);
+    expect(negativeCount).toBeLessThanOrEqual(15);
+    expect(pkg.negativePrompt).toContain("no text");
   });
 
   it("does not emit the strict reference block when no reference image is supplied", async () => {
@@ -196,40 +269,46 @@ describe("compilePromptDirector — image / soul2", () => {
   describe("plannedVideoIntent (§21 — first-frame prep for a future i2v generation)", () => {
     const startFrameSlot = slot({ slot: "reel_start_frame", family: "subject", framing: "First frame of the 9:16 vertical reel." });
 
+    // Production incident follow-up: first-frame-prep is pose/action content, not camera/framing
+    // content — it now lives in `sections.pose` (combined with the identity cue), not
+    // `sections.camera`, so a long sanitized slot.framing string can never push it out of a
+    // shared word budget the way an earlier version of this fix did.
+
     it("does nothing when no plannedVideoIntent is given (identical to today's behavior)", async () => {
       const pkg = await compilePromptDirector(baseInput({ slot: startFrameSlot }));
-      expect(pkg.sections.camera?.join(" ")).not.toContain("First-frame prep");
+      expect(pkg.sections.pose?.join(" ")).not.toContain("First-frame prep");
     });
 
-    it("prepares a talking start frame: face visible, mouth unobstructed, hands clear", async () => {
+    it("prepares a talking start frame: face visible, mouth unobstructed, hands clear — visual facts only, no workflow language", async () => {
       const pkg = await compilePromptDirector(
         baseInput({ slot: startFrameSlot, plannedVideoIntent: { mode: "talking_to_camera" } })
       );
-      const camera = pkg.sections.camera?.join(" ") ?? "";
-      expect(camera).toContain("First-frame prep");
-      expect(camera).toContain("mouth fully unobstructed");
-      expect(camera).toContain("Hands must not block or rest near the face");
+      const pose = pkg.sections.pose?.join(" ") ?? "";
+      expect(pose).toContain("mouth unobstructed");
+      expect(pose).toContain("Hands clear of the face");
+      // Production incident regression: the OLD wording literally said "this image is planned as
+      // an image-to-video start frame" — must never reach the compiled prompt again.
+      expect(pose.toLowerCase()).not.toContain("planned as an image-to-video");
     });
 
-    it("prepares a walking start frame: mid-step, room to move", async () => {
+    it("prepares a walking start frame: mid-step, room to move — visual facts only", async () => {
       const pkg = await compilePromptDirector(
         baseInput({ slot: startFrameSlot, plannedVideoIntent: { mode: "motion_only", action: "she walks toward the window" } })
       );
-      const camera = pkg.sections.camera?.join(" ") ?? "";
-      expect(camera).toContain("mid-step or standing");
-      expect(camera).toContain("direction of intended movement");
+      const pose = pkg.sections.pose?.join(" ") ?? "";
+      expect(pose).toContain("mid-step or ready-to-move");
     });
 
     it("falls back to generic anatomically-sustainable guidance for a plain gesture", async () => {
       const pkg = await compilePromptDirector(
         baseInput({ slot: startFrameSlot, plannedVideoIntent: { mode: "motion_only", action: "she lifts the necklace briefly" } })
       );
-      expect(pkg.sections.camera?.join(" ")).toContain("anatomically sustainable");
+      expect(pkg.sections.pose?.join(" ")).toContain("anatomically sustainable");
     });
 
     it("only applies to the image being compiled — never leaks into a plain photo slot without plannedVideoIntent", async () => {
       const pkg = await compilePromptDirector(baseInput({ archetypeId: "wide_interior" }));
-      expect(pkg.sections.camera?.join(" ")).not.toContain("First-frame prep");
+      expect(pkg.sections.pose?.join(" ")).not.toContain("First-frame prep");
     });
 
     it("end-to-end: today's batch-derived action for a walking_motion reel_video actually produces the walking first-frame guidance", async () => {
@@ -239,9 +318,7 @@ describe("compilePromptDirector — image / soul2", () => {
       const pkg = await compilePromptDirector(
         baseInput({ slot: startFrameSlot, plannedVideoIntent: { mode: "motion_only", action: plannedActionForReelArchetype("walking_motion") } })
       );
-      const camera = pkg.sections.camera?.join(" ") ?? "";
-      expect(camera).toContain("mid-step or standing");
-      expect(camera).toContain("direction of intended movement");
+      expect(pkg.sections.pose?.join(" ")).toContain("mid-step or ready-to-move");
     });
 
     it("end-to-end: gesture_motion and light_motion fall back to the generic anatomically-sustainable line", async () => {
@@ -249,7 +326,7 @@ describe("compilePromptDirector — image / soul2", () => {
         const pkg = await compilePromptDirector(
           baseInput({ slot: startFrameSlot, plannedVideoIntent: { mode: "motion_only", action: plannedActionForReelArchetype(archetype) } })
         );
-        expect(pkg.sections.camera?.join(" ")).toContain("anatomically sustainable");
+        expect(pkg.sections.pose?.join(" ")).toContain("anatomically sustainable");
       }
     });
   });

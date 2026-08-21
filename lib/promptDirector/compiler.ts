@@ -1,6 +1,7 @@
 import type { PromptDirectorInput, PromptPackage, PromptPackageSections, VideoIntent } from "./types";
 import { PRIORITY_HIERARCHY, TALKING_VIDEO_PRIORITY } from "./constants";
 import {
+  assertNoSoul2MetaLeakage,
   buildAestheticSection,
   buildAppearanceSection,
   buildCameraSection,
@@ -11,6 +12,8 @@ import {
   buildReferenceSection,
   buildRealismSection,
   buildSceneSection,
+  capSection,
+  SOUL2_WORD_BUDGET,
 } from "./imageSections";
 import {
   buildAudioSection,
@@ -51,7 +54,7 @@ async function buildImageSections(input: PromptDirectorInput): Promise<PromptPac
   // "combine two builder outputs, keep both individually addressable" pattern buildVideoSections
   // uses for humanMovement below.
   const identity = buildIdentitySection(input);
-  const pose = cleanList([...identity, ...buildPoseActionSection(input)]);
+  const pose = capSection(cleanList([...identity, ...buildPoseActionSection(input)]), SOUL2_WORD_BUDGET.pose);
 
   return {
     priority: buildPriorityLines(input.outputType),
@@ -135,6 +138,14 @@ export async function compilePromptDirector(input: PromptDirectorInput): Promise
 
   const positivePrompt = compilePositivePrompt(sections, input.targetModel, input.outputType);
   const negativePrompt = compileNegativePrompt(sections.negatives);
+
+  // Production incident follow-up (day 82, reel_start_frame) — a Soul 2.0 (soul2) prompt that
+  // still contains internal workflow/meta language (Kling/Seedance, "identity anchor", "CRITICAL:",
+  // ...) must never reach Higgsfield. Every soul2 section builder already guarantees this; this is
+  // the last-resort net that fails loudly instead of silently shipping a leak.
+  if (input.targetModel === "soul2" && input.outputType === "image") {
+    assertNoSoul2MetaLeakage(positivePrompt);
+  }
 
   return {
     model: input.targetModel,

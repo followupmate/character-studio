@@ -203,3 +203,126 @@ describe("Fixture 6 — auto-speech Reel (seedance)", () => {
     expect(pkg.positivePrompt).not.toMatch(/#\w+/); // no hashtag caption-speak leaked through
   });
 });
+
+describe("Fixture 7 — REAL production data, day 82 reel_start_frame (meta-leakage incident regression)", () => {
+  // Pinned verbatim from Vivienne's actual day 82 (2026-08-21) production row — NOT a synthetic
+  // fixture. This is the exact slot.framing / SceneBrief content that, before the fix below,
+  // compiled into a Soul 2.0 prompt containing "fed to image-to-video (Kling / Seedance)",
+  // "CRITICAL: ... identity anchor ... forces the video model to invent a different face", and
+  // "Space for the overlay." — Higgsfield then rendered visible TEXT into the generated image.
+  const RAW_SLOT_FRAMING =
+    "REEL COVER — stop-scroll first frame, built from the image not text. Face forward, eyes to camera, one magnetic expression. Strong single subject, clean and high-contrast. Leave empty space in the top third for a text overlay added later. Vertical 9:16. (Face clearly visible — a headless / face-away frame makes the video model invent a new face.) FORMAT — Relatable confession: One clear expressive beat embodying a small honest feeling (a knowing look, a relieved slump). Space for the overlay. DEPTH & COMPOSITION: build the frame with depth using ONLY what the scene lock already contains — separate foreground / midground / background and shoot across or past the locked surfaces and objects so the space reads three-dimensional, never flat against a blank backdrop. Do NOT invent furniture, props or elements the scene lock excludes; if the location is intentionally sparse, get depth from angle, distance and natural layers instead of adding things.";
+
+  const RAW_SPATIAL_SETUP =
+    "Rooftop pool terrace — a single continuous ledge of wide pale sand-tone tiles running along the pool edge, pool water directly in front dropping away into deep aquamarine, the pool roughly 4m wide visible behind her legs; the tile ledge is 1.2m deep from the pool lip to where a low concrete parapet begins at the terrace perimeter; no sun loungers within 3m of her, no tables immediately beside her, only the pool edge tile and the tall glass resting on it to her right; city rooftops and a hazy skyline extend behind the parapet 8–15m back and fill the background in soft focus; the terrace has no umbrellas, no overhead structure, no pergola — open sky above; far end of the terrace has a cluster of blurred pool guests and a bar counter, both entirely out of focus; no signage, no logos, no legible text anywhere in frame. — a row of cream-colored buildings with zinc mansard roofs directly behind her, a dense low-rise skyline beyond, no distant skyscrapers";
+
+  const RAW_WARDROBE_LOCK =
+    "white matte-stretch swimsuit (high hip cut, scoop neck, thin fixed shoulder straps, full chest and torso coverage, smooth fabric sitting close to the body, no logo, no embellishment), off-white linen overshirt worn open and loose (collar open, no buttons fastened, sleeves pushed up to the elbows, fabric draping softly at the sides without being tucked or tied, hem falling to upper thigh over the swimsuit, no logo), barefoot, thin single delicate gold chain necklace at collarbone height, small gold stud earrings under 8mm plain, oversized sunglasses pushed up onto her head above the forehead (arms open in hair, not on face, not held in hand), no bag, no watch, no ring, no bracelet, no anklet, damp tousled dark wavy hair falling past the shoulder";
+
+  const day82Character: PromptDirectorInput["character"] = {
+    id: "char-vivienne-day82",
+    name: "Vivienne",
+    visualBrief: "Dark wavy hair, green eyes, late 20s appearance, slim athletic build, sun-kissed skin.",
+    sacredDetails: {
+      wardrobe_anchors: ["thin gold chain necklace — always worn, regardless of outfit", "small gold stud or hoop earrings — always worn"],
+      never_show: ["phone screen contents", "branded fashion items with visible logos"],
+      anatomy_anchors: {
+        neck: "smooth feminine neck, no Adam's apple, thin gold chain visible",
+        shoulders: "narrow feminine shoulders, lightly sun-kissed, soft musculature",
+      },
+    },
+    soulId: "43d6e73e-f0ac-4f22-a82b-f5819f15367f",
+  };
+
+  function day82SceneBrief(): SceneBriefJson {
+    return {
+      camera_language: "handheld 35mm, slight upward angle from pool-deck level",
+      color_palette: ["terracotta", "warm cream"],
+      visual_rules: ["wardrobe never changed"],
+      location_constraints: [
+        "pool edge runs horizontally across lower third of frame — pale sand-tone tile, wet and catching late sun",
+        "city skyline sits 8–15m behind her at rooftop level, out of focus, golden haze",
+      ],
+      spatial_setup: RAW_SPATIAL_SETUP,
+      environment_anchor: "a row of cream-colored buildings with zinc mansard roofs directly behind her, a dense low-rise skyline beyond, no distant skyscrapers",
+      wardrobe_lock: RAW_WARDROBE_LOCK,
+      allowed_props: [],
+      lighting_state:
+        "direct late-afternoon sun from low on the horizon at roughly 20–25 degrees, arriving from camera-left, casting warm gold light across her legs, shoulders and the wet tile — hard enough to create short soft shadows, warm enough to read as golden hour",
+      time_of_day: "golden_hour",
+      weather_implied: "clear",
+    };
+  }
+
+  function wordCount(prompt: string): number {
+    return prompt.replace(/^Model:.*\n\n/, "").trim().split(/\s+/).filter(Boolean).length;
+  }
+
+  it("produces a short, visual-only prompt — no workflow/meta leakage, hard word budget respected", async () => {
+    const pkg = await compilePromptDirector({
+      character: day82Character,
+      sceneBrief: day82SceneBrief(),
+      slot: { slot: "reel_start_frame", channel: "reel", type: "photo", sequence_index: null, family: "subject", framing: RAW_SLOT_FRAMING },
+      archetypeId: "over_shoulder",
+      archetypeGuidance: "Shifts perspective from observer to participant.",
+      outputType: "image",
+      generationMode: "text_to_image",
+      targetModel: "soul2",
+      hasReferenceImage: true,
+      plannedVideoIntent: { mode: "motion_only", action: "she walks, continuing forward motion" },
+    });
+
+    const words = wordCount(pkg.positivePrompt);
+    console.log(
+      "\n=== FIXTURE 7: day 82 reel_start_frame — RAW slot.framing ===\n" + RAW_SLOT_FRAMING +
+      "\n\n=== RAW spatial_setup ===\n" + RAW_SPATIAL_SETUP +
+      "\n\n=== RAW wardrobe_lock ===\n" + RAW_WARDROBE_LOCK +
+      "\n\n=== NEW Soul2 prompt (" + words + " words) ===\n" + pkg.positivePrompt +
+      "\n\nNEGATIVE: " + pkg.negativePrompt
+    );
+
+    // Hard word budget — structurally enforced, not a warning.
+    expect(words).toBeLessThanOrEqual(180);
+
+    // Meta-leakage — the actual production incident. None of these internal workflow/production/
+    // slot-naming terms may survive into the compiled prompt (second cleanup pass added the
+    // bottom row — internal vocabulary that isn't "workflow" in the Kling/Seedance sense but is
+    // equally not a visual fact).
+    const forbidden = [
+      "kling", "seedance", "image-to-video", "reel_video", "identity anchor",
+      "video model", "fed to", "critical:", "first-frame prep", "plannedvideointent",
+      "workflow", "scenebrief", "overlay", "scene lock",
+      "reel cover", "stop-scroll", "first frame", "carousel",
+    ];
+    const lower = pkg.positivePrompt.toLowerCase();
+    for (const term of forbidden) {
+      expect(lower).not.toContain(term);
+    }
+
+    // No truncated sentence fragments — every kept detail is a complete clause/phrase, never a
+    // mid-word or mid-phrase cut (the literal symptom of the day-82 bug: "thin single delicate..").
+    expect(pkg.positivePrompt).not.toMatch(/\.\./);
+    expect(pkg.positivePrompt).not.toMatch(/,\s*\./);
+
+    // The real visual facts must survive the translation, just not verbatim/full-length.
+    // plannedVideoIntent here is "she walks..." (motion_only) — the walking first-frame-prep
+    // fact, not the talking_to_camera one.
+    expect(pkg.positivePrompt).toContain("mid-step or ready-to-move");
+    expect(pkg.positivePrompt.toLowerCase()).toContain("rooftop pool terrace");
+    expect(pkg.positivePrompt.toLowerCase()).toContain("swimsuit");
+    // REEL COVER's visual intent must survive under its translated, non-internal wording.
+    expect(pkg.positivePrompt).toContain("clearly dominant subject");
+
+    // Text-rendering protection (the incident's actual visible symptom).
+    expect(pkg.negativePrompt).toContain("no text");
+
+    // The debug "Model: ..." header is confirmed stripped before every real provider call (see
+    // lib/promptClean.ts stripPromptHeader(), used by lib/higgsfieldSoul.ts and every
+    // generate-*/route.ts) — what the provider actually receives starts directly with the visual
+    // shot instruction, not the header or any label.
+    const { stripPromptHeader } = await import("@/lib/promptClean");
+    const providerBound = stripPromptHeader(pkg.positivePrompt);
+    expect(providerBound.toLowerCase()).not.toMatch(/^model:/);
+    expect(providerBound.startsWith("Vertical 9:16 shot")).toBe(true);
+  });
+});
