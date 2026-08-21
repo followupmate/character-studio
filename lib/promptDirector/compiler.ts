@@ -68,7 +68,8 @@ async function buildImageSections(input: PromptDirectorInput): Promise<PromptPac
     aesthetic: buildAestheticSection(input),
     realism: buildRealismSection(input),
     imperfections: buildImperfectionsSection(input),
-    negatives: buildNegatives(input),
+    // F1 — pass luxuryWorldEnabled to buildNegatives
+    negatives: buildNegatives(input, input.luxuryWorldEnabled),
   };
 }
 
@@ -99,7 +100,8 @@ async function buildVideoSections(input: PromptDirectorInput, capability: (typeo
     environmentMovement: buildPhysicsSection(resolvedIntent),
     timeline: buildTimelineSection(resolvedIntent),
     stability: buildStabilitySection(),
-    negatives: buildNegatives(input),
+    // F1 — pass luxuryWorldEnabled to buildNegatives
+    negatives: buildNegatives(input, input.luxuryWorldEnabled),
   };
 
   if (isTalking) {

@@ -73,6 +73,8 @@ export interface PromptDirectorInput {
   // generation (vs. text-only). Drives whether the "use provided image as identity reference"
   // language is emitted at all — see §7A / §8A.
   hasReferenceImage?: boolean;
+  // F1 — luxury world doctrine enabled for this generation
+  luxuryWorldEnabled?: boolean;
 }
 
 export interface PromptPackageSections {

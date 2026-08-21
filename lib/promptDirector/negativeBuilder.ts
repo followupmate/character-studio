@@ -1,5 +1,6 @@
 import type { PromptDirectorInput } from "./types";
 import { archetypeAllowsProp, cleanList } from "./helpers";
+import { LUXURY_NEGATIVES } from "@/lib/luxuryWorld"; // F1
 
 // Contextual negative-prompt builder (spec §7G / §27). Deliberately NOT a blind 100-term
 // blacklist — base negatives are fixed per output type, contextual ones are added only when the
@@ -57,9 +58,11 @@ function contextualImageNegatives(input: PromptDirectorInput): string[] {
   return extra;
 }
 
-export function buildNegatives(input: PromptDirectorInput): string[] {
+export function buildNegatives(input: PromptDirectorInput, luxuryWorldEnabled?: boolean): string[] {
   if (input.outputType === "image") {
-    return cleanList([...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES, ...contextualImageNegatives(input)]);
+    // F1 — add luxury negatives when luxury_world_v1 is enabled
+    const luxNegatives = luxuryWorldEnabled ? LUXURY_NEGATIVES : [];
+    return cleanList([...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES, ...contextualImageNegatives(input), ...luxNegatives]);
   }
 
   const negatives = [...BASE_VIDEO_NEGATIVES];

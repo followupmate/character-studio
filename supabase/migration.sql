@@ -602,4 +602,25 @@ ALTER TABLE chs_story_days ADD COLUMN IF NOT EXISTS episode_label text;
 
 -- Add new feature flags for Phases 2–5
 ALTER TABLE chs_characters ADD COLUMN IF NOT EXISTS feature_flags jsonb
-  DEFAULT '{"arc_planner_v1":false,"serial_captions_v1":false,"storyboard_reel_v1":false,"fanvue_arc_funnel_v1":false,"arc_analytics_v1":false}'::jsonb;
+  DEFAULT '{"arc_planner_v1":false,"serial_captions_v1":false,"storyboard_reel_v1":false,"fanvue_arc_funnel_v1":false,"arc_analytics_v1":false,"luxury_world_v1":false,"prompt_writer_v1":false}'::jsonb;
+
+-- =============================================
+-- PHASE 1 (2026-08-21): Luxury World Bible — environment quality doctrine
+-- luxury_world_v1 feature flag gates luxury world negatives; without it, original negatives apply.
+-- =============================================
+UPDATE chs_characters SET
+  sacred_details = jsonb_set(
+    sacred_details,
+    '{recurring_environment}',
+    '[
+      "her Barcelona apartment — travertine floors, linen curtains, morning light, private terrace with olive trees",
+      "boutique pilates studio — pale oak floors, brass fittings, floor-to-ceiling windows, mirror walls",
+      "historic-quarter café — marble tables, ceramic espresso cups, corner seating",
+      "Lisbon coastal hotel terrace — limestone coping, infinity pool edge, architectural light",
+      "Amalfi coast suite — stone balcony, terraced gardens with mature lemon trees, Mediterranean views",
+      "Paris apartment — honed marble, aged oak, curated objects, high ceilings",
+      "luxury hotel rooms — architectural light, natural materials, edited minimal aesthetic, no corporate logos",
+      "Mediterranean terraces — private pools, stone coping, mature gardens, coastal stone paths"
+    ]'::jsonb
+  )
+WHERE slug = 'vivienne';
