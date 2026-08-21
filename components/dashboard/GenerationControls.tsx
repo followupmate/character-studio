@@ -161,8 +161,16 @@ export default function GenerationControls({
   useEffect(() => {
     if (pdActive) compile();
     else {
+      // BUG FIX (critical production audit): this branch used to only clear compiledPackage/dirty
+      // and never restored the legacy prompt — switching e.g. Higgsfield -> Nano Banana left the
+      // Prompt-Director-compiled text visible AND left it as what actually gets sent (runGeneration
+      // treats any text that differs from media.higgsfield_prompt as an intentional promptOverride),
+      // which also permanently overwrote chs_media.higgsfield_prompt with the wrong provider's
+      // prompt on generate. Every provider switch must resync `prompt` to that provider's
+      // authoritative source — PD compile when pdActive, the stored legacy prompt otherwise.
       setCompiledPackage(null);
       setDirty(false);
+      setPrompt(cleanPrompt(media.higgsfield_prompt));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdActive, generator, videoMode, speechSource]);
