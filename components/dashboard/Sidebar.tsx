@@ -32,6 +32,7 @@ const createSteps = [
   { step: 4, label: "Higgsfield",  href: "/create/higgsfield" },
   { step: 5, label: "Soul ID",     href: "/create/soul" },
   { step: 6, label: "Spustiť",    href: "/create/launch" },
+  { step: 7, label: "Návod",      href: "/create/prompt-library" },
 ];
 
 const buildNav = [
