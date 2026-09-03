@@ -497,6 +497,9 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           reelVideoArchetypeId: archetypeMap["reel_video"],
           tier: storyDay.tier ?? null,
           dayNumber: Number(storyDay.day_number) || null,
+          visualTone: character.visual_tone ?? null,
+          stylingNote: character.styling_note ?? null,
+          dayHookText: storyDay.hook_text ?? null,
         })
       )
     );
@@ -544,6 +547,9 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           reelVideoArchetypeId: archetypeMap["reel_video"],
           tier: storyDay.tier ?? null,
           dayNumber: Number(storyDay.day_number) || null,
+          visualTone: character.visual_tone ?? null,
+          stylingNote: character.styling_note ?? null,
+          dayHookText: storyDay.hook_text ?? null,
         });
       })
     );
@@ -747,6 +753,19 @@ interface RunSlotArgs {
   // F3 — today's tier + day number for the director's aesthetic direction / photo-style seed.
   tier?: string | null;
   dayNumber?: number | null;
+  // RECOVERY phase 1A — generation metadata that already exists upstream but was never persisted
+  // onto the chs_media row, leaving hook_text / visual_tone_used / styling_note_used NULL in all
+  // 489 rows. These are the REAL sources, read straight off the objects the batch already loaded:
+  //   visualTone   <- chs_characters.visual_tone   (fed to generateSceneBrief as VISUAL TONE)
+  //   stylingNote  <- chs_characters.styling_note  (fed to generateSceneBrief as STYLING OVERRIDE)
+  //   dayHookText  <- chs_story_days.hook_text     (the overlay line the operator lays on in post,
+  //                   see lib/reelFormats.ts's header note — the only hook that exists on a
+  //                   discovery-mode day, since discovery drops the carousel and with it
+  //                   carouselSlide.overlay_text / extractHookText()).
+  // Never derived heuristically: when a source is null the column stays NULL.
+  visualTone?: string | null;
+  stylingNote?: string | null;
+  dayHookText?: string | null;
 }
 
 async function runSlot(args: RunSlotArgs): Promise<void> {
@@ -791,7 +810,12 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
       .update({
         higgsfield_prompt: result.prompt,
         visual_signature: mergeVisualSignature(result.visualSignature, args.situationTags, result.promptPackage),
-        hook_text: result.hookText ?? null,
+        // Slot-level hook (carousel overlay / extractHookText) wins when the doctrine path produced
+        // one; otherwise the day's own hook_text. The Prompt Director path never produces a
+        // slot-level hook, so on a discovery-mode day this is what actually fills the column.
+        hook_text: result.hookText ?? args.dayHookText ?? null,
+        visual_tone_used: args.visualTone ?? null,
+        styling_note_used: args.stylingNote ?? null,
         generation_status: "completed",
         last_error: null,
         prompt_doctrine: args.doctrine,
@@ -862,7 +886,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
 
     const { data: storyDay } = await supabase
       .from("chs_story_days")
-      .select("arc_position, drift_seeds, day_number, tier")
+      .select("arc_position, drift_seeds, day_number, tier, hook_text")
       .eq("id", row.chs_daily_plans.story_day_id)
       .single();
 
@@ -928,7 +952,11 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
         .update({
           higgsfield_prompt: result.prompt,
           visual_signature: mergeVisualSignature(result.visualSignature, undefined, result.promptPackage),
-          hook_text: result.hookText ?? null,
+          // RECOVERY phase 1A — same mapping as runSlot() above; a reconciled slot must not be the
+          // one row in the batch that comes back with NULL telemetry.
+          hook_text: result.hookText ?? (storyDay as { hook_text?: string | null }).hook_text ?? null,
+          visual_tone_used: (char as { visual_tone?: string | null }).visual_tone ?? null,
+          styling_note_used: (char as { styling_note?: string | null }).styling_note ?? null,
           generation_status: "completed",
           last_error: null,
           prompt_doctrine: doctrine,

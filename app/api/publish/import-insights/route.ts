@@ -36,6 +36,22 @@ const CURSOR_ID = "default";
 //     metrics: reposts" (HTTP 400) on our account/API version — deliberately NOT requested.
 // An unsupported metric fails the WHOLE call, so each list still walks down from richest
 // to safest — this is not new behavior, just two separate chains instead of one.
+//
+// RECOVERY phase 1B, re-verified empirically 2026-09-03 against media 17985454868871710 (a REEL,
+// via the ?debug_raw=1 probe below), because chs_post_performance_snapshots.follows /
+// .profile_visits are NULL in all 61 rows and the question was whether the ingest was simply
+// failing to map them. It is not. Meta answers, verbatim:
+//   profile_visits -> "The Media Insights API does not support the profile_visits metric for this
+//                      media product type."
+//   follows        -> "The Media Insights API does not support the follows metric for this media
+//                      product type."
+// They are FEED/CAROUSEL-only and already mapped for those types below. This account has published
+// reels only since 10.7., which is the whole reason both columns are NULL — not a mapping gap.
+// They are therefore deliberately left unmapped for reels rather than filled with a heuristic or
+// an account-level number that cannot be attributed to a single post.
+//
+// Also confirmed available on REELS but deliberately NOT mapped (pending an explicit decision):
+//   ig_reels_video_view_total_time — total watch time in ms (real value 130595 for a 59-view reel).
 const REEL_METRIC_SETS = [
   "views,reach,likes,comments,saved,shares,total_interactions,ig_reels_avg_watch_time",
   "views,reach,likes,comments,saved,shares,total_interactions",
@@ -64,13 +80,66 @@ interface FetchedMetrics extends GrowthMetrics {
   avg_watch_time_sec?: number;
 }
 
-async function fetchInsights(mediaId: string, token: string, metricSets: string[]): Promise<{ metrics: FetchedMetrics | null; error?: string }> {
+// RECOVERY phase 1B — repeatable metric discovery. Meta renames and re-scopes media metrics
+// without notice, and an unsupported name fails the WHOLE multi-metric call, so the only honest
+// way to know what this account can actually read today is to ask for each candidate ALONE and
+// record which ones answer. Runs only on ?debug_raw=1 (never in the normal cron path) and never
+// writes anything — it exists so "what does the payload actually contain" is a command, not a
+// one-off script someone has to rewrite next time.
+const METRIC_PROBE_CANDIDATES = [
+  "views", "reach", "likes", "comments", "saved", "shares", "total_interactions",
+  "ig_reels_avg_watch_time", "ig_reels_video_view_total_time", "clips_replays_count",
+  "ig_reels_aggregated_all_plays_count", "plays", "video_views", "impressions",
+  "profile_visits", "profile_activity", "follows", "navigation", "replies", "reposts",
+  "peak_concurrent_viewers", "threads_views", "follows_and_profile_visits",
+];
+
+export interface MetricProbeResult {
+  mediaId: string;
+  postType: string;
+  supported: Array<{ metric: string; title?: string; period?: string; value?: number }>;
+  unsupported: Array<{ metric: string; error: string }>;
+}
+
+async function probeAvailableMetrics(mediaId: string, postType: string, token: string): Promise<MetricProbeResult> {
+  const supported: MetricProbeResult["supported"] = [];
+  const unsupported: MetricProbeResult["unsupported"] = [];
+  for (const metric of METRIC_PROBE_CANDIDATES) {
+    const res = await fetch(
+      `https://graph.instagram.com/v23.0/${mediaId}/insights?metric=${metric}&access_token=${token}`
+    );
+    const data = (await res.json().catch(() => ({}))) as IgInsightsResponse & {
+      data?: Array<{ name: string; title?: string; period?: string; values?: Array<{ value?: number }>; total_value?: { value?: number } }>;
+    };
+    if (res.ok && Array.isArray(data.data) && data.data.length > 0) {
+      for (const d of data.data) {
+        supported.push({ metric: d.name, title: d.title, period: d.period, value: d.values?.[0]?.value ?? d.total_value?.value });
+      }
+    } else {
+      unsupported.push({ metric, error: (data.error?.message ?? `HTTP ${res.status}`).slice(0, 160) });
+    }
+  }
+  // Full raw payload for the richest supported set, logged verbatim — this is the "log the whole
+  // raw insights payload for one reel" deliverable, reproducible on demand.
+  if (supported.length > 0) {
+    const all = supported.map((s) => s.metric).join(",");
+    const res = await fetch(`https://graph.instagram.com/v23.0/${mediaId}/insights?metric=${all}&access_token=${token}`);
+    const raw = await res.json().catch(() => ({}));
+    console.log(`[import-insights][debug_raw] ${postType} ${mediaId} full payload:`, JSON.stringify(raw));
+  }
+  return { mediaId, postType, supported, unsupported };
+}
+
+async function fetchInsights(mediaId: string, token: string, metricSets: string[], debugRaw = false): Promise<{ metrics: FetchedMetrics | null; error?: string }> {
   let lastError = "";
   for (const metricSet of metricSets) {
     const res = await fetch(
       `https://graph.instagram.com/v23.0/${mediaId}/insights?metric=${metricSet}&access_token=${token}`
     );
     const data = (await res.json().catch(() => ({}))) as IgInsightsResponse;
+    if (debugRaw) {
+      console.log(`[import-insights][debug_raw] ${mediaId} metric=${metricSet} status=${res.status} payload=${JSON.stringify(data)}`);
+    }
     if (res.ok && Array.isArray(data.data)) {
       const raw: Record<string, number> = {};
       for (const m of data.data) {
@@ -147,9 +216,18 @@ export async function GET(req: Request) {
   const results: Array<{ postId: string; ok: boolean; score?: number; error?: string }> = [];
   const affected = new Set<string>();
 
+  // RECOVERY phase 1B — ?debug_raw=1 dumps the full raw payload for every post in this batch and
+  // runs the one-metric-at-a-time probe on the FIRST one, so the available metric surface is
+  // reported rather than assumed. Read-only diagnostics; the normal merge/score path is untouched.
+  const debugRaw = url.searchParams.get("debug_raw") === "1";
+  let metricProbe: MetricProbeResult | null = null;
+
   for (const post of posts ?? []) {
     const metricSets = post.post_type === "reel" ? REEL_METRIC_SETS : FEED_METRIC_SETS;
-    const { metrics, error: fetchErr } = await fetchInsights(post.platform_post_id as string, token, metricSets);
+    if (debugRaw && !metricProbe) {
+      metricProbe = await probeAvailableMetrics(post.platform_post_id as string, post.post_type as string, token);
+    }
+    const { metrics, error: fetchErr } = await fetchInsights(post.platform_post_id as string, token, metricSets, debugRaw);
     if (!metrics) {
       results.push({ postId: post.id, ok: false, error: fetchErr });
       continue;
@@ -249,5 +327,6 @@ export async function GET(req: Request) {
     batch_size: batchSize,
     is_new_cycle: cycle.isNewCycle,
     results,
+    ...(metricProbe ? { metric_probe: metricProbe } : {}),
   });
 }
