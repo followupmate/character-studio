@@ -28,6 +28,7 @@ import {
   LifeEvent,
 } from "@/lib/lifeState";
 import { getGrowthBias } from "@/lib/growthScore";
+import { isCiScoringFrozen } from "@/lib/ciScoringFrozen";
 import { allowedSexualEnergyLevels, sexualEnergyRangeGuidance, isActiveTier, pickSexualEnergyLevel, SexualEnergyBias } from "@/lib/sexualEnergyConfig";
 import { pickPlayfulHotWorldProfile, playfulHotWorldGuidance } from "@/lib/playfulHotWorldConfig";
 import { getSituationMemory, computeFrequencyPenalties, softAvoidCliches, weeklyBalanceNudges, situationMemoryGuidance, outfitCategoryNudges } from "@/lib/situationMemory";
@@ -225,7 +226,13 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
   // for days CI has nothing to say.
   const growthOn = isFlagOn(flags, "growth_layer");
   let tierBias: TierBias | undefined;
-  if (strategyInput?.preferredTier) {
+  // RECOVERY phase 2 — CI_SCORING_FROZEN. Both branches below are growth_score-derived (CI's
+  // preferredTier is picked from the same scored snapshot growth_layer averages directly), so the
+  // freeze drops the bias entirely and pickTier() falls back to its own unbiased weighting.
+  // growth_score keeps being computed and written; it just stops steering what gets made.
+  if (isCiScoringFrozen()) {
+    tierBias = undefined;
+  } else if (strategyInput?.preferredTier) {
     tierBias = { [strategyInput.preferredTier]: biasDeltaFor(strategyInput) };
   } else if (growthOn) {
     tierBias = (await getGrowthBias(character.id))?.modifier;

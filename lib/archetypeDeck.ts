@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { isCiScoringFrozen } from "@/lib/ciScoringFrozen";
 
 export type ArchetypeFamily = "environment" | "subject" | "detail" | "motion" | "bts";
 export type SlotChannel = "feed" | "reel" | "story";
@@ -218,6 +219,87 @@ interface PickArgs {
   preferredShotStyle?: string | null;
 }
 
+export interface SelectArchetypesArgs {
+  archetypes: Archetype[];
+  slots: SlotSpec[];
+  // (archetype, channel) -> is this pair still cooling down? Injected so the selection logic is a
+  // pure function the phase-2 dry-run test can drive 200x without touching Supabase.
+  isInCooldown: (arch: Archetype, channel: SlotChannel) => boolean;
+  preferredShotStyle?: string | null;
+  // RECOVERY phase 2 — when true, every growth_score-derived preference is ignored: the per-
+  // archetype `weight` column goes uniform and preferredShotStyle stops applying. See
+  // lib/ciScoringFrozen.ts for why.
+  frozen?: boolean;
+  rng?: () => number;
+}
+
+// Pure selection core — no Supabase, no clock. pickArchetypesForBatch() below is the thin DB
+// wrapper. Extracted for the deterministic phase-2 acceptance test (200 dry runs, 15/15 archetypes
+// seen, no archetype above 15% of draws), which "visibly different output" could never be.
+export function selectArchetypesForSlots({
+  archetypes,
+  slots,
+  isInCooldown,
+  preferredShotStyle,
+  frozen = false,
+  rng = Math.random,
+}: SelectArchetypesArgs): Record<SlotName, string> {
+  const selected: Record<string, string> = {};
+  const usedThisBatch = new Set<string>();
+
+  for (const slot of slots) {
+    const familyMatches = (archetypes as Archetype[]).filter((a) => a.family === slot.family);
+
+    const eligibleFiltered = familyMatches.filter((a) => {
+      if (usedThisBatch.has(a.id)) return false;
+      if (slot.excluded_archetypes?.includes(a.id)) return false;
+      if (isInCooldown(a, slot.channel)) return false;
+      return true;
+    });
+
+    let pool = eligibleFiltered;
+
+    if (slot.preferred_archetypes) {
+      const preferred = pool.filter((a) => slot.preferred_archetypes!.includes(a.id));
+      if (preferred.length > 0) pool = preferred;
+    }
+
+    if (pool.length === 0) {
+      pool = familyMatches.filter((a) => !usedThisBatch.has(a.id));
+    }
+
+    if (pool.length === 0) {
+      pool = familyMatches;
+    }
+
+    // Soft weight bonus for the CI-preferred shot style, applied only WITHIN this already
+    // hard-filtered pool (cooldown/exclusion/dedupe already ran above) — a preference that
+    // doesn't match anything eligible this slot is simply a no-op, never a forced pick.
+    const effectiveWeight = (a: Archetype) => {
+      // Frozen: uniform across the whole pool. Both the stored `weight` column and the CI
+      // preferredShotStyle bonus are downstream of growth_score, so both are dropped together —
+      // half-freezing would still let the loop steer itself.
+      if (frozen) return 1;
+      const base = Math.max(1, a.weight);
+      const matches = !!preferredShotStyle && humanizeArchetypeId(a.id).toLowerCase() === preferredShotStyle.toLowerCase();
+      return matches ? base * 1.5 : base;
+    };
+
+    const totalWeight = pool.reduce((sum, a) => sum + effectiveWeight(a), 0);
+    let r = rng() * totalWeight;
+    let chosen = pool[0];
+    for (const a of pool) {
+      r -= effectiveWeight(a);
+      if (r <= 0) { chosen = a; break; }
+    }
+
+    selected[slot.slot] = chosen.id;
+    usedThisBatch.add(chosen.id);
+  }
+
+  return selected as Record<SlotName, string>;
+}
+
 export async function pickArchetypesForBatch({ characterId, slots, preferredShotStyle }: PickArgs): Promise<Record<SlotName, string>> {
   const { data: archetypes, error: archErr } = await supabase
     .from("chs_shot_archetypes")
@@ -251,56 +333,13 @@ export async function pickArchetypesForBatch({ characterId, slots, preferredShot
     return ageMs < cooldownDays * 24 * 60 * 60 * 1000;
   };
 
-  const selected: Record<string, string> = {};
-  const usedThisBatch = new Set<string>();
-
-  for (const slot of slots) {
-    const familyMatches = (archetypes as Archetype[]).filter((a) => a.family === slot.family);
-
-    const eligibleFiltered = familyMatches.filter((a) => {
-      if (usedThisBatch.has(a.id)) return false;
-      if (slot.excluded_archetypes?.includes(a.id)) return false;
-      if (isInCooldown(a, slot.channel)) return false;
-      return true;
-    });
-
-    let pool = eligibleFiltered;
-
-    if (slot.preferred_archetypes) {
-      const preferred = pool.filter((a) => slot.preferred_archetypes!.includes(a.id));
-      if (preferred.length > 0) pool = preferred;
-    }
-
-    if (pool.length === 0) {
-      pool = familyMatches.filter((a) => !usedThisBatch.has(a.id));
-    }
-
-    if (pool.length === 0) {
-      pool = familyMatches;
-    }
-
-    // Soft weight bonus for the CI-preferred shot style, applied only WITHIN this already
-    // hard-filtered pool (cooldown/exclusion/dedupe already ran above) — a preference that
-    // doesn't match anything eligible this slot is simply a no-op, never a forced pick.
-    const effectiveWeight = (a: Archetype) => {
-      const base = Math.max(1, a.weight);
-      const matches = !!preferredShotStyle && humanizeArchetypeId(a.id).toLowerCase() === preferredShotStyle.toLowerCase();
-      return matches ? base * 1.5 : base;
-    };
-
-    const totalWeight = pool.reduce((sum, a) => sum + effectiveWeight(a), 0);
-    let r = Math.random() * totalWeight;
-    let chosen = pool[0];
-    for (const a of pool) {
-      r -= effectiveWeight(a);
-      if (r <= 0) { chosen = a; break; }
-    }
-
-    selected[slot.slot] = chosen.id;
-    usedThisBatch.add(chosen.id);
-  }
-
-  return selected as Record<SlotName, string>;
+  return selectArchetypesForSlots({
+    archetypes: archetypes as Archetype[],
+    slots,
+    isInCooldown,
+    preferredShotStyle,
+    frozen: isCiScoringFrozen(),
+  });
 }
 
 export async function logArchetypeUsage(args: {
