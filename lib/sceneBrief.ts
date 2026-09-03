@@ -26,6 +26,20 @@ export interface SceneBriefJson {
   lighting_state: string;
   time_of_day: string;
   weather_implied: string;
+  // RECOVERY phase 3 — STRUCTURED semantic fields. Without these the coherence checks in
+  // lib/promptDirector/semanticValidator.ts have nothing to compare a prompt against except more
+  // prose, which is how six objectively incoherent reels passed a validator that reported
+  // errors: [] every time. Optional in the type because every brief written before this change
+  // lacks them; lib/sceneSemantics.ts's resolveSceneSemantics() derives the same classes
+  // deterministically for those rows, and records that they were derived rather than authored.
+  location_class?: import("@/lib/sceneSemantics").LocationClass;
+  action_class?: import("@/lib/sceneSemantics").ActionClass;
+  // Every physical object that exists in this scene and could be picked up or handled. NOT
+  // wardrobe, NOT architecture. This is the closed inventory a prompt is allowed to reference.
+  scene_entities?: string[];
+  // Is speaking the POINT of this video, or would a spoken line be something a generator bolted
+  // on? Default false — an aesthetic lifestyle reel is silent.
+  speech_is_the_point?: boolean;
 }
 
 export interface SceneBriefResult {
@@ -228,8 +242,14 @@ Valid JSON only, no markdown:
   "allowed_props": ["DEFAULT IS EMPTY — output an empty array unless the spatial_setup explicitly contains a flat surface (table, desk, windowsill, counter) where a prop would naturally sit, AND the prop is in sacred_details.props. Spatial logic is mandatory: BATHROOM → empty array, no exceptions. BEDROOM without desk/table → empty array. HALLWAY / STAIRCASE / STREET / BEACH / POOL → empty array. TERRACE WITH TABLE or CAFÉ → one drink prop allowed (espresso cup OR wine/champagne — not both, not coffee AND book). HOTEL ROOM WITH DESK OR WINDOWSILL → book or key card only, no food or drink. BALCONY WITH RAILING, no table → sunglasses only if outdoor. Maximum 1 prop. If in doubt: empty array."],
   "lighting_state": "one light source, direction, colour (e.g. 'window light from the left, soft, warm morning white' or 'single bedside lamp, directional, amber'). Prefer real daylight or a warm practical lamp; harsh overhead fluorescent only when the location genuinely has it.",
   "time_of_day": "one of: dawn | morning | midday | golden_hour | dusk | blue_hour | night | indoor_lamp | fluorescent",
-  "weather_implied": "simple word (clear, overcast, humid, dry wind, post-rain, indoor)"
+  "weather_implied": "simple word (clear, overcast, humid, dry wind, post-rain, indoor)",
+  "location_class": "EXACTLY ONE of: bedroom | bathroom | kitchen | living_room | hotel_room | studio_gym | car_interior | street | cafe_restaurant | bar | shop_boutique | mall | office | terrace_rooftop | pool | beach | nature | other. Pick the one that describes the PHYSICAL KIND of place, which decides what can be heard there. An open-air rooftop terrace is terrace_rooftop even if it is also a bar; a pilates studio is studio_gym, never mall.",
+  "action_class": "EXACTLY ONE of: locomotion | seated_still | standing_still | reclining | gesture | grooming | eating_drinking | exercise | swimming | other. What the subject is actually DOING in this scene. Use locomotion ONLY if she genuinely moves through space — a woman seated in a car, lying on a bed or reclined on a sunbed is not locomotion.",
+  "scene_entities": ["Every physical object present in this micro-location that could be picked up or handled, one short noun phrase each (e.g. 'ceramic espresso cup', 'hotel key card', 'matte white water bottle'). NOT wardrobe, NOT architecture, NOT furniture that is only stood on or sat on. This is a CLOSED inventory: an object not listed here does not exist, and no prompt may have her touch it. Empty array is correct and common."],
+  "speech_is_the_point": false
 }
+
+RULE for speech_is_the_point: set it to true ONLY if this scene exists BECAUSE she says something — an address to camera, a confession, a piece of advice. A beautiful moment where she happens to have a mouth is false. When in doubt, false.
 
 PART 2 — PROSE DOCTRINE (120–160 words).
 This text is injected verbatim into every one of the 7 slot prompt calls. The slot prompts are then ingested by AI image and video generators. Therefore: use PLAIN VISUAL LANGUAGE that an image model recognizes. No academic vocabulary, no philosophical phrasing.

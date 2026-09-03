@@ -70,6 +70,8 @@ interface SlotGenerationResult {
 // keeps working unchanged.
 export { plannedActionForReelArchetype } from "@/lib/reelArchetypeAction";
 import { plannedActionForReelArchetype } from "@/lib/reelArchetypeAction";
+import { logSemanticValidation, validateSceneCoherence } from "@/lib/promptDirector/semanticValidator";
+import { judgeSceneCoherence } from "@/lib/promptDirector/semanticJudge";
 
 async function generateSlotPromptViaDirector(args: {
   slot: SlotSpec;
@@ -86,6 +88,11 @@ async function generateSlotPromptViaDirector(args: {
   // deterministic photo-style rotation. Optional: absent reproduces pre-F3 output.
   tier?: string | null;
   dayNumber?: number | null;
+  // RECOVERY phase 3 — context the two-layer semantic validator judges the compiled prompt
+  // against. sceneLocation is chs_story_days.location; activityHint is today's activity text.
+  sceneLocation?: string | null;
+  activityHint?: string | null;
+  dayNumberForLog?: number | null;
 }): Promise<SlotGenerationResult> {
   const target = promptDirectorTargetForSlot(args.slot);
   const luxuryWorldOn = isFlagOn(args.character.feature_flags, "luxury_world_v1");
@@ -135,6 +142,59 @@ async function generateSlotPromptViaDirector(args: {
     ...target,
   };
   const pkg = await compilePromptDirector(input);
+
+  // RECOVERY phase 3 — two-layer semantic validation of the COMPILED prompt against the SCENE
+  // BRIEF. The pre-existing validatePromptDirectorInput() (run inside compilePromptDirector) checks
+  // the prompt against itself and returned errors: [] / warnings: [] on every reel in the Days
+  // 88-93 window; these checks are what actually catch a car-cabin ambience on a sidewalk or a
+  // drinking-physics layer in a room with no cup.
+  //
+  // Video slots only for now: the auto reel is the surface the recovery sprint is fixing, and
+  // running an LLM judge on all seven image slots would triple the batch's Claude spend for no
+  // signal we currently need. enforceAutoReelShape stays FALSE here — the shape rules (one action,
+  // 6-7s, no boilerplate) belong to the recovery reel compiler, which owns auto reel motion from
+  // phase 4 onward; applying them to the legacy director path would block every batch instead of
+  // fixing one.
+  if (input.outputType !== "image") {
+    const semantic = validateSceneCoherence({
+      brief: args.sceneBriefJson,
+      prompt: pkg.positivePrompt,
+      archetypeId: args.archetypeId,
+      sceneLocation: args.sceneLocation,
+      activityHint: args.activityHint,
+      enforceAutoReelShape: false,
+    });
+
+    const judge = await judgeSceneCoherence({
+      brief: args.sceneBriefJson,
+      prompt: pkg.positivePrompt,
+      sceneLocation: args.sceneLocation,
+    });
+    const judgeErrors = judge.violations.filter((v) => v.severity === "error");
+    const judgeWarnings = judge.violations.filter((v) => v.severity === "warning");
+
+    const errors = [...semantic.errors, ...judgeErrors];
+    const warnings = [...semantic.warnings, ...judgeWarnings];
+
+    // Logged on EVERY run, passes included. The whole reason six incoherent reels shipped is that
+    // a clean result was indistinguishable from no result — false negatives are only visible if
+    // the passes are on the record too.
+    logSemanticValidation(
+      { day: args.dayNumberForLog ?? args.dayNumber ?? null, slot: args.slot.slot, archetypeId: args.archetypeId, layer: "1" },
+      { errors, warnings, semantics: semantic.semantics }
+    );
+
+    if (errors.length > 0) {
+      throw new Error(
+        `Semantic validation failed for ${args.slot.slot} (${args.archetypeId}): ${errors.map((e) => `[${e.rule}] ${e.detail}`).join(" | ")}`
+      );
+    }
+
+    // Warning-level speech gating removes the layer rather than blocking the slot.
+    if (semantic.sanitizedPrompt) {
+      pkg.positivePrompt = semantic.sanitizedPrompt;
+    }
+  }
 
   // F2 — prompt_writer_v1: an LLM pass rewrites the deterministic section output into one
   // continuous editorial brief. Image slots only; writeSoul2Prompt returns the deterministic
@@ -500,6 +560,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           visualTone: character.visual_tone ?? null,
           stylingNote: character.styling_note ?? null,
           dayHookText: storyDay.hook_text ?? null,
+          sceneLocation: storyDay.location ?? null,
+          activityHint: situation?.activity ?? storyDay.narrative ?? null,
         })
       )
     );
@@ -550,6 +612,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           visualTone: character.visual_tone ?? null,
           stylingNote: character.styling_note ?? null,
           dayHookText: storyDay.hook_text ?? null,
+          sceneLocation: storyDay.location ?? null,
+          activityHint: situation?.activity ?? storyDay.narrative ?? null,
         });
       })
     );
@@ -750,6 +814,9 @@ interface RunSlotArgs {
   // when compiling reel_start_frame) so plannedActionForReelArchetype() can derive a deterministic
   // plannedVideoIntent.action without a second lookup inside runSlot() itself.
   reelVideoArchetypeId?: string;
+  // RECOVERY phase 3 — scene context for the semantic validator.
+  sceneLocation?: string | null;
+  activityHint?: string | null;
   // F3 — today's tier + day number for the director's aesthetic direction / photo-style seed.
   tier?: string | null;
   dayNumber?: number | null;
@@ -790,6 +857,8 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
           reelVideoArchetypeId: args.reelVideoArchetypeId,
           tier: args.tier,
           dayNumber: args.dayNumber,
+          sceneLocation: args.sceneLocation,
+          activityHint: args.activityHint,
         })
       : await generateSlotPrompt({
           doctrine: args.doctrine,
@@ -886,7 +955,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
 
     const { data: storyDay } = await supabase
       .from("chs_story_days")
-      .select("arc_position, drift_seeds, day_number, tier, hook_text")
+      .select("arc_position, drift_seeds, day_number, tier, hook_text, location")
       .eq("id", row.chs_daily_plans.story_day_id)
       .single();
 
@@ -935,6 +1004,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
             reelVideoArchetypeId: rcReelVideoArchetypeId,
             tier: (storyDay as { tier?: string | null }).tier ?? null,
             dayNumber: Number((storyDay as { day_number?: number }).day_number) || null,
+            sceneLocation: (storyDay as { location?: string | null }).location ?? null,
           })
         : await generateSlotPrompt({
             doctrine,

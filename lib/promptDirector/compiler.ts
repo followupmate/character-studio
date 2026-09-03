@@ -97,7 +97,7 @@ async function buildVideoSections(input: PromptDirectorInput, capability: (typeo
     videoSpecs: buildVideoSpecsSection(resolvedIntent),
     camera: cameraResolved,
     humanMovement,
-    environmentMovement: buildPhysicsSection(resolvedIntent),
+    environmentMovement: buildPhysicsSection(resolvedIntent, input.sceneBrief),
     timeline: buildTimelineSection(resolvedIntent),
     stability: buildStabilitySection(),
     // F1 — pass luxuryWorldEnabled to buildNegatives

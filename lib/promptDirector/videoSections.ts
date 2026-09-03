@@ -1,5 +1,6 @@
 import type { PromptDirectorInput, VideoIntent } from "./types";
 import { cleanList, isCloseUpArchetype } from "./helpers";
+import { ambiencePhraseForLocation, classifyLocation } from "@/lib/sceneSemantics";
 
 // Deterministic VIDEO section builders (spec §8–19). `intent` is always the ALREADY-RESOLVED
 // VideoIntent (abstract mood words translated to observable behavior by
@@ -75,9 +76,17 @@ export function buildBodyMotionSection(intent: VideoIntent | undefined): string[
 // §14 — PHYSICS LAYER. Only emitted when the action text implies a real physical interaction —
 // never inserted generically (spec: "Nevkladaj physics instructions, keď sa nič fyzicky komplexné
 // nedeje").
-const PHYSICS_HINTS: Array<{ pattern: RegExp; lines: string[] }> = [
+// RECOVERY phase 3 — each hint now carries the SCENE PRECONDITION that makes it physically
+// possible. Before this, the drink hint fired on the word "cup" anywhere in the action text, and
+// the archetype-derived gesture action ("turning her head, raising a cup, adjusting a sleeve")
+// contains that word unconditionally — so a boutique pilates studio whose only prop is a water
+// bottle on the floor got "glass tilts naturally, liquid follows gravity, natural swallow"
+// (Day 92). A physics layer for an object that does not exist in the scene is not detail, it is
+// an instruction to hallucinate one.
+const PHYSICS_HINTS: Array<{ pattern: RegExp; requiresInScene?: RegExp; lines: string[] }> = [
   {
     pattern: /drink|sip|glass|cup/i,
+    requiresInScene: /(glass|cup|mug|coupe|tumbler|espresso|wine|champagne|coffee)/i,
     lines: ["Rim touches lips, glass tilts naturally, liquid follows gravity, liquid level changes, natural swallow."],
   },
   {
@@ -86,11 +95,18 @@ const PHYSICS_HINTS: Array<{ pattern: RegExp; lines: string[] }> = [
   },
 ];
 
-export function buildPhysicsSection(intent: VideoIntent | undefined): string[] {
+export function buildPhysicsSection(intent: VideoIntent | undefined, sceneBrief?: PromptDirectorInput["sceneBrief"]): string[] {
   if (!intent?.action) return [];
+  // What the scene says physically exists: props plus the spatial setup. Wardrobe is deliberately
+  // excluded — a "champagne-coloured slip" is not a champagne glass.
+  const sceneText = sceneBrief
+    ? [sceneBrief.spatial_setup, ...(sceneBrief.allowed_props ?? [])].filter(Boolean).join(" ")
+    : "";
   const lines: string[] = [];
   for (const hint of PHYSICS_HINTS) {
-    if (hint.pattern.test(intent.action)) lines.push(...hint.lines);
+    if (!hint.pattern.test(intent.action)) continue;
+    if (hint.requiresInScene && !hint.requiresInScene.test(sceneText)) continue;
+    lines.push(...hint.lines);
   }
   return cleanList(lines);
 }
@@ -140,23 +156,23 @@ export function buildLipSyncSection(): string[] {
 
 // §18 — AUDIO. Caller (compiler) is responsible for only invoking this when the target model's
 // capability table says supportsAudio — this builder itself is capability-agnostic.
-const AMBIENCE_HINTS: Record<string, string> = {
-  bathroom: "bathroom reverb",
-  kitchen: "natural room tone",
-  car: "car cabin ambience",
-  mall: "mall reverb",
-  street: "outdoor ambience",
-  beach: "outdoor ambience",
-  outdoor: "outdoor ambience",
-};
-
+//
+// RECOVERY phase 3 — this used to be a substring lookup over spatial_setup, and it shipped two
+// physically impossible ambiences: "small white towel" matched "mall" and put MALL REVERB in a
+// boutique pilates studio (Day 92), and "no parked cars" matched "car" and put CAR CABIN AMBIENCE
+// on an open El Born sidewalk (Day 90). It now resolves the scene's LOCATION CLASS (word-boundary
+// matching, negated clauses stripped — see lib/sceneSemantics.ts) and takes the ambience the class
+// actually allows, which is the same table lib/promptDirector/semanticValidator.ts validates
+// against, so the generator and the check can never drift apart.
 export function buildAudioSection(input: PromptDirectorInput): string[] {
-  const lines = ["smartphone microphone"];
-  const spatialLower = input.sceneBrief.spatial_setup.toLowerCase();
-  const match = Object.entries(AMBIENCE_HINTS).find(([key]) => spatialLower.includes(key));
-  lines.push(match ? match[1] : "natural room tone");
-  lines.push("no artificial studio polish");
-  return cleanList(lines);
+  const locationClass = classifyLocation(
+    [input.sceneBrief.spatial_setup, ...(input.sceneBrief.location_constraints ?? [])].filter(Boolean).join(" ")
+  );
+  return cleanList([
+    "smartphone microphone",
+    ambiencePhraseForLocation(locationClass),
+    "no artificial studio polish",
+  ]);
 }
 
 // §9/§26 — VIDEO STABILITY, positive-phrased instruction form (the same facts also feed the
