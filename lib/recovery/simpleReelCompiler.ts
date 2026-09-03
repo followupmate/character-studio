@@ -171,9 +171,13 @@ export function compileSimpleReel(input: SimpleReelInput): SimpleReelPrompt {
 
   // The eye-contact beat is the whole retention mechanism and it is FIRST, not eventual. Day 78's
   // 6.02s came from a viewer being looked at inside the first second.
+  // The opening clause states where her gaze starts — off camera — because the eye-contact beat
+  // only reads as a beat if there is somewhere for the eyes to come FROM. An openingState that
+  // already says where she is looking supplies its own, so we do not stack two gaze clauses.
+  const gazeAlreadyStated = /\blook(?:ing|s)?\b|\bgaze\b/i.test(openingState);
   const prompt = [
     FRAMING_TEXT[framing],
-    `She starts ${openingState}, looking just off camera.`,
+    gazeAlreadyStated ? `She starts ${openingState}.` : `She starts ${openingState}, looking just off camera.`,
     "Within the first second her eyes find the lens and stay there.",
     `${action.charAt(0).toUpperCase()}${action.slice(1)}.`,
     "She holds the look.",

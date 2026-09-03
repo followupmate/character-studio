@@ -42,6 +42,14 @@ describe("compileSimpleReel", () => {
     }
   });
 
+  it("never stacks two gaze clauses in the opening line", () => {
+    const out = compileFirestarterReel(scene(78));
+    expect(out.prompt).toMatch(/looking away to one side\./);
+    expect(out.prompt).not.toMatch(/looking away to one side, looking just off camera/);
+    // and the default path still states where the gaze starts
+    expect(compileSimpleReel(scene(78)).prompt).toMatch(/looking just off camera/);
+  });
+
   it("puts the eye-contact beat inside the first second", () => {
     const out = compileSimpleReel(scene(78));
     expect(out.prompt).toMatch(/Within the first second her eyes find the lens/);

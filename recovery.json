@@ -1,0 +1,93 @@
+{
+  "$comment": "RECOVERY sprint config. The decision rule below is registered BEFORE the sprint runs, on purpose — a rule written after the numbers arrive is a rule that bends to the numbers. Post IDs are filled in by hand as each reel is published manually from mobile with trending audio; /api/recovery/report reads them from here.",
+  "version": 1,
+  "created": "2026-09-03",
+  "account": "@vivienne.mov",
+
+  "protocol": {
+    "publishing": "MANUAL from mobile, with trending audio. The Graph API cannot attach trending or licensed audio, so the pipeline deliberately stops at status 'ready'. During a recovery sprint that is an advantage, not a limitation: trending audio is a distribution lever auto-publish does not have.",
+    "time_slot": "Same hour +/- 30 min for all five reels. Publishing time is NOT a tested variable in this sprint.",
+    "cadence": "4-5 reels per week, not daily.",
+    "stories": "Unchanged. Stories keep running in normal mode to hold follower touch while reel cadence is reduced. They are not part of this test.",
+    "one_variable": "Only the motion/prompt layer changes. Captions, publishing time, styling and hashtags stay exactly as they are.",
+    "auto_publish": false,
+    "qa_gate": "Every reel passes the first-frame QA gate before approval: measured duration inside 5.5-7.5s (automatic, server-side), plus three manual checks — face/movement visible in frame 0, eye contact by 1.5s, no slow establishing shot."
+  },
+
+  "baseline": {
+    "$comment": "The average of the 20.8.-1.9. window, which is what 'did this work' is measured against.",
+    "window": "2026-08-20..2026-09-01",
+    "avg_watch_time_sec": 2.9,
+    "views_24h": 120
+  },
+
+  "decision_rule": {
+    "primary_kpi": {
+      "metric": "avg_watch_time_sec",
+      "threshold_sec": 4.5,
+      "horizon": "7d",
+      "fallback_horizon": "72h",
+      "$comment": "Watch time is the only metric in this account's data that correlates with reach: every post above 4.5s has 250+ views, every post below 3s has under 180."
+    },
+    "secondary_kpi": ["saves", "shares"],
+    "context_only": {
+      "metrics": ["views", "reach"],
+      "$comment": "Views are context, never the decision. Across a 47-242 range they are noise at n=1."
+    },
+    "branches": [
+      {
+        "reels_at_or_above_threshold": ">=2",
+        "verdict": "The direction works.",
+        "action": "Continue with the simple compiler. Widen the motifs gradually. CI_SCORING_FROZEN stays true for a further 14 days."
+      },
+      {
+        "reels_at_or_above_threshold": "1",
+        "verdict": "Inconclusive.",
+        "action": "Extend the sprint by 3 more reels in the strongest direction. Change nothing else."
+      },
+      {
+        "reels_at_or_above_threshold": "0",
+        "verdict": "The prompt layer was not the (only) problem.",
+        "action": "Next tested variable is the VISUAL MOTIF layer (summer / pool / sea / living social scenes — the approved reference direction), still through the simple compiler. One variable again."
+      }
+    ]
+  },
+
+  "reels": [
+    {
+      "slot": 1,
+      "direction": "intimate / private + light motion",
+      "note": "firestarter",
+      "platform_post_id": null,
+      "posted_at": null
+    },
+    {
+      "slot": 2,
+      "direction": "wellness + gesture",
+      "note": null,
+      "platform_post_id": null,
+      "posted_at": null
+    },
+    {
+      "slot": 3,
+      "direction": "living social / candid moment",
+      "note": null,
+      "platform_post_id": null,
+      "posted_at": null
+    },
+    {
+      "slot": 4,
+      "direction": "intimate variant — a second read on #1",
+      "note": "variation on #1, adjusted to its result",
+      "platform_post_id": null,
+      "posted_at": null
+    },
+    {
+      "slot": 5,
+      "direction": "challenger — free attempt outside the three directions",
+      "note": null,
+      "platform_post_id": null,
+      "posted_at": null
+    }
+  ]
+}
