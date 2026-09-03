@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Image from "next/image";
+import { FirstFrameQaGate, QA_CHECKS, type QaCheckId } from "@/components/review/FirstFrameQaGate";
 
 /* ─── Lightbox ───────────────────────────────────────────────── */
 function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
@@ -204,12 +205,26 @@ function ReviewBatchCard({ batch, today, onApprove, onSkip }: {
   const [storyOpen, setStoryOpen]   = useState(false);
   const [loading, setLoading]       = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  // RECOVERY phase 4 — the manual half of the first-frame QA gate. All three checks must be ticked
+  // before this batch can be approved; no recovery reel is auto-published.
+  const [qaChecked, setQaChecked]   = useState<Set<QaCheckId>>(new Set());
 
   const arcCls = arcColors[storyDay.arc_position ?? ""] ?? "text-muted2 border-border2";
   const alreadyQueued = existingPosts.length > 0;
 
   const readyCount = media.filter((m) => m.generation_status === "completed" && m.media_url).length;
   const totalCount = media.length;
+
+  const reelVideo = media.find((m) => m.slot === "reel_video" && m.type === "video" && m.media_url);
+  const qaRequired = !!reelVideo;
+  const qaPassed = !qaRequired || QA_CHECKS.every((c) => qaChecked.has(c.id));
+  const toggleQa = (id: QaCheckId) =>
+    setQaChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const handleApprove = async () => {
     setLoading(true);
@@ -363,6 +378,13 @@ function ReviewBatchCard({ batch, today, onApprove, onSkip }: {
         </div>
       </div>
 
+      {/* First-frame QA gate (reel days only) */}
+      {reelVideo?.media_url && (
+        <div className="px-5 pb-3">
+          <FirstFrameQaGate videoUrl={reelVideo.media_url} checked={qaChecked} onToggle={toggleQa} />
+        </div>
+      )}
+
       {/* Actions */}
       <div className="px-5 py-3 flex items-center gap-3 justify-end">
         <motion.button
@@ -382,10 +404,11 @@ function ReviewBatchCard({ batch, today, onApprove, onSkip }: {
         ) : (
           <motion.button
             onClick={handleApprove}
-            disabled={loading}
+            disabled={loading || !qaPassed}
+            title={!qaPassed ? "Odškrtni všetky tri QA body — bez nich sa reel neschvaľuje" : undefined}
             className="font-mono text-[10px] uppercase tracking-[0.05em] bg-accent/10 border border-accent/30 text-accent px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            whileHover={!loading ? { backgroundColor: "rgba(74,158,255,0.2)" } : {}}
-            whileTap={!loading ? { scale: 0.97 } : {}}
+            whileHover={!loading && qaPassed ? { backgroundColor: "rgba(74,158,255,0.2)" } : {}}
+            whileTap={!loading && qaPassed ? { scale: 0.97 } : {}}
           >
             {loading ? (
               <>

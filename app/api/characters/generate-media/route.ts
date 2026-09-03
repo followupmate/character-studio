@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { probeVideoDuration, evaluateDurationGate } from "@/lib/recovery/videoDuration";
+import { REEL_DURATION_GATE } from "@/lib/recovery/simpleReelCompiler";
 import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
 import { generateSoulImage, soulConfigured, FALLBACK_SOUL_ID } from "@/lib/higgsfieldSoul";
@@ -22,6 +24,12 @@ const SLOT_IMAGE_SIZE: Record<string, { width: number; height: number }> = {
 };
 
 const VIDEO_SLOTS = new Set(["reel_video"]);
+
+// RECOVERY phase 4 — first-frame QA gate. Watch time is decided in the first two seconds, and a
+// reel that is the wrong length cannot be judged against the 6-7s shape at all. Nothing reaches
+// status "ready" without its real duration being measured (see lib/recovery/videoDuration.ts —
+// MP4 mvhd header, no ffmpeg, ranged fetch).
+const REEL_TARGET_DURATION_SEC = 6;
 
 // Provider binding (prompt_director_v1): when the caller leaves `model` at its "auto" default, an
 // explicit provider chosen by Prompt Director (persisted at chs_media.visual_signature.
@@ -243,7 +251,12 @@ async function generateWithVeo(
   googleKey: string,
   mediaId: string,
   startFrameUrl: string | null,
-  modelId = VEO_MODEL_DEFAULT
+  modelId = VEO_MODEL_DEFAULT,
+  // RECOVERY phase 4 — was hardcoded to 8s. The recovery band is 6-7s (the two best-performing
+  // reels in the window were 6s and 7s), and Veo accepts 4/6/8, so 6 is both the target and
+  // achievable. Veo is the only provider wired here that can hit the band at all: Kling and
+  // Seedance only accept "5" or "10".
+  durationSeconds = REEL_TARGET_DURATION_SEC
 ): Promise<string> {
   const cleanPrompt = sanitizePrompt(stripPromptHeader(scenePrompt));
 
@@ -273,7 +286,7 @@ async function generateWithVeo(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         instances: [instance],
-        parameters: { aspectRatio: "9:16", durationSeconds: 8 },
+        parameters: { aspectRatio: "9:16", durationSeconds },
       }),
     }
   );
@@ -917,6 +930,29 @@ export async function POST(req: Request) {
         const urlToSave = mediaUrl.includes("supabase.co/storage")
           ? `${mediaUrl.split("?")[0]}?t=${Date.now()}`
           : mediaUrl;
+
+        // RECOVERY phase 4 — automatic half of the first-frame QA gate. A video outside the
+        // 5.5-7.5s band never reaches "ready"; the row keeps its media_url so the operator can
+        // watch it and see what came back, but it stays out of the approve/publish path. An
+        // unreadable duration is a failure too — the point is that nothing ships unverified.
+        if (isVideoSlot) {
+          const probe = await probeVideoDuration(urlToSave);
+          const gate = evaluateDurationGate(probe.durationSec, REEL_DURATION_GATE, probe.error);
+          if (!gate.ok) {
+            const msg = `QA gate: ${gate.reason}`;
+            await supabase
+              .from("chs_media")
+              .update({
+                media_url: urlToSave,
+                source_url: urlToSave,
+                generation_status: "failed",
+                status: "pending",
+                last_error: msg,
+              })
+              .eq("id", media.id);
+            return { mediaId: media.id, slot: media.slot, provider, success: false, url: urlToSave, error: msg };
+          }
+        }
 
         await supabase
           .from("chs_media")
