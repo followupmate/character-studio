@@ -5,6 +5,8 @@ import { requireCron } from "@/lib/apiAuth";
 import { getIgAccessToken } from "@/lib/igToken";
 import { resolveCycleState, buildKeysetFilter, resolveBatchSize, CursorRow } from "@/lib/importInsightsCursor";
 import { captureMaturedSnapshots } from "@/lib/creativeIntelligence/performanceSnapshots";
+import { deriveWatchMetrics, msToSec, WATCH_METRIC_KEYS as WATCH_KEYS } from "@/lib/creativeIntelligence/watchMetrics";
+import { probeVideoDuration } from "@/lib/recovery/videoDuration";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -50,9 +52,11 @@ const CURSOR_ID = "default";
 // They are therefore deliberately left unmapped for reels rather than filled with a heuristic or
 // an account-level number that cannot be attributed to a single post.
 //
-// Also confirmed available on REELS but deliberately NOT mapped (pending an explicit decision):
-//   ig_reels_video_view_total_time — total watch time in ms (real value 130595 for a 59-view reel).
+// ig_reels_video_view_total_time — total watch time in ms (real value 130595 for a 59-view reel).
+// APPROVED 2026-09-03 and now requested in the richest set above. Collected and displayed only:
+// it does not feed calculateGrowthScore or any selection path.
 const REEL_METRIC_SETS = [
+  "views,reach,likes,comments,saved,shares,total_interactions,ig_reels_avg_watch_time,ig_reels_video_view_total_time",
   "views,reach,likes,comments,saved,shares,total_interactions,ig_reels_avg_watch_time",
   "views,reach,likes,comments,saved,shares,total_interactions",
   "views,reach,likes,comments,saved,shares",
@@ -78,6 +82,11 @@ interface IgInsightsResponse {
 interface FetchedMetrics extends GrowthMetrics {
   total_interactions?: number;
   avg_watch_time_sec?: number;
+  // Approved 2026-09-03. Raw retention metric, reels only. Collected and displayed; deliberately
+  // NOT consumed by calculateGrowthScore or any selection path — see
+  // lib/creativeIntelligence/watchMetrics.test.ts, which asserts the score is unchanged when the
+  // key is present.
+  video_view_total_time_sec?: number;
 }
 
 // RECOVERY phase 1B — repeatable metric discovery. Meta renames and re-scopes media metrics
@@ -159,7 +168,9 @@ async function fetchInsights(mediaId: string, token: string, metricSets: string[
           // ig_reels_avg_watch_time is returned in milliseconds (confirmed empirically:
           // real value 8452 for an 8-9s reel) — stored in seconds for a human-readable unit
           // consistent with how duration_sec is used elsewhere (e.g. lib/klingProvider.ts).
-          avg_watch_time_sec: raw.ig_reels_avg_watch_time !== undefined ? raw.ig_reels_avg_watch_time / 1000 : undefined,
+          avg_watch_time_sec: msToSec(raw.ig_reels_avg_watch_time),
+          // Also milliseconds (verified empirically: 130595 for a 59-view reel).
+          video_view_total_time_sec: msToSec(raw.ig_reels_video_view_total_time),
         },
       };
     }
@@ -237,6 +248,46 @@ export async function GET(req: Request) {
     // doesn't return for this media type) never overwrites a real stored value with 0/absence.
     const cleaned = Object.fromEntries(Object.entries(metrics).filter(([, v]) => v !== undefined));
     const merged = { ...(post.engagement as Record<string, unknown> ?? {}), ...cleaned };
+
+    // DERIVED RETENTION (approved 2026-09-03) — actual_video_duration_sec + avg_watch_ratio.
+    //
+    // Meta exposes no duration field on the media object (probed: `duration` and `video_duration`
+    // both return "Tried accessing nonexisting field"), so the duration is measured from the
+    // PUBLISHED reel file itself via the media_url CDN link — which is the right source anyway:
+    // reels are published manually from mobile with trending audio, so what viewers actually
+    // watched is the published file, not what we handed the provider.
+    //
+    // Measured once per post and cached in engagement: probing is a ranged fetch per post, and the
+    // published file's length does not change. An existing value short-circuits the probe.
+    const existingDuration = (post.engagement as Record<string, unknown> | null)?.[WATCH_KEYS.actualDuration];
+    let actualDurationSec: number | null =
+      typeof existingDuration === "number" && existingDuration > 0 ? existingDuration : null;
+    if (actualDurationSec === null && post.post_type === "reel") {
+      const mediaRes = await fetch(
+        `https://graph.instagram.com/v23.0/${post.platform_post_id}?fields=media_url&access_token=${token}`
+      );
+      const mediaJson = (await mediaRes.json().catch(() => ({}))) as { media_url?: string };
+      if (mediaJson.media_url) {
+        const probe = await probeVideoDuration(mediaJson.media_url);
+        actualDurationSec = probe.durationSec;
+        if (debugRaw) {
+          console.log(
+            `[import-insights][debug_raw] ${post.platform_post_id} published duration probe: ` +
+              `${probe.durationSec ?? "unreadable"}${probe.error ? ` (${probe.error})` : ""}`
+          );
+        }
+      }
+    }
+
+    // Absent stays absent: deriveWatchMetrics returns {} rather than zeros when it has nothing.
+    Object.assign(
+      merged,
+      deriveWatchMetrics({
+        avgWatchTimeSec: merged.avg_watch_time_sec as number | undefined,
+        totalWatchTimeSec: merged.video_view_total_time_sec as number | undefined,
+        actualDurationSec,
+      })
+    );
     const score = calculateGrowthScore(merged as GrowthMetrics);
     const { error: upErr } = await supabase
       .from("chs_posts")

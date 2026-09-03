@@ -10,11 +10,12 @@ import { validateSceneCoherence, type SemanticValidationResult } from "@/lib/pro
 // The rule is one line: ONE SITUATION -> ONE IMMEDIATELY READABLE ACTION -> ONE MICRO-REWARD
 // INSIDE 2–3 SECONDS.
 //
-// The reference shape is Day 78 (watch 6.02s, the best reel in the window):
+// The reference shape is Day 78 (measured: 6.28s average watch on an 8.13s file, ratio 0.772 —
+// the best reel in the window on both):
 //   a woman sits on a bed -> her gaze drops -> her eyes come back to the lens -> she touches the
 //   chain at her collarbone -> loop.
-// That is the entire prompt. Not fifteen rules on top of it. Day 76 (watch 5.01s) has the same
-// shape. What the collapsed reels have instead is a stack of layers — depth doctrine, generic
+// That is the entire prompt. Not fifteen rules on top of it. Day 76 (4.92s / 8.13s, ratio 0.605)
+// and Day 71 (6.36s / 8.13s, ratio 0.783) have the same shape. What the collapsed reels have instead is a stack of layers — depth doctrine, generic
 // micro-motion, physics, environment boilerplate, audio boilerplate, a framing block full of
 // internal workflow language — and one action buried inside it, or three offered as alternatives.
 //
@@ -25,6 +26,30 @@ import { validateSceneCoherence, type SemanticValidationResult } from "@/lib/pro
 
 export const REEL_DURATION_MIN_SEC = 6;
 export const REEL_DURATION_MAX_SEC = 7;
+
+// DURATION — measured, not assumed.
+//
+// The 6-7s band comes from the sprint spec, which was written before anyone measured the actual
+// published files. Having now measured all 24 (MP4 mvhd via the published CDN url), the band is
+// tighter than it looks against the 4.5s watch-time KPI:
+//
+//   to reach 4.5s avg watch you need a watch ratio of      historically achieved by
+//     0.750  at 6.0s                                        2 / 24 reels
+//     0.643  at 7.0s                                        3 / 24 reels
+//     0.554  at 8.13s                                       7 / 24 reels
+//
+//   observed ratio range on this account: 0.295 - 0.783 (median 0.458)
+//
+// And the hard version of the same fact: of the nine published reels that were ~5.2s long, NOT ONE
+// ever reached 4.5s watch — the maximum was 3.10s. All four reels that cleared the threshold were
+// 8.1s files. Duration was never a creative decision; it was whichever provider happened to run
+// (Kling "5", Veo 8, Seedance "10").
+//
+// So within the approved band the default is the TOP of it. This is not padding a video to hit a
+// number — each day's duration is set from its own beat count, and the two-beat days stay at 6s.
+// Whether the band itself should move to ~8s is a decision for the operator, not for this file:
+// see docs/RECOVERY-REELS.md.
+export const REEL_DEFAULT_DURATION_SEC = 7;
 /** The QA gate's tolerance around the requested duration — providers are not sample-accurate. */
 export const REEL_DURATION_GATE = { minSec: 5.5, maxSec: 7.5 };
 
@@ -153,7 +178,7 @@ export function deriveOpeningState(brief: SceneBriefJson, semantics: SceneSemant
  * layer the model has to read past before it reaches the action.
  */
 export function compileSimpleReel(input: SimpleReelInput): SimpleReelPrompt {
-  const durationSec = input.durationSec ?? REEL_DURATION_MIN_SEC;
+  const durationSec = input.durationSec ?? REEL_DEFAULT_DURATION_SEC;
   if (durationSec < REEL_DURATION_MIN_SEC || durationSec > REEL_DURATION_MAX_SEC) {
     throw new Error(
       `Recovery reel duration must be ${REEL_DURATION_MIN_SEC}–${REEL_DURATION_MAX_SEC}s, got ${durationSec}s`
@@ -218,7 +243,7 @@ export function compileFirestarterReel(input: Omit<SimpleReelInput, "action" | "
   const base = compileSimpleReel({
     ...input,
     framing: input.framing ?? "close_medium",
-    durationSec: input.durationSec ?? 6,
+    durationSec: input.durationSec ?? REEL_DEFAULT_DURATION_SEC,
     openingState: "close to the lens, looking away to one side",
     action: "a very slight asymmetric smile starts, and her hand comes up to adjust a strand of hair and the thin gold chain at her collarbone",
   });

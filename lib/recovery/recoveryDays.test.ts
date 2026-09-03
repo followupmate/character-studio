@@ -38,9 +38,39 @@ describe("the five prepared recovery days", () => {
     }
   });
 
-  it("no two of the five open on the same beat — this is a five-point test, not one shot repeated", () => {
+  it("no two of the five open on the same beat, apart from the deliberate #1/#4 pair", () => {
     const actions = compiled.map((c) => c.compiled.action);
     expect(new Set(actions).size).toBeGreaterThan(1);
+  });
+
+  it("#4 repeats #1's beat on purpose — that pair is the same-register comparison", () => {
+    const four = compiled.find((c) => c.slot === 4)!;
+    const one = compiled.find((c) => c.slot === 1)!;
+    expect(four.compiled.action).toMatch(/thin gold chain at her collarbone/);
+    expect(one.compiled.action).toMatch(/thin gold chain at her collarbone/);
+    // ...but in a different room and a different light, which is what makes it a second READ
+    expect(four.brief.location_class).not.toBe(one.brief.location_class);
+  });
+
+  it("every day's stated payoff matches the beat that actually compiled", () => {
+    // The doc table prints `payoff` next to `compiled.action`; if the action bank rotates and the
+    // prose does not follow, the review document quietly describes a reel nobody is making.
+    const mustAppearInAction: Record<number, RegExp> = {
+      1: /asymmetric smile|gold chain/,
+      2: /strand of hair/,
+      3: /cup|sip/,
+      4: /gold chain/,
+      5: /hand out of the water|out of the water/,
+    };
+    for (const c of compiled) {
+      expect(c.compiled.action, `day ${c.slot}: "${c.payoff}" vs "${c.compiled.action}"`).toMatch(
+        mustAppearInAction[c.slot]
+      );
+    }
+  });
+
+  it("durations are set per beat count, and the two-beat days stay at 6s", () => {
+    expect(compiled.map((c) => c.compiled.durationSec)).toEqual([7, 6, 7, 6, 7]);
   });
 
   it("only the café day names an object, and that object is in its own brief", () => {

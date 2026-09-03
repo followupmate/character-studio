@@ -57,9 +57,12 @@ describe("compileSimpleReel", () => {
 
   it("declares one duration in the 6–7s band and states the loop", () => {
     const out = compileSimpleReel(scene(78));
-    expect(out.prompt).toMatch(/\b6s, vertical 9:16\.$/);
+    // The default is the TOP of the approved band: at 6s, clearing the 4.5s watch-time KPI needs a
+    // ratio only 2 of 24 published reels ever reached; at 7s, 3 of 24. See the DURATION note.
+    expect(out.durationSec).toBe(7);
+    expect(out.prompt).toMatch(/\b7s, vertical 9:16\.$/);
     expect(out.prompt).toMatch(/loops seamlessly/);
-    expect(compileSimpleReel({ ...scene(78), durationSec: 7 }).prompt).toMatch(/\b7s,/);
+    expect(compileSimpleReel({ ...scene(78), durationSec: 6 }).prompt).toMatch(/\b6s,/);
   });
 
   it("rejects a duration outside the band rather than silently clamping it", () => {
@@ -155,7 +158,7 @@ describe("firestarter (Reel 1)", () => {
     expect(out.prompt).toMatch(/strand of hair and the thin gold chain/);
     expect(out.prompt).toMatch(/She holds the look/);
     expect(out.prompt).toMatch(/loops seamlessly/);
-    expect(out.prompt).toMatch(/6s, vertical 9:16/);
+    expect(out.prompt).toMatch(/7s, vertical 9:16/);
   });
 
   it("is close-medium and passes validation clean", () => {

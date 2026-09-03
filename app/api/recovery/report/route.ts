@@ -38,17 +38,23 @@ export async function GET(req: Request) {
   const postIds = config.reels.map((r) => r.platform_post_id).filter((id): id is string => !!id);
 
   const snapshotsByPostId = new Map<string, SnapshotRow[]>();
+  const engagementByPostId = new Map<string, Record<string, unknown>>();
 
   if (postIds.length > 0) {
     // recovery.json stores the INSTAGRAM media id (that is what the operator can read off the app
     // after a manual publish); snapshots are keyed by our own chs_posts.id, so resolve across.
     const { data: posts, error: postsErr } = await supabase
       .from("chs_posts")
-      .select("id, platform_post_id")
+      .select("id, platform_post_id, engagement")
       .in("platform_post_id", postIds);
     if (postsErr) return NextResponse.json({ error: postsErr.message }, { status: 500 });
 
     const platformIdByPostId = new Map((posts ?? []).map((p) => [p.id as string, p.platform_post_id as string]));
+    // Watch-retention lives in chs_posts.engagement (jsonb) — the snapshot table has no columns
+    // for it and adding them is DDL, which this sprint does not do.
+    for (const p of posts ?? []) {
+      engagementByPostId.set(p.platform_post_id as string, (p.engagement as Record<string, unknown>) ?? {});
+    }
 
     if (platformIdByPostId.size > 0) {
       const { data: snaps, error: snapErr } = await supabase
@@ -70,7 +76,7 @@ export async function GET(req: Request) {
     }
   }
 
-  const report = buildRecoveryReport(config, snapshotsByPostId);
+  const report = buildRecoveryReport(config, snapshotsByPostId, engagementByPostId);
 
   if (url.searchParams.get("format") === "text") {
     return new NextResponse(renderRecoveryReport(report), {

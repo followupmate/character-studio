@@ -7,6 +7,8 @@
 //
 // Pure — no Supabase, no fetch. The route (app/api/recovery/report/route.ts) does the fetching.
 
+import { formatWatchSummary } from "@/lib/creativeIntelligence/watchMetrics";
+
 export interface RecoveryConfigReel {
   slot: number;
   direction: string;
@@ -39,6 +41,20 @@ export interface SnapshotRow {
   profile_visits: number | null;
 }
 
+/**
+ * Watch-retention block, read from chs_posts.engagement (jsonb) rather than from the snapshot
+ * table — chs_post_performance_snapshots has no columns for these and adding them is DDL, which
+ * this sprint does not do. See docs/MIGRATION-PROPOSAL-watch-retention.md for the migration that
+ * would move them into the snapshot horizons properly.
+ */
+export interface WatchRetention {
+  avg_watch_time_sec: number | null;
+  video_view_total_time_sec: number | null;
+  actual_video_duration_sec: number | null;
+  avg_watch_ratio: number | null;
+  avg_watch_ratio_exceeds_one: boolean;
+}
+
 export interface ReelReport {
   slot: number;
   direction: string;
@@ -46,6 +62,8 @@ export interface ReelReport {
   postedAt: string | null;
   status: "not_published" | "awaiting_data" | "measured";
   snapshots: { "24h": SnapshotRow | null; "72h": SnapshotRow | null; "7d": SnapshotRow | null };
+  /** Collect-and-display only — never part of the threshold test or any scoring. */
+  watch: WatchRetention;
   /** The watch time the KPI is judged on, and which horizon it came from. */
   kpiWatchTimeSec: number | null;
   kpiHorizonUsed: "7d" | "72h" | null;
@@ -72,10 +90,24 @@ function pickHorizon(rows: SnapshotRow[], horizon: string): SnapshotRow | null {
   return rows.find((r) => r.horizon === horizon) ?? null;
 }
 
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+export function readWatchRetention(engagement: Record<string, unknown> | null | undefined): WatchRetention {
+  const e = engagement ?? {};
+  return {
+    avg_watch_time_sec: num(e.avg_watch_time_sec),
+    video_view_total_time_sec: num(e.video_view_total_time_sec),
+    actual_video_duration_sec: num(e.actual_video_duration_sec),
+    avg_watch_ratio: num(e.avg_watch_ratio),
+    avg_watch_ratio_exceeds_one: e.avg_watch_ratio_exceeds_one === true,
+  };
+}
+
 export function buildReelReport(
   reel: RecoveryConfigReel,
   rows: SnapshotRow[],
-  config: RecoveryConfig
+  config: RecoveryConfig,
+  engagement?: Record<string, unknown> | null
 ): ReelReport {
   const snapshots = {
     "24h": pickHorizon(rows, "24h"),
@@ -115,6 +147,7 @@ export function buildReelReport(
     postedAt: reel.posted_at,
     status,
     snapshots,
+    watch: readWatchRetention(engagement),
     kpiWatchTimeSec,
     kpiHorizonUsed,
     meetsThreshold: kpiWatchTimeSec === null ? null : kpiWatchTimeSec >= threshold_sec,
@@ -139,10 +172,16 @@ export function selectBranch(config: RecoveryConfig, atOrAboveThreshold: number)
 
 export function buildRecoveryReport(
   config: RecoveryConfig,
-  snapshotsByPostId: Map<string, SnapshotRow[]>
+  snapshotsByPostId: Map<string, SnapshotRow[]>,
+  engagementByPostId?: Map<string, Record<string, unknown>>
 ): RecoveryReport {
   const reels = config.reels.map((reel) =>
-    buildReelReport(reel, reel.platform_post_id ? (snapshotsByPostId.get(reel.platform_post_id) ?? []) : [], config)
+    buildReelReport(
+      reel,
+      reel.platform_post_id ? (snapshotsByPostId.get(reel.platform_post_id) ?? []) : [],
+      config,
+      reel.platform_post_id ? engagementByPostId?.get(reel.platform_post_id) : null
+    )
   );
 
   const published = reels.filter((r) => r.status !== "not_published").length;
@@ -214,6 +253,7 @@ export function renderRecoveryReport(report: RecoveryReport): string {
           `follows ${s.follows ?? "—"} · visits ${s.profile_visits ?? "—"}`
       );
     }
+    lines.push(`   retention  ${formatWatchSummary(r.watch)}${r.watch.avg_watch_ratio_exceeds_one ? "  [ratio > 1 — replays, not an error]" : ""}`);
     if (r.kpiWatchTimeSec === null) {
       lines.push("   KPI: awaiting data");
     } else {

@@ -124,6 +124,37 @@ describe("recovery report", () => {
     for (let n = 0; n <= 5; n++) expect(selectBranch(CONFIG, n), `n=${n}`).not.toBeNull();
   });
 
+  it("carries the watch-retention block through from engagement, display-only", () => {
+    const { config, map } = scenario(1, 1, 5.2);
+    const engagement = new Map<string, Record<string, unknown>>([
+      ["ig_1", { avg_watch_time_sec: 5.2, video_view_total_time_sec: 900.5, actual_video_duration_sec: 7, avg_watch_ratio: 0.743 }],
+    ]);
+    const r = buildRecoveryReport(config, map, engagement).reels[0];
+    expect(r.watch.actual_video_duration_sec).toBe(7);
+    expect(r.watch.avg_watch_ratio).toBe(0.743);
+    expect(r.watch.video_view_total_time_sec).toBe(900.5);
+    expect(r.watch.avg_watch_ratio_exceeds_one).toBe(false);
+    // the ratio is NOT part of the threshold test — the KPI is still avg watch time
+    expect(r.meetsThreshold).toBe(true);
+  });
+
+  it("surfaces a ratio above 1 as a replay signal rather than hiding or clamping it", () => {
+    const { config, map } = scenario(1, 1, 5.2);
+    const engagement = new Map<string, Record<string, unknown>>([
+      ["ig_1", { avg_watch_time_sec: 8.4, actual_video_duration_sec: 7, avg_watch_ratio: 1.2, avg_watch_ratio_exceeds_one: true }],
+    ]);
+    const report = buildRecoveryReport(config, map, engagement);
+    expect(report.reels[0].watch.avg_watch_ratio).toBe(1.2);
+    expect(report.reels[0].watch.avg_watch_ratio_exceeds_one).toBe(true);
+    expect(renderRecoveryReport(report)).toMatch(/ratio > 1 — replays, not an error/);
+  });
+
+  it("renders retention as em dashes when nothing was measured", () => {
+    const { config, map } = scenario(1, 1);
+    const text = renderRecoveryReport(buildRecoveryReport(config, map));
+    expect(text).toMatch(/retention\s+watch — \/ dur — = ratio — · total watch —/);
+  });
+
   it("renders a readable standup block", () => {
     const { config, map } = scenario(5, 3);
     const text = renderRecoveryReport(buildRecoveryReport(config, map));
