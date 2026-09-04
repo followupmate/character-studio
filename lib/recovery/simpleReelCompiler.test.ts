@@ -3,6 +3,7 @@ import {
   compileFirestarterReel,
   compileRecoveryStartFrame,
   compileSimpleReel,
+  START_FRAME_FRAMING_NEGATIVES,
   deriveAction,
   REEL_DURATION_MAX_SEC,
 } from "@/lib/recovery/simpleReelCompiler";
@@ -183,28 +184,41 @@ describe("compileRecoveryStartFrame", () => {
     // lines, and Soul 2 returned a full-body shot with a small face — the slow-establishing
     // failure the recovery shape exists to avoid.
     const p = compileRecoveryStartFrame({ sceneBrief: brief });
-    expect(p.startsWith("Vertical 9:16 CLOSE-MEDIUM portrait:")).toBe(true);
-    expect(p.trimEnd().endsWith("Do not show the legs, the feet or the full body.")).toBe(true);
-    expect(p).toMatch(/cropped at the waist/);
-    expect(p).toMatch(/face large in the upper third/);
+    expect(p.startsWith("Vertical 9:16 CHEST-UP portrait:")).toBe(true);
+    expect(p.trimEnd().endsWith("No hips, no legs, no knees, no lower legs, no feet.")).toBe(true);
+    expect(p).toMatch(/framed from just below the chest/);
+    // stated as a proportion, not a label a model can satisfy loosely
+    expect(p).toMatch(/fills roughly the top third of the frame/);
+    expect(p).toMatch(/eyes sharp, clearly readable at phone size/);
   });
 
   it("demotes the location to background instead of letting it dominate", () => {
     const p = compileRecoveryStartFrame({ sceneBrief: brief });
-    expect(p).toMatch(/Behind her, soft and secondary:/);
+    expect(p).toMatch(/Soft, out-of-focus background context only:/);
     // and the crop instruction comes before the room description, not after it
-    expect(p.indexOf("CLOSE-MEDIUM")).toBeLessThan(p.indexOf("Behind her"));
+    expect(p.indexOf("CHEST-UP")).toBeLessThan(p.indexOf("background context only"));
+  });
+
+  it("keeps the seated posture readable — the motion prompt animates from a seated pose", () => {
+    const p = compileRecoveryStartFrame({ sceneBrief: brief });
+    expect(p).toMatch(/seated posture still reads/);
   });
 
   it("crops tighter still for the `close` framing", () => {
     const p = compileRecoveryStartFrame({ sceneBrief: brief, framing: "close" });
     expect(p).toMatch(/head and shoulders fill the frame/);
-    expect(p).toMatch(/Do not show the waist, the legs or the full body\.$/);
+    expect(p).toMatch(/No waist, no hips, no legs, no knees, no feet\.$/);
+  });
+
+  it("names every lower-body part in the negatives, not just 'full body'", () => {
+    for (const part of ["legs visible", "knees visible", "lower legs", "thighs visible", "feet visible"]) {
+      expect(START_FRAME_FRAMING_NEGATIVES).toContain(part);
+    }
   });
 
   it("states only scene, wardrobe, light and pose — no boilerplate, no identity paragraph", () => {
     const p = compileRecoveryStartFrame({ sceneBrief: brief });
-    expect(p).toMatch(/Wearing:/);
+    expect(p).toMatch(/Wearing \(upper body only in frame\):/);
     expect(p).toMatch(/Light:/);
     for (const banned of [/DEPTH & COMPOSITION/i, /identity anchor/i, /CRITICAL/i, /Kling/i, /Seedance/i, /Vivienne/i]) {
       expect(p).not.toMatch(banned);

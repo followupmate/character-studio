@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { probeVideoDuration, evaluateDurationGate } from "@/lib/recovery/videoDuration";
-import { REEL_DURATION_GATE } from "@/lib/recovery/simpleReelCompiler";
+import { REEL_DURATION_GATE } from "@/lib/recovery/reelDuration";
+import {
+  attemptableProviders,
+  noProviderAvailableReason,
+  planRecoveryVideoProviders,
+  type ProviderProvenance,
+  type RecoveryVideoProvider,
+} from "@/lib/recovery/videoProviders";
+import { generateKlingVideo } from "@/lib/klingProvider";
 import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
 import { generateSoulImage, soulConfigured, FALLBACK_SOUL_ID } from "@/lib/higgsfieldSoul";
@@ -624,6 +632,21 @@ async function generateWithSeedance(
 // serverless time budget.
 const TRANSIENT_ERROR = /(\b(429|500|502|503|504)\b|timed?\s?out|ECONNRESET|ETIMEDOUT|fetch failed|socket|network|UNAVAILABLE|overloaded|rate.?limit)/i;
 
+// Downloads a provider's video URL into our own storage bucket, so the published file is ours
+// and its duration can be probed later without depending on a provider CDN staying up.
+async function persistVideo(srcUrl: string, mediaId: string): Promise<string> {
+  const res = await fetch(srcUrl);
+  if (!res.ok) throw new Error(`video download failed ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const path = `videos/${mediaId}.mp4`;
+  const { error } = await supabase.storage
+    .from("character-media")
+    .upload(path, buf, { contentType: "video/mp4", upsert: true });
+  if (error) throw new Error(`video storage upload: ${error.message}`);
+  const { data: pub } = supabase.storage.from("character-media").getPublicUrl(path);
+  return `${pub.publicUrl}?t=${Date.now()}`;
+}
+
 // Start frame (reel_start_frame) from the same batch — needed by every video provider.
 async function findStartFrame(batchId: string): Promise<string | null> {
   const { data } = await supabase
@@ -809,13 +832,169 @@ export async function POST(req: Request) {
       const useBFL         = !useGoogle && !useVeo && !useKling && !anySeedance && !useHiggsfieldSoulDirect && (effectiveModel === "bfl");
       const useFluxPro     = effectiveModel === "flux-pro";
 
-      // A VIDEO slot must never reach an image generator. Every video branch below is gated on a
-      // provider being configured (useVeo needs GOOGLE_API_KEY, Kling/Seedance need an explicit
-      // model), and when none of them fires the chain falls through to generateWithFal — which
-      // renders a still. Found live on 2026-09-04: with GOOGLE_API_KEY empty, a reel_video slot
-      // "succeeded" with a .jpg. The duration QA gate caught it before it could reach ready, but a
-      // silent fall-through from video to image is a defect in its own right, and before the gate
-      // existed that JPEG would have gone into the publish queue as a reel.
+      // ── RECOVERY VIDEO ROUTING ────────────────────────────────────────────
+      // A prepared recovery reel routes through its own ordered chain (kling -> seedance-i2v ->
+      // veo) rather than this route's ad-hoc if/else. Three rules, all set by the operator on
+      // 2026-09-04:
+      //   - Kling is primary, Seedance secondary, Veo an explicit last resort. GOOGLE_API_KEY is
+      //     therefore never a blocker for a recovery generation.
+      //   - On failure we move to the NEXT VIDEO-CAPABLE provider and nowhere else. A video slot is
+      //     never handed to an image generator: found live on 2026-09-04, an empty GOOGLE_API_KEY
+      //     let reel_video fall through to generateWithFal and "succeed" with a .jpg.
+      //   - Provider choice is routing; REEL_DURATION_GATE is an output check. The gate never
+      //     picks a provider, and a provider is never picked for hitting a duration exactly.
+      const recoveryMeta = media.visual_signature?.recovery;
+      if (isVideoSlot && recoveryMeta) {
+        const targetSec = recoveryMeta.target_duration_sec ?? 8;
+        const plan = planRecoveryVideoProviders(targetSec, {
+          FAL_API_KEY: process.env.FAL_API_KEY,
+          GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+        });
+        const attempts = attemptableProviders(plan);
+
+        const provenance: ProviderProvenance = {
+          requested_provider: attempts[0]?.provider ?? null,
+          actual_provider: null,
+          fallback_reason: null,
+          requested_duration_sec: targetSec,
+          actual_duration_sec: null,
+          chain: plan.map((a) => a.provider),
+          attempts: [],
+        };
+
+        if (attempts.length === 0) {
+          const msg = noProviderAvailableReason(plan);
+          await supabase
+            .from("chs_media")
+            .update({
+              generation_status: "failed",
+              last_error: msg,
+              visual_signature: { ...(media.visual_signature ?? {}), provider_provenance: provenance },
+            })
+            .eq("id", media.id);
+          return { mediaId: media.id, slot: media.slot, provider: "none", success: false, error: msg };
+        }
+
+        const startFrame = await findStartFrame(media.batch_id);
+        if (!startFrame) {
+          const msg = "Recovery reel needs its reel_start_frame rendered first — generate that slot before the video";
+          await supabase.from("chs_media").update({ generation_status: "failed", last_error: msg }).eq("id", media.id);
+          return { mediaId: media.id, slot: media.slot, provider: "none", success: false, error: msg };
+        }
+
+        const runProvider = async (provider: RecoveryVideoProvider, durationSec: number): Promise<string> => {
+          const cleaned = sanitizePrompt(stripPromptHeader(effectivePrompt));
+          if (provider === "kling") {
+            // lib/klingProvider.ts is on Kling v3, whose duration is whole seconds 3-15 — unlike
+            // this file's older v2.1 helper, which is locked to "5" | "10" and could not render the
+            // recovery target at all.
+            return generateKlingVideo({
+              imageUrl: startFrame,
+              prompt: cleaned,
+              durationSeconds: durationSec,
+              persist: { mediaId: media.id },
+            });
+          }
+          if (provider === "seedance-i2v") {
+            const result = (await fal.subscribe("bytedance/seedance-2.0/image-to-video", {
+              input: {
+                prompt: cleaned,
+                image_url: startFrame,
+                resolution: "720p",
+                duration: String(durationSec),
+                aspect_ratio: "auto",
+                // The recovery doctrine is silent by construction — the reel is published with
+                // trending audio added manually.
+                generate_audio: false,
+              },
+            })) as SeedanceResult;
+            const url = result?.data?.video?.url ?? result?.video?.url ?? "";
+            if (!url) throw new Error("Seedance: no video URL in response");
+            return persistVideo(url, media.id);
+          }
+          if (!googleApiKey) throw new Error("GOOGLE_API_KEY is not set");
+          return generateWithVeo(effectivePrompt, googleApiKey, media.id, startFrame, VEO_MODEL_DEFAULT, durationSec);
+        };
+
+        let producedUrl: string | null = null;
+        for (const attempt of attempts) {
+          try {
+            producedUrl = await runProvider(attempt.provider, attempt.durationSec);
+            provenance.attempts.push({ provider: attempt.provider, durationSec: attempt.durationSec, ok: true });
+            provenance.actual_provider = attempt.provider;
+            provenance.actual_duration_sec = attempt.durationSec;
+            if (attempt.provider !== provenance.requested_provider) {
+              const failed = provenance.attempts.filter((a) => !a.ok);
+              provenance.fallback_reason = failed.map((a) => `${a.provider}: ${a.error}`).join(" | ");
+            }
+            break;
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            provenance.attempts.push({
+              provider: attempt.provider,
+              durationSec: attempt.durationSec,
+              ok: false,
+              error: message.slice(0, 300),
+            });
+          }
+        }
+
+        const mergedSignature = { ...(media.visual_signature ?? {}), provider_provenance: provenance };
+
+        if (!producedUrl) {
+          const msg = `All recovery video providers failed — ${provenance.attempts
+            .map((a) => `${a.provider}(${a.durationSec}s): ${a.error}`)
+            .join(" | ")}`;
+          await supabase
+            .from("chs_media")
+            .update({ generation_status: "failed", last_error: msg.slice(0, 1000), visual_signature: mergedSignature })
+            .eq("id", media.id);
+          return { mediaId: media.id, slot: media.slot, provider: "none", success: false, error: msg };
+        }
+
+        // Output QA — same gate as every other video, applied to whatever the chain produced.
+        const probe = await probeVideoDuration(producedUrl);
+        const gate = evaluateDurationGate(probe.durationSec, REEL_DURATION_GATE, probe.error);
+        if (!gate.ok) {
+          const msg = `QA gate: ${gate.reason} (rendered by ${provenance.actual_provider} at ${provenance.actual_duration_sec}s)`;
+          await supabase
+            .from("chs_media")
+            .update({
+              media_url: producedUrl,
+              source_url: producedUrl,
+              generation_status: "failed",
+              status: "pending",
+              last_error: msg,
+              visual_signature: mergedSignature,
+            })
+            .eq("id", media.id);
+          return { mediaId: media.id, slot: media.slot, provider: provenance.actual_provider ?? "none", success: false, url: producedUrl, error: msg };
+        }
+
+        await supabase
+          .from("chs_media")
+          .update({
+            media_url: producedUrl,
+            source_url: producedUrl,
+            generation_status: "completed",
+            status: "ready",
+            last_error: null,
+            visual_signature: mergedSignature,
+          })
+          .eq("id", media.id);
+
+        return {
+          mediaId: media.id,
+          slot: media.slot,
+          provider: provenance.actual_provider ?? "none",
+          success: true,
+          url: producedUrl,
+        };
+      }
+
+      // A non-recovery VIDEO slot must still never reach an image generator. Every video branch
+      // below is gated on a provider being configured, and when none fires the chain falls through
+      // to generateWithFal — a still-image generator.
       if (isVideoSlot && !useVeo && !useKling && !anySeedance) {
         const msg = googleApiKey
           ? "No video provider selected for a video slot — pass model: kling | seedance-i2v | seedance-fast | seedance-ref | veo"
@@ -1047,7 +1226,10 @@ interface MediaRecord {
   higgsfield_prompt: string;
   batch_id: string;
   generation_status: string | null;
-  visual_signature?: { prompt_director?: { model?: string }; recovery?: { negative_prompt?: string } } | null;
+  visual_signature?: {
+    prompt_director?: { model?: string };
+    recovery?: { negative_prompt?: string; slot?: number; target_duration_sec?: number };
+  } | null;
   media_url?: string | null;
 }
 

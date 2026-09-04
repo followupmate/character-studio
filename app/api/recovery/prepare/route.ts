@@ -3,6 +3,11 @@ import { supabase } from "@/lib/supabase";
 import { cronAuthorized } from "@/lib/apiAuth";
 import { compileRecoveryDays } from "@/lib/recovery/recoveryDays";
 import { compileRecoveryStartFrame, START_FRAME_FRAMING_NEGATIVES } from "@/lib/recovery/simpleReelCompiler";
+import {
+  attemptableProviders,
+  noProviderAvailableReason,
+  planRecoveryVideoProviders,
+} from "@/lib/recovery/videoProviders";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -75,6 +80,15 @@ export async function POST(req: Request) {
   }
 
   const date = planDateForSlot(slot);
+  // Routing is resolved here so the prepare response can state exactly what WILL be attempted,
+  // in order, with each provider's translated duration — rather than leaving it to be discovered
+  // at generation time.
+  const providerPlan = planRecoveryVideoProviders(day.compiled.durationSec, {
+    FAL_API_KEY: process.env.FAL_API_KEY,
+    GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+  });
+  const attempts = attemptableProviders(providerPlan);
+
   const marker = {
     recovery: {
       slot,
@@ -153,8 +167,11 @@ export async function POST(req: Request) {
       type: "video",
       channel: "reel",
       prompt: day.compiled.prompt,
-      // Veo is the only wired provider that can render the approved 6.5–8.5s band at all.
-      directorModel: "veo",
+      // No hardcoded provider. Recovery video routes through the ordered chain
+      // (kling -> seedance-i2v -> veo) resolved at generation time — see
+      // lib/recovery/videoProviders.ts. "recovery" here only tells generate-media to USE that
+      // chain; it does not name a model.
+      directorModel: "recovery",
     },
   ];
 
@@ -213,14 +230,25 @@ export async function POST(req: Request) {
       batchId,
       mediaIds,
       targetDurationSec: day.compiled.durationSec,
-      providers: { reel_start_frame: "higgsfield-soul (Soul V2)", reel_video: "veo (Veo 3.1 Fast)" },
+      startFrameProvider: "higgsfield-soul (Higgsfield Soul V2)",
+      videoProviderChain: providerPlan.map((p) => ({
+        provider: p.provider,
+        durationSec: p.durationSec,
+        exactDuration: p.exact,
+        available: p.available,
+        ...(p.unavailableReason ? { unavailableReason: p.unavailableReason } : {}),
+        ...(p.note ? { note: p.note } : {}),
+      })),
+      selectedVideoProvider: attempts[0]?.provider ?? null,
+      selectedVideoDurationSec: attempts[0]?.durationSec ?? null,
+      ...(attempts.length === 0 ? { videoBlocked: noProviderAvailableReason(providerPlan) } : {}),
       motionPrompt: day.compiled.prompt,
       startFramePrompt,
       negativePrompt: day.compiled.negativePrompt,
     },
     next: [
-      `POST /api/characters/generate-media { "mediaId": "${mediaIds.reel_start_frame}" }  -> start frame`,
-      `POST /api/characters/generate-media { "mediaId": "${mediaIds.reel_video}", "model": "veo" }  -> 8s reel, duration-gated`,
+      `POST /api/characters/generate-media { "mediaId": "${mediaIds.reel_start_frame}" }  -> start frame (Soul V2)`,
+      `POST /api/characters/generate-media { "mediaId": "${mediaIds.reel_video}" }  -> video via the recovery chain, duration-gated on output`,
     ],
     note: "Prepared only. Nothing was generated and nothing was published.",
   });

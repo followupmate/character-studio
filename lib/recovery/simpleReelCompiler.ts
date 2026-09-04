@@ -262,12 +262,16 @@ export const START_FRAME_FRAMING_NEGATIVES = [
   "full body",
   "full-length shot",
   "wide shot",
+  "long shot",
   "legs visible",
-  "feet visible",
   "knees visible",
+  "lower legs",
+  "thighs visible",
+  "feet visible",
   "distant subject",
   "small face",
   "subject far from camera",
+  "cluttered background",
 ].join(", ");
 
 export function compileRecoveryStartFrame(input: {
@@ -281,17 +285,23 @@ export function compileRecoveryStartFrame(input: {
   const pose = input.openingState?.trim() || "close to the lens, looking away to one side";
   const crop =
     framing === "close"
-      ? "Vertical 9:16 CLOSE portrait: her head and shoulders fill the frame, face large, shot from just below the collarbone up."
-      : "Vertical 9:16 CLOSE-MEDIUM portrait: she is cropped at the waist and fills the frame, her face large in the upper third.";
+      ? "Vertical 9:16 CLOSE portrait, chest-up: her head and shoulders fill the frame, shot from just below the collarbone up."
+      : "Vertical 9:16 CHEST-UP portrait: framed from just below the chest, her head and upper torso fill the frame.";
   return [
     crop,
+    // Stated as a proportion, not a label. "Close-medium" is a word a model can satisfy loosely;
+    // "her face fills roughly the top third" is a measurement it can hit.
+    "Her face is the dominant element and fills roughly the top third of the frame — eyes sharp, clearly readable at phone size.",
     `She is ${pose}. Face clearly visible and unobscured, turned toward the lens.`,
-    `Wearing: ${b.wardrobe_lock}`,
-    `Behind her, soft and secondary: ${b.spatial_setup}`,
+    `Wearing (upper body only in frame): ${b.wardrobe_lock}`,
+    // The seated posture still has to read, or the motion prompt's opening state contradicts the
+    // frame it is animating from.
+    "Her seated posture still reads — shoulders and the line of her back show she is sitting, not standing.",
+    `Soft, out-of-focus background context only: ${b.spatial_setup}`,
     `Light: ${b.lighting_state}. ${b.time_of_day.replace(/_/g, " ")}.`,
     "Real phone photo, natural skin texture, no beauty filter.",
     framing === "close"
-      ? "Head-and-shoulders crop. Do not show the waist, the legs or the full body."
-      : "Waist-up crop. Do not show the legs, the feet or the full body.",
+      ? "Head-and-shoulders crop. The frame ends at the chest. No waist, no hips, no legs, no knees, no feet."
+      : "Chest-up crop. The frame ends just below the chest. No hips, no legs, no knees, no lower legs, no feet.",
   ].join(" ");
 }
