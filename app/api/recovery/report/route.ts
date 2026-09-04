@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { cronAuthorized } from "@/lib/apiAuth";
+import { isCiScoringFrozen } from "@/lib/ciScoringFrozen";
 import recoveryConfig from "@/recovery.json";
 import {
   buildRecoveryReport,
@@ -86,6 +87,13 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     success: true,
+    // Makes the freeze OBSERVABLE in production instead of assumed. The flag is an env var on
+    // Vercel, so without this there is no way to confirm from outside whether scoring is actually
+    // frozen — and "we set it" is not verification.
+    ci: {
+      scoring_frozen: isCiScoringFrozen(),
+      analytics_ingest: "unaffected — /api/publish/import-insights keeps running on its cron; the freeze stops growth_score STEERING selection, not the metrics arriving",
+    },
     protocol_note:
       "Reels are published manually from mobile with trending audio; platform_post_id must be filled into recovery.json by hand after each publish.",
     report,
