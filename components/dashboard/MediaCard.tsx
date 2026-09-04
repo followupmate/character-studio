@@ -94,6 +94,25 @@ function cleanPrompt(raw: string): string {
   return stripPromptHeader(raw);
 }
 
+// RECOVERY — a slot carries its own marker in visual_signature.recovery. Surfacing it on the card
+// is what tells the operator that the prompt they are reading is the recovery prompt and not the
+// day's normal one. Without it the two are indistinguishable, which was the first thing a real
+// operator hit on /today.
+function RecoveryTag({ media }: { media: Media }) {
+  const rec = (media.visual_signature as {
+    recovery?: { recovery_sprint?: boolean; recovery_index?: number; recovery_total?: number; direction?: string; target_duration_sec?: number };
+  } | null | undefined)?.recovery;
+  if (!rec?.recovery_sprint || !rec.recovery_index) return null;
+  return (
+    <span
+      className="font-mono text-[8px] bg-accent/15 border border-accent/50 text-accent px-1.5 py-0.5 tracking-[0.1em] whitespace-nowrap"
+      title={`${rec.direction ?? "recovery"}${rec.target_duration_sec ? ` · target ${rec.target_duration_sec}s` : ""}`}
+    >
+      RECOVERY {rec.recovery_index}/{rec.recovery_total ?? 5}
+    </span>
+  );
+}
+
 export default function MediaCard({
   media,
   canAutoGenerate = false,
@@ -326,9 +345,12 @@ export default function MediaCard({
             <div className="font-mono text-[8px] tracking-[0.15em] text-muted uppercase mb-0.5">Asset Category</div>
             <div className="font-mono text-[11px] tracking-[0.05em] font-medium text-ink uppercase">{label}</div>
           </div>
-          <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-[0.1em]">
-            POSTNUTÉ
-          </span>
+          <div className="flex items-center gap-1.5">
+            <RecoveryTag media={media} />
+            <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-[0.1em]">
+              POSTNUTÉ
+            </span>
+          </div>
         </div>
         {media.media_url && (
           <a
@@ -368,7 +390,10 @@ export default function MediaCard({
             <div className="font-mono text-[8px] tracking-[0.15em] text-muted uppercase mb-0.5">Asset Category</div>
             <div className="font-mono text-[11px] tracking-[0.05em] font-medium text-ink uppercase">{label}</div>
           </div>
-          <Badge status={media.status} />
+          <div className="flex items-center gap-1.5">
+            <RecoveryTag media={media} />
+            <Badge status={media.status} />
+          </div>
         </div>
 
         {isPhoto && media.media_url && !imgError && (
@@ -479,7 +504,10 @@ export default function MediaCard({
             <span className="ml-2 text-muted normal-case font-normal text-[9px]">{model}</span>
           </div>
         </div>
-        <Badge status={busy ? "generating" : media.status} />
+        <div className="flex items-center gap-1.5">
+          <RecoveryTag media={media} />
+          <Badge status={busy ? "generating" : media.status} />
+        </div>
       </div>
 
       {/* Live generation skeleton */}

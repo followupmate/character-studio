@@ -42,6 +42,29 @@ const tierColors: Record<string, string> = {
   lifestyle_travel: "text-amber border-amber/20 bg-amber/10",
 };
 
+interface RecoveryMark {
+  recovery_sprint?: boolean;
+  recovery_index?: number;
+  recovery_total?: number;
+  direction?: string;
+  target_duration_sec?: number;
+}
+
+/** The recovery marker for a slot, or null. Read off the media row, not the plan. */
+function recoveryOf(m: Media | undefined | null): RecoveryMark | null {
+  const rec = (m?.visual_signature as { recovery?: RecoveryMark } | null | undefined)?.recovery;
+  return rec?.recovery_sprint && rec.recovery_index ? rec : null;
+}
+
+/** The day's recovery marker — a day is a recovery day if any of its slots is. */
+function recoveryOfDay(items: Media[]): RecoveryMark | null {
+  for (const m of items) {
+    const r = recoveryOf(m);
+    if (r) return r;
+  }
+  return null;
+}
+
 function ProductionGroup({ title, hint, items, canAutoGenerate, promptDirectorEnabled }: { title: string; hint: string; items: Media[]; canAutoGenerate?: boolean; promptDirectorEnabled?: boolean }) {
   return (
     <div>
@@ -168,6 +191,18 @@ export default async function TodayPage({
                             {tierLabel(story.tier)}
                           </span>
                         )}
+                        {(() => {
+                          const rec = recoveryOfDay(story.chs_media ?? []);
+                          if (!rec) return null;
+                          return (
+                            <span
+                              className="font-mono text-[9px] bg-accent/15 border border-accent/50 text-accent px-2 py-0.5 tracking-wider"
+                              title={rec.direction ?? undefined}
+                            >
+                              RECOVERY {rec.recovery_index}/{rec.recovery_total ?? 5}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <span className={`font-mono text-[9px] border px-2 py-0.5 rounded-sm tracking-wider ${arcColors[story.arc_position] ?? arcColors.quiet}`}>
                         {story.arc_position.toUpperCase()}
