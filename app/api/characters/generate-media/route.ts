@@ -861,6 +861,9 @@ export async function POST(req: Request) {
           chain: plan.map((a) => a.provider),
           attempts: [],
         };
+        // Recorded so a result can be read against how the loop was produced, not just which
+        // provider ran. Only Kling v3 supports it; the other providers simply do not get it.
+        const endFrameLock = true;
 
         if (attempts.length === 0) {
           const msg = noProviderAvailableReason(plan);
@@ -888,8 +891,20 @@ export async function POST(req: Request) {
             // lib/klingProvider.ts is on Kling v3, whose duration is whole seconds 3-15 — unlike
             // this file's older v2.1 helper, which is locked to "5" | "10" and could not render the
             // recovery target at all.
+            //
+            // END-FRAME LOCK (recovery only, approved 2026-09-04). Reel #1 v1 rendered the beat
+            // correctly but did not close its loop: frame 0 was a look away with a neutral mouth
+            // and the final frame was a smile with eye contact, so the loop visibly jumped. Asking
+            // for it in the prompt ("the last frame matches the first") did not work. v3 is the only
+            // Kling version exposing end_image_url, so handing it the SAME start frame closes the
+            // loop mechanically instead of by request.
+            //
+            // Deliberately scoped to this recovery branch and NOT to generateKlingVideo's defaults:
+            // app/api/characters/video-async/route.ts and every other Kling caller keep their
+            // current behaviour, where an unlocked ending is often the right choice.
             return generateKlingVideo({
               imageUrl: startFrame,
+              endImageUrl: startFrame,
               prompt: cleaned,
               durationSeconds: durationSec,
               persist: { mediaId: media.id },
@@ -939,7 +954,13 @@ export async function POST(req: Request) {
           }
         }
 
-        const mergedSignature = { ...(media.visual_signature ?? {}), provider_provenance: provenance };
+        const mergedSignature = {
+          ...(media.visual_signature ?? {}),
+          provider_provenance: {
+            ...provenance,
+            end_frame_lock: endFrameLock && provenance.actual_provider === "kling",
+          },
+        };
 
         if (!producedUrl) {
           const msg = `All recovery video providers failed — ${provenance.attempts
