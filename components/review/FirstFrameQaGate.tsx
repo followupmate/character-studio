@@ -16,17 +16,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // take it on trust.
 
 export const QA_CHECKS = [
-  { id: "face_visible", label: "Tvár / pohyb viditeľný v prvom frame" },
-  { id: "eye_contact", label: "Eye contact do 1,5 s" },
-  { id: "no_establishing", label: "Žiadny pomalý establishing shot" },
-  {
-    id: "loop_closure",
-    label: "Loop closure",
-    // Added 2026-09-04 after Reel #1 v1 rendered the beat correctly but ended on a smile with eye
-    // contact while it had opened on a look away — a visible jump on repeat. The end-frame lock
-    // fixes the mechanism; this check is what confirms it actually reads as a loop.
-    detail: "posledný frame sa zhoduje so štartom · návrat do pózy je prirodzený · žiadny reverse / snap / forced reset",
-  },
+  { id: "face_visible", label: "Tvár / pohyb viditeľný v prvom frame", detail: null },
+  { id: "eye_contact", label: "Eye contact do 1,5 s", detail: null },
+  { id: "no_establishing", label: "Žiadny pomalý establishing shot", detail: null },
+  // MOTION NATURALNESS — the gate's centre of gravity as of 2026-09-04.
+  //
+  // These replaced a `loop_closure` check that lasted a single day. An end-frame lock closed the
+  // loop beautifully by the numbers (first-vs-last-frame delta 4.0 -> 0.4 out of 100) while manual
+  // review found the motion had got WORSE: the head held an unnaturally fixed position while the
+  // body kept moving. The lock was reverted and the priority set explicitly — natural human motion
+  // outranks seamless looping, and a loop metric is a diagnostic, never a pass condition.
+  { id: "natural_head_movement", label: "Prirodzený pohyb hlavy", detail: "hlava sa hýbe spolu s telom, nie je zamrznutá" },
+  { id: "natural_face_micro", label: "Prirodzená mikromimika", detail: "drobné zmeny výrazu, nie maska" },
+  { id: "natural_blinking", label: "Prirodzené žmurkanie a pohyb očí", detail: "žmurkne aspoň raz, pohľad žije" },
+  { id: "no_puppet_body", label: "Žiadny frozen-head / puppet-body efekt", detail: "telo a hlava patria k sebe" },
+  { id: "no_reverse_reset", label: "Žiadny reverse / forced reset", detail: "koniec nepôsobí ako prehratie dozadu ani ako skok" },
 ] as const;
 
 export type QaCheckId = (typeof QA_CHECKS)[number]["id"];
@@ -37,10 +41,12 @@ interface GrabbedFrames {
   frames: string[];
   durationSec: number;
   /**
-   * Mean per-pixel difference between frame 0 and the last frame, 0–100. Informational only: it
-   * answers "does the last frame look like the first", which is one of the three loop_closure
-   * criteria. The other two — whether the return is natural and whether the ending reads as reverse
-   * motion — are not measurable this way, so the human checkbox stays authoritative.
+   * Mean per-pixel difference between frame 0 and the last frame, 0-100.
+   *
+   * DIAGNOSTIC ONLY — it gates nothing and never has a pass threshold. It is kept because it is
+   * occasionally useful context, and shown with a deliberately neutral style so it cannot be read
+   * as a score. On 2026-09-04 this number improved tenfold (4.0 -> 0.4) on a render whose motion
+   * manual review judged worse, which is the whole reason looping is not a gate.
    */
   loopDelta: number | null;
 }
@@ -155,15 +161,15 @@ export function FirstFrameQaGate({
     <div className="border border-border bg-bg3 px-4 py-3">
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted">
-          First-frame QA — prvé 2 sekundy + loop
+          QA — prvé 2 sekundy + prirodzenosť pohybu
         </span>
         <div className="flex items-center gap-1.5">
           {loopDelta !== null && (
             <span
-              className="font-mono text-[8px] tracking-[0.08em] px-1.5 py-0.5 border bg-surface-high text-muted border-border"
-              title="Priemerný rozdiel prvého a posledného framu (0 = zhodné). Informatívne — rozhoduje tvoje oko."
+              className="font-mono text-[8px] tracking-[0.08em] px-1.5 py-0.5 border bg-surface-high text-muted2 border-border"
+              title="Diagnostika, nie kritérium. Rozdiel prvého a posledného framu (0 = zhodné). Nízke číslo NEZNAMENÁ lepší reel — prirodzený pohyb má prednosť pred slučkou."
             >
-              loop Δ {loopDelta}
+              loop Δ {loopDelta} · diag
             </span>
           )}
           {durationSec !== null && (
@@ -224,7 +230,7 @@ export function FirstFrameQaGate({
                 >
                   {check.label}
                 </span>
-                {"detail" in check && check.detail && (
+                {check.detail && (
                   <span className="block font-mono text-[8px] text-muted2 leading-snug">{check.detail}</span>
                 )}
               </span>

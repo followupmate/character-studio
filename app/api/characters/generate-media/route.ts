@@ -861,9 +861,6 @@ export async function POST(req: Request) {
           chain: plan.map((a) => a.provider),
           attempts: [],
         };
-        // Recorded so a result can be read against how the loop was produced, not just which
-        // provider ran. Only Kling v3 supports it; the other providers simply do not get it.
-        const endFrameLock = true;
 
         if (attempts.length === 0) {
           const msg = noProviderAvailableReason(plan);
@@ -892,19 +889,20 @@ export async function POST(req: Request) {
             // this file's older v2.1 helper, which is locked to "5" | "10" and could not render the
             // recovery target at all.
             //
-            // END-FRAME LOCK (recovery only, approved 2026-09-04). Reel #1 v1 rendered the beat
-            // correctly but did not close its loop: frame 0 was a look away with a neutral mouth
-            // and the final frame was a smile with eye contact, so the loop visibly jumped. Asking
-            // for it in the prompt ("the last frame matches the first") did not work. v3 is the only
-            // Kling version exposing end_image_url, so handing it the SAME start frame closes the
-            // loop mechanically instead of by request.
+            // START-FRAME ONLY. Do not pass end_image_url here.
             //
-            // Deliberately scoped to this recovery branch and NOT to generateKlingVideo's defaults:
-            // app/api/characters/video-async/route.ts and every other Kling caller keep their
-            // current behaviour, where an unlocked ending is often the right choice.
+            // An end-frame lock (the same start frame as both start_image_url and end_image_url)
+            // was tried on 2026-09-04 to close the loop, and REVERTED the same day after manual
+            // visual QA: constraining both ends over-constrains the subject. The head holds an
+            // unnaturally fixed position while the body keeps moving — a frozen-head, puppet-body
+            // look. Unlocked Kling v3 produces clearly more natural human motion.
+            //
+            // Worth recording precisely because the metric disagreed with the eye: the first-vs-
+            // last-frame loop delta went 4.0 -> 0.4 out of 100, which read as a tenfold
+            // improvement while the actual motion got worse. A low loop delta is not a success
+            // criterion. Natural human motion outranks seamless looping.
             return generateKlingVideo({
               imageUrl: startFrame,
-              endImageUrl: startFrame,
               prompt: cleaned,
               durationSeconds: durationSec,
               persist: { mediaId: media.id },
@@ -954,13 +952,7 @@ export async function POST(req: Request) {
           }
         }
 
-        const mergedSignature = {
-          ...(media.visual_signature ?? {}),
-          provider_provenance: {
-            ...provenance,
-            end_frame_lock: endFrameLock && provenance.actual_provider === "kling",
-          },
-        };
+        const mergedSignature = { ...(media.visual_signature ?? {}), provider_provenance: provenance };
 
         if (!producedUrl) {
           const msg = `All recovery video providers failed — ${provenance.attempts
