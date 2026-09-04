@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   compileFirestarterReel,
+  compileRecoveryStartFrame,
   compileSimpleReel,
   deriveAction,
   REEL_DURATION_MAX_SEC,
@@ -166,5 +167,36 @@ describe("firestarter (Reel 1)", () => {
   it("is close-medium and passes validation clean", () => {
     expect(out.framing).toBe("close_medium");
     expect(out.validation.errors).toEqual([]);
+  });
+});
+
+describe("compileRecoveryStartFrame", () => {
+  const brief = briefFor(78);
+
+  it("keeps the face requirement explicit — this frame is the identity anchor", () => {
+    const p = compileRecoveryStartFrame({ sceneBrief: brief });
+    expect(p).toMatch(/face clearly visible and unobscured/);
+    expect(p).toMatch(/head and shoulders fully in frame/);
+  });
+
+  it("states only scene, wardrobe, light and pose — no boilerplate, no identity paragraph", () => {
+    const p = compileRecoveryStartFrame({ sceneBrief: brief });
+    expect(p).toMatch(/Wearing:/);
+    expect(p).toMatch(/Location:/);
+    expect(p).toMatch(/Light:/);
+    expect(p).toMatch(/Vertical 9:16/);
+    for (const banned of [/DEPTH & COMPOSITION/i, /identity anchor/i, /CRITICAL/i, /Kling/i, /Seedance/i, /Vivienne/i]) {
+      expect(p).not.toMatch(banned);
+    }
+  });
+
+  it("opens on the same pose the motion prompt continues from", () => {
+    const motion = compileFirestarterReel(scene(78));
+    const frame = compileRecoveryStartFrame({
+      sceneBrief: brief,
+      openingState: "close to the lens, looking away to one side",
+    });
+    expect(motion.prompt).toMatch(/looking away to one side/);
+    expect(frame).toMatch(/looking away to one side/);
   });
 });

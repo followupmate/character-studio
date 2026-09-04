@@ -230,3 +230,33 @@ export function compileFirestarterReel(input: Omit<SimpleReelInput, "action" | "
   });
   return base;
 }
+
+/**
+ * The start frame for an image-to-video recovery reel.
+ *
+ * Same discipline as the motion prompt: what is in the room, what she is wearing, where the light
+ * comes from, and the pose the motion continues from. Nothing else — no depth doctrine, no realism
+ * boilerplate, no identity paragraph (the Soul reference carries identity, and restating it wastes
+ * a short prompt's whole budget).
+ *
+ * The one hard requirement is the face: this frame is the identity anchor the video animates from,
+ * and a cropped, headless or face-away frame makes the video model invent a different person.
+ */
+export function compileRecoveryStartFrame(input: {
+  sceneBrief: SceneBriefJson;
+  framing?: ReelFraming;
+  /** The pose the motion begins from — must agree with the motion prompt's opening clause. */
+  openingState?: string;
+}): string {
+  const b = input.sceneBrief;
+  const framing = input.framing ?? "close_medium";
+  const pose = input.openingState?.trim() || "close to the lens, looking away to one side";
+  return [
+    framing === "close" ? "Close portrait, eye height." : "Close-medium portrait, chest height.",
+    `She is ${pose}, head and shoulders fully in frame, face clearly visible and unobscured.`,
+    `Wearing: ${b.wardrobe_lock}`,
+    `Location: ${b.spatial_setup}`,
+    `Light: ${b.lighting_state}. ${b.time_of_day.replace(/_/g, " ")}.`,
+    "Vertical 9:16. Real phone photo, natural skin texture, no beauty filter.",
+  ].join(" ");
+}
