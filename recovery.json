@@ -11,7 +11,7 @@
     "one_variable": "Only the motion/prompt layer changes. Captions, publishing time, styling and hashtags stay exactly as they are.",
     "auto_publish": false,
     "qa_gate": "Every reel passes the first-frame QA gate before approval: measured duration inside 5.5-7.5s (automatic, server-side), plus three manual checks — face/movement visible in frame 0, eye contact by 1.5s, no slow establishing shot.",
-    "calendar_integration": "Recovery reels are ordinary chs_daily_plans reel slots in the normal Character Studio calendar, carrying a RECOVERY n/5 badge. They are approved in /review with the same button as any other day, generate through the same route, and publish through the existing /api/publish/cron. There is no second recovery workflow and no second publish cron. Slot 5 waits for the story engine to create day 100 (2026-09-08); re-run POST /api/recovery/integrate to map it."
+    "calendar_integration": "All five recovery reels are ordinary chs_daily_plans reel slots in the normal Character Studio calendar, carrying a RECOVERY n/5 badge on /today and /review. The recovery scene IS the story day, so caption, hashtags, hook, BTS still and reel all derive from one brief. Approved with the same button as any other day; generated and published by the existing flow. Day 100 (2026-09-08) was provisioned explicitly via /api/recovery/provision-day because the story engine had not reached it."
   },
   "baseline": {
     "$comment": "The average of the 20.8.-1.9. window, which is what 'did this work' is measured against.",
@@ -83,7 +83,7 @@
       "platform_post_id": null,
       "posted_at": null,
       "calendar_date": "2026-09-05",
-      "media_id": null,
+      "media_id": "6d2e9f8d-645c-4a27-ab42-ccdb8f5d6d6c",
       "integrated": true
     },
     {
@@ -93,7 +93,7 @@
       "platform_post_id": null,
       "posted_at": null,
       "calendar_date": "2026-09-06",
-      "media_id": null,
+      "media_id": "f2b193f7-f687-4b32-bb80-5ac07191fc66",
       "integrated": true
     },
     {
@@ -103,7 +103,7 @@
       "platform_post_id": null,
       "posted_at": null,
       "calendar_date": "2026-09-07",
-      "media_id": null,
+      "media_id": "fcb143c8-807d-4f7c-bbac-e3f8c9223e6d",
       "integrated": true
     },
     {
@@ -112,9 +112,9 @@
       "note": null,
       "platform_post_id": null,
       "posted_at": null,
-      "calendar_date": null,
-      "media_id": null,
-      "integrated": false
+      "calendar_date": "2026-09-08",
+      "media_id": "815addbe-0375-43b1-9ace-603007357347",
+      "integrated": true
     }
   ]
 }
