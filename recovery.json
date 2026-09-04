@@ -3,24 +3,22 @@
   "version": 1,
   "created": "2026-09-03",
   "account": "@vivienne.mov",
-
   "protocol": {
     "publishing": "MANUAL from mobile, with trending audio. The Graph API cannot attach trending or licensed audio, so the pipeline deliberately stops at status 'ready'. During a recovery sprint that is an advantage, not a limitation: trending audio is a distribution lever auto-publish does not have.",
     "time_slot": "Same hour +/- 30 min for all five reels. Publishing time is NOT a tested variable in this sprint.",
-    "cadence": "4-5 reels per week, not daily.",
+    "cadence": "The existing Character Studio calendar is daily, so the five recovery reels land on consecutive days rather than the 4-5/week originally written here. Using the existing calendar was chosen deliberately over imposing a separate cadence.",
     "stories": "Unchanged. Stories keep running in normal mode to hold follower touch while reel cadence is reduced. They are not part of this test.",
     "one_variable": "Only the motion/prompt layer changes. Captions, publishing time, styling and hashtags stay exactly as they are.",
     "auto_publish": false,
-    "qa_gate": "Every reel passes the first-frame QA gate before approval: measured duration inside 5.5-7.5s (automatic, server-side), plus three manual checks — face/movement visible in frame 0, eye contact by 1.5s, no slow establishing shot."
+    "qa_gate": "Every reel passes the first-frame QA gate before approval: measured duration inside 5.5-7.5s (automatic, server-side), plus three manual checks — face/movement visible in frame 0, eye contact by 1.5s, no slow establishing shot.",
+    "calendar_integration": "Recovery reels are ordinary chs_daily_plans reel slots in the normal Character Studio calendar, carrying a RECOVERY n/5 badge. They are approved in /review with the same button as any other day, generate through the same route, and publish through the existing /api/publish/cron. There is no second recovery workflow and no second publish cron. Slot 5 waits for the story engine to create day 100 (2026-09-08); re-run POST /api/recovery/integrate to map it."
   },
-
   "baseline": {
     "$comment": "The average of the 20.8.-1.9. window, which is what 'did this work' is measured against.",
     "window": "2026-08-20..2026-09-01",
     "avg_watch_time_sec": 2.9,
     "views_24h": 120
   },
-
   "decision_rule": {
     "primary_kpi": {
       "metric": "avg_watch_time_sec",
@@ -29,7 +27,10 @@
       "fallback_horizon": "72h",
       "$comment": "Watch time is the only metric in this account's data that correlates with reach: every post above 4.5s has 250+ views, every post below 3s has under 180."
     },
-    "secondary_kpi": ["saves", "shares"],
+    "secondary_kpi": [
+      "saves",
+      "shares"
+    ],
     "required_report_metrics": [
       "avg_watch_time_sec",
       "actual_video_duration_sec",
@@ -40,7 +41,10 @@
     ],
     "verdict_is_not_a_single_number": "Set 2026-09-04. The branch below is the pre-registered ACTION, but it may not be read on avg_watch_time alone. A reel counts as measured only when every metric in required_report_metrics is present, and the report prints all of them next to the verdict. avg_watch_ratio in particular separates 'the reel did not hold' from 'the reel was simply short' — a distinction avg_watch_time cannot make on its own, and the reason nine ~5.2s reels looked like a creative failure when they were a length failure. None of these feed CI scoring.",
     "context_only": {
-      "metrics": ["views", "reach"],
+      "metrics": [
+        "views",
+        "reach"
+      ],
       "$comment": "Views are context, never the decision. Across a 47-242 range they are noise at n=1."
     },
     "branches": [
@@ -61,42 +65,56 @@
       }
     ]
   },
-
   "reels": [
     {
       "slot": 1,
       "direction": "intimate / private + light motion",
       "note": "firestarter",
       "platform_post_id": null,
-      "posted_at": null
+      "posted_at": null,
+      "calendar_date": "2026-09-04",
+      "media_id": "acb62fff-b3e0-481e-a20e-2b7691ef6f59",
+      "integrated": true
     },
     {
       "slot": 2,
       "direction": "wellness + gesture",
       "note": null,
       "platform_post_id": null,
-      "posted_at": null
+      "posted_at": null,
+      "calendar_date": "2026-09-05",
+      "media_id": null,
+      "integrated": true
     },
     {
       "slot": 3,
       "direction": "living social / candid moment",
       "note": null,
       "platform_post_id": null,
-      "posted_at": null
+      "posted_at": null,
+      "calendar_date": "2026-09-06",
+      "media_id": null,
+      "integrated": true
     },
     {
       "slot": 4,
       "direction": "intimate variant — a second read on #1",
       "note": "variation on #1, adjusted to its result",
       "platform_post_id": null,
-      "posted_at": null
+      "posted_at": null,
+      "calendar_date": "2026-09-07",
+      "media_id": null,
+      "integrated": true
     },
     {
       "slot": 5,
       "direction": "challenger — free attempt outside the three directions",
       "note": null,
       "platform_post_id": null,
-      "posted_at": null
+      "posted_at": null,
+      "calendar_date": null,
+      "media_id": null,
+      "integrated": false
     }
   ]
 }

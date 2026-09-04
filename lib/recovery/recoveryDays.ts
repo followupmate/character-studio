@@ -56,6 +56,13 @@ export interface RecoveryDay {
 // Shared across all five: Vivienne's sacred constants (thin gold chain, small gold hoops) appear in
 // every wardrobe lock, which is what makes the wardrobe-anchored actions in the compiler's action
 // bank legal in every one of these scenes without inventing a prop.
+/**
+ * Identifies the recovery pipeline revision an asset was produced under, recorded in provenance.
+ * Bumped when the pipeline changes in a way that makes two renders non-comparable — the
+ * start-frame-only decision (end-frame lock reverted, 2026-09-04) is the current revision.
+ */
+export const RECOVERY_VERSION = "2026-09-04-start-frame-only";
+
 const CHAIN_AND_HOOPS = "thin single delicate gold chain necklace at collarbone height, small plain gold hoop earrings under 12mm";
 
 export const RECOVERY_DAYS: RecoveryDay[] = [

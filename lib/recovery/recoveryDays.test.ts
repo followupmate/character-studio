@@ -123,6 +123,31 @@ describe("recovery.json registers the decision rule before the sprint, not after
     for (const b of branches) expect(b.action).toBeTruthy();
   });
 
+  it("records where each recovery reel landed in the normal calendar", () => {
+    // Recovery is folded into the existing Character Studio calendar rather than run beside it, so
+    // recovery.json has to say WHICH ordinary reel slot each index occupies. An index with no date
+    // is not an error: it means the story engine has not produced that day yet, and the idempotent
+    // integrate route will map it on a later run.
+    const integrated = recoveryConfig.reels.filter((r) => r.integrated);
+    expect(integrated.length).toBeGreaterThan(0);
+    for (const r of integrated) {
+      expect(r.calendar_date, `slot ${r.slot}`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    // dates are unique and ordered by recovery index — no two recovery reels share a slot
+    const dates = integrated.map((r) => r.calendar_date as string);
+    expect(new Set(dates).size).toBe(dates.length);
+    expect([...dates].sort()).toEqual(dates);
+    // an unintegrated slot must not claim a date or a media id
+    for (const r of recoveryConfig.reels.filter((x) => !x.integrated)) {
+      expect(r.calendar_date).toBeNull();
+      expect(r.media_id).toBeNull();
+    }
+  });
+
+  it("still holds no platform_post_id — publishing stays the existing flow's job", () => {
+    for (const r of recoveryConfig.reels) expect(r.platform_post_id).toBeNull();
+  });
+
   it("carries the baseline the results are measured against", () => {
     expect(recoveryConfig.baseline.window).toBe("2026-08-20..2026-09-01");
     expect(recoveryConfig.baseline.avg_watch_time_sec).toBeCloseTo(2.9, 1);

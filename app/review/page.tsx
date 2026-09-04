@@ -19,7 +19,7 @@ async function getData() {
 
   const { data: plans } = await supabase
     .from("chs_daily_plans")
-    .select("id, character_id, story_day_id, date, batch_status")
+    .select("id, character_id, story_day_id, date, batch_status, content_mix")
     .gte("date", today)
     .lte("date", in14Days)
     .in("batch_status", ["ready", "partial_failed"])

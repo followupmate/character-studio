@@ -85,8 +85,15 @@ interface ExistingPost {
   status: string;
 }
 
+interface RecoveryMarker {
+  recovery_sprint?: boolean;
+  recovery_index?: number;
+  recovery_total?: number;
+  direction?: string;
+}
+
 interface Batch {
-  plan: { id: string; date: string; batch_status: string };
+  plan: { id: string; date: string; batch_status: string; content_mix?: { recovery?: RecoveryMarker } | null };
   character: Character;
   storyDay: StoryDay;
   media: Media[];
@@ -210,6 +217,13 @@ function ReviewBatchCard({ batch, today, onApprove, onSkip }: {
   const [qaChecked, setQaChecked]   = useState<Set<QaCheckId>>(new Set());
 
   const arcCls = arcColors[storyDay.arc_position ?? ""] ?? "text-muted2 border-border2";
+  // RECOVERY — a badge, nothing more. The card, the approval button and everything downstream stay
+  // the ordinary Character Studio flow; recovery is not a second application.
+  const recovery = plan.content_mix?.recovery;
+  const recoveryBadge =
+    recovery?.recovery_sprint && recovery.recovery_index
+      ? `RECOVERY ${recovery.recovery_index}/${recovery.recovery_total ?? 5}`
+      : null;
   const alreadyQueued = existingPosts.length > 0;
 
   const readyCount = media.filter((m) => m.generation_status === "completed" && m.media_url).length;
@@ -258,6 +272,14 @@ function ReviewBatchCard({ batch, today, onApprove, onSkip }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-display italic text-lg text-white">{character.name}</span>
+            {recoveryBadge && (
+              <span
+                className="font-mono text-[8px] tracking-[0.1em] px-2 py-0.5 border border-accent/40 bg-accent/10 text-accent uppercase"
+                title={recovery?.direction ?? undefined}
+              >
+                {recoveryBadge}
+              </span>
+            )}
             {storyDay.arc_position && (
               <span className={`font-mono text-[8px] tracking-[0.1em] px-2 py-0.5 border uppercase ${arcCls}`}>
                 {storyDay.arc_position}
