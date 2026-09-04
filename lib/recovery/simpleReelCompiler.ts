@@ -239,9 +239,37 @@ export function compileFirestarterReel(input: Omit<SimpleReelInput, "action" | "
  * boilerplate, no identity paragraph (the Soul reference carries identity, and restating it wastes
  * a short prompt's whole budget).
  *
- * The one hard requirement is the face: this frame is the identity anchor the video animates from,
- * and a cropped, headless or face-away frame makes the video model invent a different person.
+ * Two hard requirements, both learned from the first real generation (2026-09-04):
+ *
+ * 1. THE FACE. This frame is the identity anchor the video animates from, and a cropped, headless
+ *    or face-away frame makes the video model invent a different person.
+ *
+ * 2. THE CROP. The first attempt asked for "close-medium portrait" once, then spent three lines
+ *    describing the room — and Soul 2 rendered a full-body shot from the knees up, with the face
+ *    a small fraction of the frame. That is the slow-establishing failure the whole recovery
+ *    thesis is against: Day 78 works because a viewer is LOOKED AT inside the first second, which
+ *    only reads if the face is large in frame. So the crop is stated first, the location is
+ *    explicitly demoted to background, and the crop is restated last, where a prompt's final
+ *    clause carries weight.
  */
+/**
+ * Framing negatives for the start frame. Soul V2 exposes no crop or zoom parameter — the API takes
+ * prompt, negative_prompt, aspect_ratio and the Soul id, and nothing else — so the negative prompt
+ * is the only lever left once the positive prompt has said "waist-up crop" twice and still come
+ * back with a full-body shot (which is exactly what happened on the first two attempts).
+ */
+export const START_FRAME_FRAMING_NEGATIVES = [
+  "full body",
+  "full-length shot",
+  "wide shot",
+  "legs visible",
+  "feet visible",
+  "knees visible",
+  "distant subject",
+  "small face",
+  "subject far from camera",
+].join(", ");
+
 export function compileRecoveryStartFrame(input: {
   sceneBrief: SceneBriefJson;
   framing?: ReelFraming;
@@ -251,12 +279,19 @@ export function compileRecoveryStartFrame(input: {
   const b = input.sceneBrief;
   const framing = input.framing ?? "close_medium";
   const pose = input.openingState?.trim() || "close to the lens, looking away to one side";
+  const crop =
+    framing === "close"
+      ? "Vertical 9:16 CLOSE portrait: her head and shoulders fill the frame, face large, shot from just below the collarbone up."
+      : "Vertical 9:16 CLOSE-MEDIUM portrait: she is cropped at the waist and fills the frame, her face large in the upper third.";
   return [
-    framing === "close" ? "Close portrait, eye height." : "Close-medium portrait, chest height.",
-    `She is ${pose}, head and shoulders fully in frame, face clearly visible and unobscured.`,
+    crop,
+    `She is ${pose}. Face clearly visible and unobscured, turned toward the lens.`,
     `Wearing: ${b.wardrobe_lock}`,
-    `Location: ${b.spatial_setup}`,
+    `Behind her, soft and secondary: ${b.spatial_setup}`,
     `Light: ${b.lighting_state}. ${b.time_of_day.replace(/_/g, " ")}.`,
-    "Vertical 9:16. Real phone photo, natural skin texture, no beauty filter.",
+    "Real phone photo, natural skin texture, no beauty filter.",
+    framing === "close"
+      ? "Head-and-shoulders crop. Do not show the waist, the legs or the full body."
+      : "Waist-up crop. Do not show the legs, the feet or the full body.",
   ].join(" ");
 }

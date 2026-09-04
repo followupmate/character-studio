@@ -175,16 +175,37 @@ describe("compileRecoveryStartFrame", () => {
 
   it("keeps the face requirement explicit — this frame is the identity anchor", () => {
     const p = compileRecoveryStartFrame({ sceneBrief: brief });
-    expect(p).toMatch(/face clearly visible and unobscured/);
-    expect(p).toMatch(/head and shoulders fully in frame/);
+    expect(p).toMatch(/Face clearly visible and unobscured/);
+  });
+
+  it("states the crop FIRST and again LAST", () => {
+    // The first real generation asked for close-medium once, then described the room for three
+    // lines, and Soul 2 returned a full-body shot with a small face — the slow-establishing
+    // failure the recovery shape exists to avoid.
+    const p = compileRecoveryStartFrame({ sceneBrief: brief });
+    expect(p.startsWith("Vertical 9:16 CLOSE-MEDIUM portrait:")).toBe(true);
+    expect(p.trimEnd().endsWith("Do not show the legs, the feet or the full body.")).toBe(true);
+    expect(p).toMatch(/cropped at the waist/);
+    expect(p).toMatch(/face large in the upper third/);
+  });
+
+  it("demotes the location to background instead of letting it dominate", () => {
+    const p = compileRecoveryStartFrame({ sceneBrief: brief });
+    expect(p).toMatch(/Behind her, soft and secondary:/);
+    // and the crop instruction comes before the room description, not after it
+    expect(p.indexOf("CLOSE-MEDIUM")).toBeLessThan(p.indexOf("Behind her"));
+  });
+
+  it("crops tighter still for the `close` framing", () => {
+    const p = compileRecoveryStartFrame({ sceneBrief: brief, framing: "close" });
+    expect(p).toMatch(/head and shoulders fill the frame/);
+    expect(p).toMatch(/Do not show the waist, the legs or the full body\.$/);
   });
 
   it("states only scene, wardrobe, light and pose — no boilerplate, no identity paragraph", () => {
     const p = compileRecoveryStartFrame({ sceneBrief: brief });
     expect(p).toMatch(/Wearing:/);
-    expect(p).toMatch(/Location:/);
     expect(p).toMatch(/Light:/);
-    expect(p).toMatch(/Vertical 9:16/);
     for (const banned of [/DEPTH & COMPOSITION/i, /identity anchor/i, /CRITICAL/i, /Kling/i, /Seedance/i, /Vivienne/i]) {
       expect(p).not.toMatch(banned);
     }

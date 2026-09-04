@@ -809,6 +809,24 @@ export async function POST(req: Request) {
       const useBFL         = !useGoogle && !useVeo && !useKling && !anySeedance && !useHiggsfieldSoulDirect && (effectiveModel === "bfl");
       const useFluxPro     = effectiveModel === "flux-pro";
 
+      // A VIDEO slot must never reach an image generator. Every video branch below is gated on a
+      // provider being configured (useVeo needs GOOGLE_API_KEY, Kling/Seedance need an explicit
+      // model), and when none of them fires the chain falls through to generateWithFal — which
+      // renders a still. Found live on 2026-09-04: with GOOGLE_API_KEY empty, a reel_video slot
+      // "succeeded" with a .jpg. The duration QA gate caught it before it could reach ready, but a
+      // silent fall-through from video to image is a defect in its own right, and before the gate
+      // existed that JPEG would have gone into the publish queue as a reel.
+      if (isVideoSlot && !useVeo && !useKling && !anySeedance) {
+        const msg = googleApiKey
+          ? "No video provider selected for a video slot — pass model: kling | seedance-i2v | seedance-fast | seedance-ref | veo"
+          : "No video provider available for a video slot: GOOGLE_API_KEY is not set (Veo), and no Kling/Seedance model was requested";
+        await supabase
+          .from("chs_media")
+          .update({ generation_status: "failed", last_error: msg })
+          .eq("id", media.id);
+        return { mediaId: media.id, slot: media.slot, provider: "none", success: false, error: msg };
+      }
+
       try {
         let mediaUrl: string;
         let provider = "falai";
@@ -893,9 +911,14 @@ export async function POST(req: Request) {
           const isVerticalSlot = ["reel_start_frame", "story_bts"].includes(media.slot ?? "");
           const soulAspect = isVerticalSlot ? "9:16" : "3:4";
           // F0.5 — include base image negatives (+ luxury negatives when luxury_world_v1 on)
+          // RECOVERY — a prepared recovery frame carries its own framing negatives (Soul V2 has no
+          // crop parameter, so the negative prompt is the only lever on framing). Appended to the
+          // base negatives rather than replacing them.
+          const recoveryNegatives = media.visual_signature?.recovery?.negative_prompt;
+          const baseNegatives = getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1"));
           mediaUrl = await generateSoulImage({
             prompt: effectivePrompt,
-            negativePrompt: getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1")),
+            negativePrompt: recoveryNegatives ? `${baseNegatives}, ${recoveryNegatives}` : baseNegatives,
             soulId,
             aspect: soulAspect,
             mediaId: media.id,
@@ -1024,7 +1047,7 @@ interface MediaRecord {
   higgsfield_prompt: string;
   batch_id: string;
   generation_status: string | null;
-  visual_signature?: { prompt_director?: { model?: string } } | null;
+  visual_signature?: { prompt_director?: { model?: string }; recovery?: { negative_prompt?: string } } | null;
   media_url?: string | null;
 }
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { cronAuthorized } from "@/lib/apiAuth";
 import { compileRecoveryDays } from "@/lib/recovery/recoveryDays";
-import { compileRecoveryStartFrame } from "@/lib/recovery/simpleReelCompiler";
+import { compileRecoveryStartFrame, START_FRAME_FRAMING_NEGATIVES } from "@/lib/recovery/simpleReelCompiler";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -130,7 +130,14 @@ export async function POST(req: Request) {
     openingState: day.firestarter ? "close to the lens, looking away to one side" : undefined,
   });
 
-  const rows = [
+  const rows: Array<{
+    slot: string;
+    type: string;
+    channel: string;
+    prompt: string;
+    directorModel: string;
+    negativePrompt?: string;
+  }> = [
     {
       slot: "reel_start_frame",
       type: "photo",
@@ -139,6 +146,7 @@ export async function POST(req: Request) {
       // Binds the generate-media "auto" path straight to Higgsfield Soul V2, the identity-locked
       // image provider, instead of the ad-hoc Google-first default.
       directorModel: "soul2",
+      negativePrompt: START_FRAME_FRAMING_NEGATIVES,
     },
     {
       slot: "reel_video",
@@ -161,7 +169,11 @@ export async function POST(req: Request) {
       shot_archetype: day.archetypeId,
       sequence_index: null,
       higgsfield_prompt: r.prompt,
-      visual_signature: { ...marker, prompt_director: { model: r.directorModel } },
+      visual_signature: {
+        ...marker,
+        recovery: { ...marker.recovery, ...(r.negativePrompt ? { negative_prompt: r.negativePrompt } : {}) },
+        prompt_director: { model: r.directorModel },
+      },
       // "completed" here means the PROMPT is ready — the same meaning dailyBatch gives it. The
       // media itself is still pending until a provider actually renders it.
       generation_status: "completed",
