@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { RECOVERY_DAYS, compileRecoveryDays } from "@/lib/recovery/recoveryDays";
+import { REEL_DURATION_GATE } from "@/lib/recovery/simpleReelCompiler";
 import recoveryConfig from "@/recovery.json";
 
 describe("the five prepared recovery days", () => {
@@ -28,12 +29,12 @@ describe("the five prepared recovery days", () => {
     }
   });
 
-  it("every prompt is 6–7s, static, loop-closed and eye-contact-first", () => {
+  it("every prompt is 7–8s, static, loop-closed and eye-contact-first", () => {
     for (const c of compiled) {
       expect(c.compiled.prompt, `day ${c.slot}`).toMatch(/camera static/);
       expect(c.compiled.prompt, `day ${c.slot}`).toMatch(/Within the first second her eyes find the lens/);
       expect(c.compiled.prompt, `day ${c.slot}`).toMatch(/loops seamlessly/);
-      expect(c.compiled.prompt, `day ${c.slot}`).toMatch(/\b[67]s, vertical 9:16\.$/);
+      expect(c.compiled.prompt, `day ${c.slot}`).toMatch(/\b[678]s, vertical 9:16\.$/);
       expect(c.compiled.durationSec).toBe(c.durationSec);
     }
   });
@@ -69,8 +70,15 @@ describe("the five prepared recovery days", () => {
     }
   });
 
-  it("durations are set per beat count, and the two-beat days stay at 6s", () => {
-    expect(compiled.map((c) => c.compiled.durationSec)).toEqual([7, 6, 7, 6, 7]);
+  it("matches the operator-approved per-reel targets exactly", () => {
+    // Approved 2026-09-04: 8/7/8/7/8. Not a default anyone can drift — if a duration changes, this
+    // fails and the change has to be a decision rather than an accident.
+    expect(compiled.map((c) => c.compiled.durationSec)).toEqual([8, 7, 8, 7, 8]);
+    // and every one of them sits inside the QA gate that will judge the rendered file
+    for (const c of compiled) {
+      expect(c.compiled.durationSec).toBeGreaterThanOrEqual(REEL_DURATION_GATE.minSec);
+      expect(c.compiled.durationSec).toBeLessThanOrEqual(REEL_DURATION_GATE.maxSec);
+    }
   });
 
   it("only the café day names an object, and that object is in its own brief", () => {

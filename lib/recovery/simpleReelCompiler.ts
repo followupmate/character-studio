@@ -1,6 +1,7 @@
 import type { SceneBriefJson } from "@/lib/sceneBrief";
 import { resolveSceneSemantics, type ActionClass, type SceneSemantics } from "@/lib/sceneSemantics";
 import { validateSceneCoherence, type SemanticValidationResult } from "@/lib/promptDirector/semanticValidator";
+import { REEL_DEFAULT_DURATION_SEC, REEL_DURATION_MAX_SEC, REEL_DURATION_MIN_SEC } from "./reelDuration";
 
 // RECOVERY phase 4 — the simple, scene-aware reel compiler.
 //
@@ -24,34 +25,14 @@ import { validateSceneCoherence, type SemanticValidationResult } from "@/lib/pro
 // single best post in the whole window was gesture_motion), so this optimises for the PROPERTIES
 // that separate the winners and leaves the archetype pool wide.
 
-export const REEL_DURATION_MIN_SEC = 6;
-export const REEL_DURATION_MAX_SEC = 7;
-
-// DURATION — measured, not assumed.
-//
-// The 6-7s band comes from the sprint spec, which was written before anyone measured the actual
-// published files. Having now measured all 24 (MP4 mvhd via the published CDN url), the band is
-// tighter than it looks against the 4.5s watch-time KPI:
-//
-//   to reach 4.5s avg watch you need a watch ratio of      historically achieved by
-//     0.750  at 6.0s                                        2 / 24 reels
-//     0.643  at 7.0s                                        3 / 24 reels
-//     0.554  at 8.13s                                       7 / 24 reels
-//
-//   observed ratio range on this account: 0.295 - 0.783 (median 0.458)
-//
-// And the hard version of the same fact: of the nine published reels that were ~5.2s long, NOT ONE
-// ever reached 4.5s watch — the maximum was 3.10s. All four reels that cleared the threshold were
-// 8.1s files. Duration was never a creative decision; it was whichever provider happened to run
-// (Kling "5", Veo 8, Seedance "10").
-//
-// So within the approved band the default is the TOP of it. This is not padding a video to hit a
-// number — each day's duration is set from its own beat count, and the two-beat days stay at 6s.
-// Whether the band itself should move to ~8s is a decision for the operator, not for this file:
-// see docs/RECOVERY-REELS.md.
-export const REEL_DEFAULT_DURATION_SEC = 7;
-/** The QA gate's tolerance around the requested duration — providers are not sample-accurate. */
-export const REEL_DURATION_GATE = { minSec: 5.5, maxSec: 7.5 };
+// Duration constants live in ./reelDuration so the semantic validator can share them without a
+// circular import. Re-exported here so existing importers keep working unchanged.
+export {
+  REEL_DURATION_MIN_SEC,
+  REEL_DURATION_MAX_SEC,
+  REEL_DEFAULT_DURATION_SEC,
+  REEL_DURATION_GATE,
+} from "./reelDuration";
 
 export type ReelFraming = "close" | "close_medium";
 
@@ -126,7 +107,7 @@ export interface SimpleReelInput {
   dayNumber?: number | null;
   /** Explicit override from the operator. Skips the action bank entirely. */
   action?: string;
-  /** 6 or 7. Anything else is rejected. */
+  /** 6, 7 or 8. Anything else is rejected. */
   durationSec?: number;
   framing?: ReelFraming;
   /**

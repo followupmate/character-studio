@@ -22,6 +22,8 @@ export interface RecoveryConfig {
   decision_rule: {
     primary_kpi: { metric: string; threshold_sec: number; horizon: string; fallback_horizon: string };
     secondary_kpi: string[];
+    /** Every one of these must be present before a reel counts as measured (set 2026-09-04). */
+    required_report_metrics?: string[];
     branches: Array<{ reels_at_or_above_threshold: string; verdict: string; action: string }>;
   };
   reels: RecoveryConfigReel[];
@@ -55,6 +57,13 @@ export interface WatchRetention {
   avg_watch_ratio_exceeds_one: boolean;
 }
 
+/** The mandatory metric panel. A verdict read without these is not a verdict. */
+export interface RequiredMetricPanel {
+  values: Record<string, number | null>;
+  missing: string[];
+  complete: boolean;
+}
+
 export interface ReelReport {
   slot: number;
   direction: string;
@@ -64,6 +73,8 @@ export interface ReelReport {
   snapshots: { "24h": SnapshotRow | null; "72h": SnapshotRow | null; "7d": SnapshotRow | null };
   /** Collect-and-display only — never part of the threshold test or any scoring. */
   watch: WatchRetention;
+  /** The metrics recovery.json requires alongside the verdict, and which of them are missing. */
+  required: RequiredMetricPanel;
   /** The watch time the KPI is judged on, and which horizon it came from. */
   kpiWatchTimeSec: number | null;
   kpiHorizonUsed: "7d" | "72h" | null;
@@ -80,11 +91,71 @@ export interface RecoveryReport {
   measured: number;
   atOrAboveThreshold: number;
   /** null until all five reels have a usable measurement — the rule is a five-reel rule. */
-  decision: { branch: string; verdict: string; action: string } | null;
+  decision: {
+    branch: string;
+    verdict: string;
+    action: string;
+    /** Printed with every verdict — the branch is an action, not the whole finding. */
+    supporting: {
+      medianWatchRatio: number | null;
+      medianDurationSec: number | null;
+      totalReach: number | null;
+      totalSaves: number | null;
+      totalShares: number | null;
+    };
+  } | null;
   decisionPending: string | null;
+  /** Which metrics recovery.json requires next to the verdict. */
+  requiredMetrics: string[];
 }
 
 const HORIZONS = ["24h", "72h", "7d"] as const;
+
+// Fallback for a config written before required_report_metrics existed.
+const DEFAULT_REQUIRED_METRICS = [
+  "avg_watch_time_sec",
+  "actual_video_duration_sec",
+  "avg_watch_ratio",
+  "reach",
+  "saves",
+  "shares",
+];
+
+/**
+ * Assembles the mandatory panel from the KPI-horizon snapshot plus the retention block.
+ *
+ * The rule the operator set on 2026-09-04: the recovery verdict may not rest on avg_watch_time
+ * alone. So "measured" now means every required metric is actually present — not that one number
+ * happened to arrive. A reel with a watch time and nothing else is `awaiting_data`, which keeps the
+ * five-reel decision from being read off a single column.
+ */
+export function buildRequiredPanel(
+  config: RecoveryConfig,
+  snapshot: SnapshotRow | null,
+  watch: WatchRetention
+): RequiredMetricPanel {
+  const required = config.decision_rule.required_report_metrics ?? DEFAULT_REQUIRED_METRICS;
+  const source: Record<string, number | null> = {
+    avg_watch_time_sec: watch.avg_watch_time_sec ?? (snapshot?.avg_watch_time_sec ?? null),
+    actual_video_duration_sec: watch.actual_video_duration_sec,
+    avg_watch_ratio: watch.avg_watch_ratio,
+    video_view_total_time_sec: watch.video_view_total_time_sec,
+    reach: snapshot?.reach ?? null,
+    saves: snapshot?.saves ?? null,
+    shares: snapshot?.shares ?? null,
+    views: snapshot?.views ?? null,
+    total_interactions: snapshot?.total_interactions ?? null,
+  };
+  const values: Record<string, number | null> = {};
+  const missing: string[] = [];
+  for (const key of required) {
+    const v = key in source ? source[key] : null;
+    values[key] = v;
+    // 0 is a measurement. null/undefined is not.
+    if (v === null || v === undefined) missing.push(key);
+  }
+  return { values, missing, complete: missing.length === 0 };
+}
 
 function pickHorizon(rows: SnapshotRow[], horizon: string): SnapshotRow | null {
   return rows.find((r) => r.horizon === horizon) ?? null;
@@ -132,13 +203,21 @@ export function buildReelReport(
     kpiHorizonUsed = fallback_horizon as "72h";
   }
 
-  const status: ReelReport["status"] = !reel.platform_post_id
-    ? "not_published"
-    : kpiWatchTimeSec === null
-      ? "awaiting_data"
-      : "measured";
+  // `status` is finalised after the required panel is built, below — a reel is only "measured"
+  // when the whole mandatory panel is there, not when one number arrives.
 
   const views24h = snapshots["24h"]?.views;
+  const watch = readWatchRetention(engagement);
+  // The panel is read off the SAME horizon the KPI came from, so the numbers next to the verdict
+  // describe the same moment as the verdict.
+  const kpiSnapshot = kpiHorizonUsed ? snapshots[kpiHorizonUsed] : (snapshots["7d"] ?? snapshots["72h"]);
+  const required = buildRequiredPanel(config, kpiSnapshot, watch);
+
+  const status: ReelReport["status"] = !reel.platform_post_id
+    ? "not_published"
+    : kpiWatchTimeSec === null || !required.complete
+      ? "awaiting_data"
+      : "measured";
 
   return {
     slot: reel.slot,
@@ -147,7 +226,8 @@ export function buildReelReport(
     postedAt: reel.posted_at,
     status,
     snapshots,
-    watch: readWatchRetention(engagement),
+    watch,
+    required,
     kpiWatchTimeSec,
     kpiHorizonUsed,
     meetsThreshold: kpiWatchTimeSec === null ? null : kpiWatchTimeSec >= threshold_sec,
@@ -184,6 +264,17 @@ export function buildRecoveryReport(
     )
   );
 
+  const median = (xs: number[]): number | null => {
+    if (xs.length === 0) return null;
+    const s = [...xs].sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : Math.round(((s[mid - 1] + s[mid]) / 2) * 1000) / 1000;
+  };
+  const sum = (key: "reach" | "saves" | "shares"): number | null => {
+    const vals = reels.map((r) => r.required.values[key]).filter((v): v is number => typeof v === "number");
+    return vals.length === 0 ? null : vals.reduce((a, b) => a + b, 0);
+  };
+
   const published = reels.filter((r) => r.status !== "not_published").length;
   const measured = reels.filter((r) => r.status === "measured").length;
   const atOrAboveThreshold = reels.filter((r) => r.meetsThreshold === true).length;
@@ -193,7 +284,14 @@ export function buildRecoveryReport(
   let decision: RecoveryReport["decision"] = null;
   let decisionPending: string | null = null;
   if (measured < config.reels.length) {
-    decisionPending = `${measured}/${config.reels.length} reels measured — the decision rule is a five-reel rule and is not evaluated until all five have a ${config.decision_rule.primary_kpi.horizon} (or ${config.decision_rule.primary_kpi.fallback_horizon}) watch time.`;
+    const incomplete = reels
+      .filter((r) => r.status === "awaiting_data" && r.required.missing.length > 0)
+      .map((r) => `#${r.slot} missing ${r.required.missing.join(", ")}`);
+    decisionPending =
+      `${measured}/${config.reels.length} reels measured — the decision rule is a five-reel rule and is not evaluated ` +
+      `until all five have a ${config.decision_rule.primary_kpi.horizon} (or ${config.decision_rule.primary_kpi.fallback_horizon}) ` +
+      `watch time AND the full required metric panel.` +
+      (incomplete.length > 0 ? ` Incomplete: ${incomplete.join("; ")}.` : "");
   } else {
     const branch = selectBranch(config, atOrAboveThreshold);
     if (branch) {
@@ -201,6 +299,17 @@ export function buildRecoveryReport(
         branch: branch.reels_at_or_above_threshold,
         verdict: branch.verdict,
         action: branch.action,
+        supporting: {
+          medianWatchRatio: median(
+            reels.map((r) => r.watch.avg_watch_ratio).filter((v): v is number => typeof v === "number")
+          ),
+          medianDurationSec: median(
+            reels.map((r) => r.watch.actual_video_duration_sec).filter((v): v is number => typeof v === "number")
+          ),
+          totalReach: sum("reach"),
+          totalSaves: sum("saves"),
+          totalShares: sum("shares"),
+        },
       };
     }
   }
@@ -219,6 +328,7 @@ export function buildRecoveryReport(
     atOrAboveThreshold,
     decision,
     decisionPending,
+    requiredMetrics: config.decision_rule.required_report_metrics ?? DEFAULT_REQUIRED_METRICS,
   };
 }
 
@@ -232,6 +342,7 @@ export function renderRecoveryReport(report: RecoveryReport): string {
   lines.push(
     `KPI: ${report.threshold.metric} >= ${report.threshold.thresholdSec}s @ ${report.threshold.horizon} (fallback ${report.threshold.fallbackHorizon})`
   );
+  lines.push(`required alongside the verdict: ${report.requiredMetrics.join(", ")}`);
   lines.push("");
 
   for (const r of report.reels) {
@@ -254,6 +365,13 @@ export function renderRecoveryReport(report: RecoveryReport): string {
       );
     }
     lines.push(`   retention  ${formatWatchSummary(r.watch)}${r.watch.avg_watch_ratio_exceeds_one ? "  [ratio > 1 — replays, not an error]" : ""}`);
+    lines.push(
+      "   required   " +
+        report.requiredMetrics
+          .map((k) => `${k}=${r.required.values[k] === null || r.required.values[k] === undefined ? "—" : r.required.values[k]}`)
+          .join(" · ")
+    );
+    if (r.required.missing.length > 0) lines.push(`   MISSING    ${r.required.missing.join(", ")}`);
     if (r.kpiWatchTimeSec === null) {
       lines.push("   KPI: awaiting data");
     } else {
@@ -268,8 +386,15 @@ export function renderRecoveryReport(report: RecoveryReport): string {
 
   lines.push(`published ${report.published}/5 · measured ${report.measured}/5 · at or above threshold ${report.atOrAboveThreshold}/5`);
   if (report.decision) {
+    const sup = report.decision.supporting;
     lines.push(`DECISION (${report.decision.branch}): ${report.decision.verdict}`);
     lines.push(`  -> ${report.decision.action}`);
+    // The branch is the pre-registered ACTION. These are what it must be read against — a verdict
+    // off avg_watch_time alone cannot tell a reel that did not hold from one that was just short.
+    lines.push(
+      `  read with: median ratio ${sup.medianWatchRatio ?? "—"} · median duration ${sup.medianDurationSec ?? "—"}s · ` +
+        `reach ${sup.totalReach ?? "—"} · saves ${sup.totalSaves ?? "—"} · shares ${sup.totalShares ?? "—"}`
+    );
   } else {
     lines.push(`DECISION: pending — ${report.decisionPending}`);
   }

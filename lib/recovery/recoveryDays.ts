@@ -50,7 +50,7 @@ export interface RecoveryDay {
   firestarter?: boolean;
   /** Explicit beat, when the action bank has nothing that fits the scene honestly. */
   actionOverride?: string;
-  durationSec: 6 | 7;
+  durationSec: 6 | 7 | 8;
 }
 
 // Shared across all five: Vivienne's sacred constants (thin gold chain, small gold hoops) appear in
@@ -85,7 +85,7 @@ export const RECOVERY_DAYS: RecoveryDay[] = [
     rationale:
       "The firestarter. Day 78 — the same tier, the same light-motion register, an eye-contact beat and a single hand gesture — is the best-performing reel in the whole window: 6.28s watch on an 8.13s file, ratio 0.772. This reproduces that shape deliberately instead of by accident.",
     firestarter: true,
-    durationSec: 7,
+    durationSec: 8,
     brief: {
       camera_language: "static handheld 50mm",
       color_palette: ["warm cream", "soft clay pink", "warm oak"],
@@ -134,7 +134,7 @@ export const RECOVERY_DAYS: RecoveryDay[] = [
     direction: "wellness + gesture",
     rationale:
       "Wellness is the tier of Day 76 (measured: 4.92s watch on 8.13s, ratio 0.605), the other clean performer. Gesture rather than the studio equipment: Day 92 showed the reformer pulls the prompt toward objects and physics that the scene cannot support.",
-    durationSec: 6,
+    durationSec: 7,
     brief: {
       camera_language: "static 50mm",
       color_palette: ["sage green", "warm cream", "warm concrete grey"],
@@ -183,7 +183,7 @@ export const RECOVERY_DAYS: RecoveryDay[] = [
     direction: "living social / candid moment",
     rationale:
       "The one direction with real ambient life in frame. Tests whether a candid, populated setting holds attention as well as the private register — the account's whole recent output is solitary, and a validator that only ever sees empty rooms cannot tell us if that is the constraint.",
-    durationSec: 7,
+    durationSec: 8,
     brief: {
       camera_language: "static handheld 50mm",
       color_palette: ["terracotta", "warm cream", "faded denim blue"],
@@ -236,7 +236,7 @@ export const RECOVERY_DAYS: RecoveryDay[] = [
     actionOverride: "her hand comes up and she adjusts the thin gold chain at her collarbone",
     rationale:
       "The same register as Reel 1 in a different room and a different light. If #1 works and #4 does not, the result is about that specific room; if both work, the register is what carries. n=1 on a direction is not a result.",
-    durationSec: 6,
+    durationSec: 7,
     brief: {
       camera_language: "static 50mm",
       color_palette: ["butter yellow", "warm cream", "deep olive"],
@@ -286,7 +286,7 @@ export const RECOVERY_DAYS: RecoveryDay[] = [
     actionOverride: "she lifts one hand out of the water and lets it fall back",
     rationale:
       "Deliberately outside the tested set, and deliberately not a fourth variation on a quiet interior. A bright, high-colour, open-water frame — the closest thing in this set to the visual-motif layer that becomes the next tested variable if the prompt layer turns out not to have been the problem (see the 0-of-5 branch in recovery.json).",
-    durationSec: 7,
+    durationSec: 8,
     brief: {
       camera_language: "static handheld 50mm",
       color_palette: ["turquoise", "warm cream", "sun-bleached terracotta"],

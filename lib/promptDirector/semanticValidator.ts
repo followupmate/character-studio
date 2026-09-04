@@ -8,6 +8,7 @@ import {
   type SceneSemanticsSource,
 } from "@/lib/sceneSemantics";
 import { plannedActionForReelArchetype } from "@/lib/reelArchetypeAction";
+import { REEL_DURATION_MAX_SEC, REEL_DURATION_MIN_SEC } from "@/lib/recovery/reelDuration";
 
 // RECOVERY phase 3 — LAYER 1: deterministic semantic checks. No LLM, no network.
 //
@@ -50,8 +51,9 @@ export interface SemanticValidationInput {
   /** The reel format applied to this slot (lib/reelFormats.ts id), when one was. */
   reelFormatId?: string | null;
   /**
-   * Auto-generated reel slots must obey the recovery shape rules (one action, 6–7s, no overlay
-   * text, no boilerplate). Manual/UI experiments are checked for coherence but not for shape.
+   * Auto-generated reel slots must obey the recovery shape rules (one action, one duration inside
+   * the approved band, no overlay text, no boilerplate). Manual/UI experiments are checked for
+   * coherence but not for shape.
    */
   enforceAutoReelShape?: boolean;
 }
@@ -145,8 +147,10 @@ function checkSpeechGating(
 }
 
 /* ── Rule 4: auto-reel length and structure ──────────────────────────────────
- * One action, 6–7s, no on-screen text, no boilerplate stack. This is the shape the two
- * best-performing reels in the window actually had.
+ * One action, one duration inside the approved band, no on-screen text, no boilerplate stack.
+ * The band itself comes from lib/recovery/reelDuration.ts — shared with the compiler rather than
+ * duplicated here, because when the band moved on 2026-09-04 the duplicate immediately started
+ * rejecting every prompt the compiler produced.
  */
 const DURATION_RANGE = /(\d+)\s*[–—-]\s*(\d+)\s*(?:s\b|sec|second)/i;
 const DURATION_SINGLE = /(?<!\d[–—-])\b(\d+(?:\.\d+)?)\s*(?:s\b|sec\b|seconds?\b)/i;
@@ -176,7 +180,7 @@ function checkAutoReelShape(input: SemanticValidationInput): SemanticViolation[]
       type: "structure",
       severity: "error",
       rule: "auto_reel_duration",
-      detail: `prompt declares a duration RANGE of ${range[1]}–${range[2]}s; an auto reel must declare one duration between 6 and 7 seconds`,
+      detail: `prompt declares a duration RANGE of ${range[1]}–${range[2]}s; an auto reel must declare one duration between ${REEL_DURATION_MIN_SEC} and ${REEL_DURATION_MAX_SEC} seconds`,
     });
   } else {
     const single = prompt.match(DURATION_SINGLE);
@@ -185,16 +189,16 @@ function checkAutoReelShape(input: SemanticValidationInput): SemanticViolation[]
         type: "structure",
         severity: "error",
         rule: "auto_reel_duration",
-        detail: "prompt declares no duration; an auto reel must declare one duration between 6 and 7 seconds",
+        detail: `prompt declares no duration; an auto reel must declare one duration between ${REEL_DURATION_MIN_SEC} and ${REEL_DURATION_MAX_SEC} seconds`,
       });
     } else {
       const secs = Number(single[1]);
-      if (secs < 6 || secs > 7) {
+      if (secs < REEL_DURATION_MIN_SEC || secs > REEL_DURATION_MAX_SEC) {
         out.push({
           type: "structure",
           severity: "error",
           rule: "auto_reel_duration",
-          detail: `prompt declares ${secs}s; an auto reel must be 6–7 seconds`,
+          detail: `prompt declares ${secs}s; an auto reel must be ${REEL_DURATION_MIN_SEC}–${REEL_DURATION_MAX_SEC} seconds`,
         });
       }
     }

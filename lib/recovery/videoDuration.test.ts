@@ -60,19 +60,22 @@ describe("parseMvhdDuration", () => {
 describe("evaluateDurationGate", () => {
   const bounds = REEL_DURATION_GATE;
 
-  it("passes a real 6–7s recovery reel", () => {
-    expect(evaluateDurationGate(6, bounds).ok).toBe(true);
+  it("passes a real 7–8s recovery reel", () => {
     expect(evaluateDurationGate(7, bounds).ok).toBe(true);
-    expect(evaluateDurationGate(5.5, bounds).ok).toBe(true);
-    expect(evaluateDurationGate(7.5, bounds).ok).toBe(true);
+    expect(evaluateDurationGate(8, bounds).ok).toBe(true);
+    expect(evaluateDurationGate(8.13, bounds).ok).toBe(true); // the measured length of every winner
+    expect(evaluateDurationGate(6.5, bounds).ok).toBe(true);
+    expect(evaluateDurationGate(8.5, bounds).ok).toBe(true);
   });
 
-  it("fails the durations the current providers actually return", () => {
-    // Veo's default is 8s and Kling/Seedance are hardcoded to 10s — both must be caught, not
-    // waved through, or the gate is decorative.
-    expect(evaluateDurationGate(8, bounds).ok).toBe(false);
+  it("fails the lengths that could never clear the KPI", () => {
+    // Nine published reels were ~5.2s and not one ever reached 4.5s watch (max 3.10s), and
+    // Kling/Seedance's hardcoded "10" is outside the shape entirely. Both must be caught, or the
+    // gate is decorative.
+    expect(evaluateDurationGate(5.2, bounds).ok).toBe(false);
+    expect(evaluateDurationGate(6, bounds).ok).toBe(false);
     expect(evaluateDurationGate(10, bounds).ok).toBe(false);
-    expect(evaluateDurationGate(5, bounds).ok).toBe(false);
+    expect(evaluateDurationGate(8.6, bounds).ok).toBe(false);
   });
 
   it("treats an unreadable duration as a failure, not a pass", () => {

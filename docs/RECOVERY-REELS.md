@@ -1,47 +1,39 @@
-# Recovery reels — 5 pripravených briefov na review
+# Recovery reels — 5 briefov (SCHVÁLENÉ 2026-09-04)
 
-**Stav: NEGENEROVANÉ, NEPUSHNUTÉ.** Toto je to, čo treba odsúhlasiť predtým, než sa minie prvý
-kredit. Zdroj: [`lib/recovery/recoveryDays.ts`](../lib/recovery/recoveryDays.ts), prompty
-kompilované cez [`lib/recovery/simpleReelCompiler.ts`](../lib/recovery/simpleReelCompiler.ts).
-Všetkých päť prejde vlastnou validáciou (0 errors, 0 warnings) — `lib/recovery/recoveryDays.test.ts`,
-beží v CI. Tento dokument je **generovaný zo zdroja**, nie prepísaný ručne.
+Zdroj: [`lib/recovery/recoveryDays.ts`](../lib/recovery/recoveryDays.ts), prompty kompilované cez
+[`lib/recovery/simpleReelCompiler.ts`](../lib/recovery/simpleReelCompiler.ts). Všetkých päť prejde
+vlastnou validáciou (0 errors, 0 warnings) — `lib/recovery/recoveryDays.test.ts`, beží v CI.
+Tento dokument je **generovaný zo zdroja**, nie prepísaný ručne.
 
-> ## ⚠️ Najprv jedno rozhodnutie: 6–7 s pásmo vs. KPI 4,5 s
->
-> Po zapnutí `actual_video_duration_sec` som premeral všetkých 24 publikovaných reelov (MP4
-> hlavička publikovaného súboru). Vyšlo z toho niečo, čo v pôvodnej diagnóze nebolo a čo mení
-> ekonomiku sprintu:
->
-> | dĺžka videa | n | max watch | priemer watch | koľko prekonalo 4,5 s |
-> |---|---|---|---|---|
-> | ~5,2 s | 9 | **3,10 s** | 2,71 s | **0** |
-> | ~8,1 s | 14 | 6,36 s | 3,91 s | **4** |
-> | ~10 s | 1 | 4,37 s | 4,37 s | 0 |
->
-> **Ani jeden z deviatich ~5,2 s reelov nikdy nedosiahol watch ≥ 4,5 s.** Nie je to o kreatíve —
-> pri pozorovanom rozsahu ratio (0,295–0,783, medián 0,458) to matematicky nejde. Všetky štyri
-> reely, ktoré prah prekonali, boli 8,1 s súbory.
->
-> A druhá strana tej istej mince:
->
-> | dĺžka | potrebné ratio na 4,5 s watch | historicky to dosiahlo |
-> |---|---|---|
-> | 6,0 s | ≥ 0,750 | 2 / 24 (8 %) |
-> | 7,0 s | ≥ 0,643 | 3 / 24 (12 %) |
-> | 8,13 s | ≥ 0,554 | 7 / 24 (29 %) |
->
-> Dĺžka pritom **nikdy nebola kreatívne rozhodnutie** — bola to náhoda podľa toho, ktorý provider
-> zrovna bežal (Kling `"5"`, Veo 8 s, Seedance `"10"`). Prechod na 5,2 s videá začína presne
-> **Day 81 = 20. 8.**, čo je začiatok okna, z ktorého je počítaná baseline.
->
-> **Čo som s tým urobil:** v rámci schváleného pásma 6–7 s je default teraz **7 s** (vrch pásma).
-> Nie je to naťahovanie videa kvôli cieľu — dĺžka každého dňa je nastavená podľa počtu beatov
-> a dvojbeatové dni ostávajú na 6 s.
->
-> **Čo potrebujem od teba:** či pásmo zostáva 6–7 s, alebo sa posúva k ~8 s. Evidencia hovorí za
-> 8,1 s (je to nameraná dĺžka tvaru, ktorý fungoval — Day 78, 76 aj 71 sú všetko 8,13 s súbory).
-> Pásmo som **nezmenil sám**, lebo je v zadaní. Ak sa posunie, musí sa posunúť aj QA gate
-> (`REEL_DURATION_GATE`, dnes 5,5–7,5 s) — je to jednoriadková zmena.
+## Schválené zmeny (2026-09-04)
+
+| položka | predtým | teraz |
+|---|---|---|
+| `REEL_DURATION_GATE` | 5,5–7,5 s | **6,5–8,5 s** |
+| povolené pásmo | 6–7 s | **6–8 s** |
+| default | 7 s | **8 s** |
+| Reel 1 / 2 / 3 / 4 / 5 | 7/6/7/6/7 s | **8 / 7 / 8 / 7 / 8 s** |
+| Veo `durationSeconds` | 6 | **8** |
+| recovery verdict | `avg_watch_time ≥ 4,5 s` | **ten istý prah + povinný metrický panel** |
+
+Duration konštanty sú teraz na **jednom mieste** ([`lib/recovery/reelDuration.ts`](../lib/recovery/reelDuration.ts)).
+Boli duplikované v compileri a vo validátore a posun pásma to hneď odhalil: validator začal
+odmietať každý prompt, ktorý compiler vyrobil.
+
+## Recovery verdict už nie je jedno číslo
+
+Vetva v `recovery.json` zostáva ako **akcia**, ale nesmie sa čítať zo samotného `avg_watch_time`.
+Report preto vynucuje povinný panel — reel je `measured` len keď má **všetky**:
+
+`avg_watch_time_sec` · `actual_video_duration_sec` · `avg_watch_ratio` · `reach` · `saves` · `shares`
+
+Panel sa číta z **toho istého horizontu**, z ktorého prišla KPI, takže čísla vedľa verdiktu
+popisujú ten istý moment. Chýbajúca metrika sa vypíše menom (`#1 missing avg_watch_ratio`),
+nie zamlčí. Nula je meranie, chýbajúca hodnota nie.
+
+`avg_watch_ratio` odlišuje **„reel neudržal"** od **„reel bol len krátky"** — rozdiel, ktorý
+`avg_watch_time` sám o sebe spraviť nevie, a presne ten dôvod, prečo deväť ~5,2 s reelov vyzeralo
+ako kreatívne zlyhanie, hoci to bolo zlyhanie dĺžky. **Do CI scoringu nevstupuje nič z toho.**
 
 ---
 
@@ -49,11 +41,11 @@ beží v CI. Tento dokument je **generovaný zo zdroja**, nie prepísaný ručne
 
 | # | objective | tier / scene | shot archetype | first-frame hook | one action | payoff 0–3 s | dur | speech | loop logic |
 |---|---|---|---|---|---|---|---|---|---|
-| **1** | Reprodukovať tvar najlepšieho reelu v okne, zámerne a nie náhodou. | `bedroom` · intimate / private + light motion | `light_motion` | Close-medium, tvár blízko kamery, pohľad mimo objektív — divák vidí, že sa o chvíľu pozrie naňho. | a very slight asymmetric smile starts, and her hand comes up to adjust a strand of hair and the thin gold chain at her collarbone | ~1,5 s: oči nájdu objektív + veľmi jemný asymetrický úsmev. To je celá odmena. | 7 s | **nie** | Posledný frame = otvárací postoj a pohľad mimo objektív, takže slučka nemá šev. |
-| **2** | Overiť, či wellness register drží pozornosť bez studiového vybavenia v zábere. | `terrace_rooftop` · wellness + gesture | `gesture_motion` | Otvorená strešná terasa, ranné slnko zboku, postava blízko kamery — svetlo a priestor, nie cvičebné náradie. | she tucks one strand of hair back behind her ear | ~1,5 s: oči na objektív, potom jedno zastrčenie prameňa vlasov za ucho. | 6 s | **nie** | Vráti sa do rovnakého postoja a pohľadu mimo objektív. |
-| **3** | Otestovať, či scéna so živým pozadím drží rovnako ako súkromný register — celý posledný obsah je samota. | `cafe_restaurant` · living social / candid moment | `interaction_object` | Kaviarenská terasa, teplá ochre fasáda za ňou, rozostrení ľudia v hĺbke — okamžite čitateľné miesto. | she lifts the cup, takes one slow sip, and sets it back down | ~2 s: oči na objektív a jeden pomalý dúšok z espressa, ktoré je v scéne uzamknuté. | 7 s | **nie** | Šálka sa vráti na stôl do východiskovej polohy, pohľad ide mimo objektív. |
-| **4** | Druhé čítanie smeru #1 v inej miestnosti a inom svetle — n=1 na smer nie je výsledok. | `living_room` · intimate variant — a second read on #1 | `light_motion` | Protisvetlo cez záclonu za ňou, obrys vysvietený — mäkký, okamžite čitateľný portrét. | her hand comes up and she adjusts the thin gold chain at her collarbone | ~1,5 s: oči na objektív, potom ruka k retiazke na kľúčnej kosti. | 6 s | **nie** | Ruka klesne, pohľad ide mimo objektív — zhoda s prvým framom. |
-| **5** | Zámerne mimo troch smerov — najbližší bod k vizuálnej motívovej vrstve, ktorá je ďalšia testovaná premenná pri výsledku 0/5. | `pool` · challenger — free attempt outside the three directions | `sitting_window` | Tyrkysová voda a tvrdé letné svetlo — jediný jasný, vysoko farebný frame v celej päťke. | she lifts one hand out of the water and lets it fall back | ~2 s: oči na objektív, potom ruka von z vody a späť. | 7 s | **nie** | Ruka sa vráti do vody, pohľad mimo objektív. |
+| **1** | Reprodukovať tvar najlepšieho reelu v okne, zámerne a nie náhodou. | `bedroom` · intimate / private + light motion | `light_motion` | Close-medium, tvár blízko kamery, pohľad mimo objektív — divák vidí, že sa o chvíľu pozrie naňho. | a very slight asymmetric smile starts, and her hand comes up to adjust a strand of hair and the thin gold chain at her collarbone | ~1,5 s: oči nájdu objektív + veľmi jemný asymetrický úsmev. To je celá odmena. | **8 s** | **nie** | Posledný frame = otvárací postoj a pohľad mimo objektív, takže slučka nemá šev. |
+| **2** | Overiť, či wellness register drží pozornosť bez studiového vybavenia v zábere. | `terrace_rooftop` · wellness + gesture | `gesture_motion` | Otvorená strešná terasa, ranné slnko zboku, postava blízko kamery — svetlo a priestor, nie cvičebné náradie. | she tucks one strand of hair back behind her ear | ~1,5 s: oči na objektív, potom jedno zastrčenie prameňa vlasov za ucho. | **7 s** | **nie** | Vráti sa do rovnakého postoja a pohľadu mimo objektív. |
+| **3** | Otestovať, či scéna so živým pozadím drží rovnako ako súkromný register — celý posledný obsah je samota. | `cafe_restaurant` · living social / candid moment | `interaction_object` | Kaviarenská terasa, teplá ochre fasáda za ňou, rozostrení ľudia v hĺbke — okamžite čitateľné miesto. | she lifts the cup, takes one slow sip, and sets it back down | ~2 s: oči na objektív a jeden pomalý dúšok z espressa, ktoré je v scéne uzamknuté. | **8 s** | **nie** | Šálka sa vráti na stôl do východiskovej polohy, pohľad ide mimo objektív. |
+| **4** | Druhé čítanie smeru #1 v inej miestnosti a inom svetle — n=1 na smer nie je výsledok. | `living_room` · intimate variant — a second read on #1 | `light_motion` | Protisvetlo cez záclonu za ňou, obrys vysvietený — mäkký, okamžite čitateľný portrét. | her hand comes up and she adjusts the thin gold chain at her collarbone | ~1,5 s: oči na objektív, potom ruka k retiazke na kľúčnej kosti. | **7 s** | **nie** | Ruka klesne, pohľad ide mimo objektív — zhoda s prvým framom. |
+| **5** | Zámerne mimo troch smerov — najbližší bod k vizuálnej motívovej vrstve, ktorá je ďalšia testovaná premenná pri výsledku 0/5. | `pool` · challenger — free attempt outside the three directions | `sitting_window` | Tyrkysová voda a tvrdé letné svetlo — jediný jasný, vysoko farebný frame v celej päťke. | she lifts one hand out of the water and lets it fall back | ~2 s: oči na objektív, potom ruka von z vody a späť. | **8 s** | **nie** | Ruka sa vráti do vody, pohľad mimo objektív. |
 
 ### Prečo má každý recovery potenciál — historická evidencia z DB
 
@@ -75,7 +67,7 @@ s dĺžkou nevystavuje (`duration` aj `video_duration` vracajú „nonexisting f
 
 **Prečo tento smer:** The firestarter. Day 78 — the same tier, the same light-motion register, an eye-contact beat and a single hand gesture — is the best-performing reel in the whole window: 6.28s watch on an 8.13s file, ratio 0.772. This reproduces that shape deliberately instead of by accident.
 
-**Scéna:** `bedroom` / `seated_still` · 7 s · close-medium · archetype `light_motion`
+**Scéna:** `bedroom` / `seated_still` · **8 s** · close-medium · archetype `light_motion`
 
 **Objekty v scéne (uzavretý zoznam):** žiadne
 
@@ -90,14 +82,14 @@ s dĺžkou nevystavuje (`duration` aj `video_duration` vracajú „nonexisting f
 **Kompilovaný motion prompt** — presne toto ide do generátora:
 
 ```
-Close-medium on her, camera static at chest height. She starts close to the lens, looking away to one side. Within the first second her eyes find the lens and stay there. A very slight asymmetric smile starts, and her hand comes up to adjust a strand of hair and the thin gold chain at her collarbone. She holds the look. The last frame matches the first so it loops seamlessly. 7s, vertical 9:16.
+Close-medium on her, camera static at chest height. She starts close to the lens, looking away to one side. Within the first second her eyes find the lens and stay there. A very slight asymmetric smile starts, and her hand comes up to adjust a strand of hair and the thin gold chain at her collarbone. She holds the look. The last frame matches the first so it loops seamlessly. 8s, vertical 9:16.
 ```
 
 **Negative prompt:** `no speech, no text, no captions, no watermark, no camera movement, no zoom, no cuts, no second person in frame, no face morphing`
 
 **Validácia:** 0 errors, 0 warnings · klasifikácia scény: authored (nie odvodená)
 
-**Aby prekonal KPI 4,5 s** pri 7 s dĺžke potrebuje watch ratio **≥ 0.643**. Referenčný Day 78 mal 0.772.
+**Aby prekonal KPI 4,5 s** pri 8 s dĺžke potrebuje watch ratio **≥ 0.563**. Referenčný Day 78 mal 0.772.
 
 ---
 
@@ -107,7 +99,7 @@ Close-medium on her, camera static at chest height. She starts close to the lens
 
 **Prečo tento smer:** Wellness is the tier of Day 76 (measured: 4.92s watch on 8.13s, ratio 0.605), the other clean performer. Gesture rather than the studio equipment: Day 92 showed the reformer pulls the prompt toward objects and physics that the scene cannot support.
 
-**Scéna:** `terrace_rooftop` / `standing_still` · 6 s · close-medium · archetype `gesture_motion`
+**Scéna:** `terrace_rooftop` / `standing_still` · **7 s** · close-medium · archetype `gesture_motion`
 
 **Objekty v scéne (uzavretý zoznam):** rolled yoga mat
 
@@ -122,14 +114,14 @@ Close-medium on her, camera static at chest height. She starts close to the lens
 **Kompilovaný motion prompt** — presne toto ide do generátora:
 
 ```
-Close-medium on her, camera static at chest height. She starts close to the lens, looking just off camera. Within the first second her eyes find the lens and stay there. She tucks one strand of hair back behind her ear. She holds the look. The last frame matches the first so it loops seamlessly. 6s, vertical 9:16.
+Close-medium on her, camera static at chest height. She starts close to the lens, looking just off camera. Within the first second her eyes find the lens and stay there. She tucks one strand of hair back behind her ear. She holds the look. The last frame matches the first so it loops seamlessly. 7s, vertical 9:16.
 ```
 
 **Negative prompt:** `no speech, no text, no captions, no watermark, no camera movement, no zoom, no cuts, no second person in frame, no face morphing`
 
 **Validácia:** 0 errors, 0 warnings · klasifikácia scény: authored (nie odvodená)
 
-**Aby prekonal KPI 4,5 s** pri 6 s dĺžke potrebuje watch ratio **≥ 0.750**. Referenčný Day 76 mal 0.605.
+**Aby prekonal KPI 4,5 s** pri 7 s dĺžke potrebuje watch ratio **≥ 0.643**. Referenčný Day 76 mal 0.605.
 
 ---
 
@@ -139,7 +131,7 @@ Close-medium on her, camera static at chest height. She starts close to the lens
 
 **Prečo tento smer:** The one direction with real ambient life in frame. Tests whether a candid, populated setting holds attention as well as the private register — the account's whole recent output is solitary, and a validator that only ever sees empty rooms cannot tell us if that is the constraint.
 
-**Scéna:** `cafe_restaurant` / `eating_drinking` · 7 s · close-medium · archetype `interaction_object`
+**Scéna:** `cafe_restaurant` / `eating_drinking` · **8 s** · close-medium · archetype `interaction_object`
 
 **Objekty v scéne (uzavretý zoznam):** white ceramic espresso cup, saucer
 
@@ -154,14 +146,14 @@ Close-medium on her, camera static at chest height. She starts close to the lens
 **Kompilovaný motion prompt** — presne toto ide do generátora:
 
 ```
-Close-medium on her, camera static at chest height. She starts close to the lens, looking just off camera. Within the first second her eyes find the lens and stay there. She lifts the cup, takes one slow sip, and sets it back down. She holds the look. The last frame matches the first so it loops seamlessly. 7s, vertical 9:16.
+Close-medium on her, camera static at chest height. She starts close to the lens, looking just off camera. Within the first second her eyes find the lens and stay there. She lifts the cup, takes one slow sip, and sets it back down. She holds the look. The last frame matches the first so it loops seamlessly. 8s, vertical 9:16.
 ```
 
 **Negative prompt:** `no speech, no text, no captions, no watermark, no camera movement, no zoom, no cuts, no second person in frame, no face morphing`
 
 **Validácia:** 0 errors, 0 warnings · klasifikácia scény: authored (nie odvodená)
 
-**Aby prekonal KPI 4,5 s** pri 7 s dĺžke potrebuje watch ratio **≥ 0.643**. Referenčný Day 71 mal 0.783.
+**Aby prekonal KPI 4,5 s** pri 8 s dĺžke potrebuje watch ratio **≥ 0.563**. Referenčný Day 71 mal 0.783.
 
 ---
 
@@ -171,7 +163,7 @@ Close-medium on her, camera static at chest height. She starts close to the lens
 
 **Prečo tento smer:** The same register as Reel 1 in a different room and a different light. If #1 works and #4 does not, the result is about that specific room; if both work, the register is what carries. n=1 on a direction is not a result.
 
-**Scéna:** `living_room` / `seated_still` · 6 s · close-medium · archetype `light_motion`
+**Scéna:** `living_room` / `seated_still` · **7 s** · close-medium · archetype `light_motion`
 
 **Objekty v scéne (uzavretý zoznam):** low stack of books
 
@@ -186,14 +178,14 @@ Close-medium on her, camera static at chest height. She starts close to the lens
 **Kompilovaný motion prompt** — presne toto ide do generátora:
 
 ```
-Close-medium on her, camera static at chest height. She starts seated, close to the lens, looking just off camera. Within the first second her eyes find the lens and stay there. Her hand comes up and she adjusts the thin gold chain at her collarbone. She holds the look. The last frame matches the first so it loops seamlessly. 6s, vertical 9:16.
+Close-medium on her, camera static at chest height. She starts seated, close to the lens, looking just off camera. Within the first second her eyes find the lens and stay there. Her hand comes up and she adjusts the thin gold chain at her collarbone. She holds the look. The last frame matches the first so it loops seamlessly. 7s, vertical 9:16.
 ```
 
 **Negative prompt:** `no speech, no text, no captions, no watermark, no camera movement, no zoom, no cuts, no second person in frame, no face morphing`
 
 **Validácia:** 0 errors, 0 warnings · klasifikácia scény: authored (nie odvodená)
 
-**Aby prekonal KPI 4,5 s** pri 6 s dĺžke potrebuje watch ratio **≥ 0.750**. Referenčný Day 70 mal 0.717.
+**Aby prekonal KPI 4,5 s** pri 7 s dĺžke potrebuje watch ratio **≥ 0.643**. Referenčný Day 70 mal 0.717.
 
 ---
 
@@ -203,7 +195,7 @@ Close-medium on her, camera static at chest height. She starts seated, close to 
 
 **Prečo tento smer:** Deliberately outside the tested set, and deliberately not a fourth variation on a quiet interior. A bright, high-colour, open-water frame — the closest thing in this set to the visual-motif layer that becomes the next tested variable if the prompt layer turns out not to have been the problem (see the 0-of-5 branch in recovery.json).
 
-**Scéna:** `pool` / `seated_still` · 7 s · close-medium · archetype `sitting_window`
+**Scéna:** `pool` / `seated_still` · **8 s** · close-medium · archetype `sitting_window`
 
 **Objekty v scéne (uzavretý zoznam):** žiadne
 
@@ -218,14 +210,14 @@ Close-medium on her, camera static at chest height. She starts seated, close to 
 **Kompilovaný motion prompt** — presne toto ide do generátora:
 
 ```
-Close-medium on her, camera static at chest height. She starts seated, close to the lens, looking just off camera. Within the first second her eyes find the lens and stay there. She lifts one hand out of the water and lets it fall back. She holds the look. The last frame matches the first so it loops seamlessly. 7s, vertical 9:16.
+Close-medium on her, camera static at chest height. She starts seated, close to the lens, looking just off camera. Within the first second her eyes find the lens and stay there. She lifts one hand out of the water and lets it fall back. She holds the look. The last frame matches the first so it loops seamlessly. 8s, vertical 9:16.
 ```
 
 **Negative prompt:** `no speech, no text, no captions, no watermark, no camera movement, no zoom, no cuts, no second person in frame, no face morphing`
 
 **Validácia:** 0 errors, 0 warnings · klasifikácia scény: authored (nie odvodená)
 
-**Aby prekonal KPI 4,5 s** pri 7 s dĺžke potrebuje watch ratio **≥ 0.643**. Referenčný Day 74 mal 0.435.
+**Aby prekonal KPI 4,5 s** pri 8 s dĺžke potrebuje watch ratio **≥ 0.563**. Referenčný Day 74 mal 0.435.
 
 ---
 ## Publish protokol
@@ -248,7 +240,7 @@ Close-medium on her, camera static at chest height. She starts seated, close to 
 | jedna okamžite čitateľná situácia | jeden micro-location lock v každom briefe; `location_class` je authored |
 | jedna hlavná akcia | `auto_reel_single_action` — error pri troch alternatívach v jednej vete |
 | payoff do 0–3 s | eye-contact beat je fixne v prvej sekunde, akcia hneď za ním |
-| 6–7 s len ak to dáva zmysel | dĺžka podľa počtu beatov: 3 × 7 s, 2 × 6 s. Compiler odmietne hodnotu mimo pásma, neoreže ju |
+| dĺžka len ak to dáva zmysel | schválené targety 8/7/8/7/8 s podľa počtu beatov. Compiler odmietne hodnotu mimo pásma 6–8 s, neoreže ju |
 | žiadny random GRWM/ASMR/POV overlay | `pickReelFormat(day_number)` sa na tejto ceste nepoužíva vôbec; `format_coherence` navyše viaže formát na action class |
 | žiadne generické props/physics | `scene_entities` je uzavretý zoznam; `prop_coherence` + physics scene-precondition |
 | speech iba ak je speech hook | `speech_is_the_point: false` na všetkých piatich → `speech_gating` |
@@ -261,6 +253,6 @@ Zaregistrované vopred v [`recovery.json`](../recovery.json), asertované v CI. 
 ≥2 z 5 → smer funguje, `CI_SCORING_FROZEN` ostáva ďalších 14 dní · 1 z 5 → predĺžiť o 3 reels
 v najsilnejšom smere · 0 z 5 → ďalšia premenná je vizuálna motívová vrstva.
 
-**Nové v reporte:** `avg_watch_ratio` sa zbiera a zobrazuje pri každom reeli, ale **nevstupuje do
-prahu ani do žiadneho scoringu** — prah je stále avg watch time. Ratio je diagnostika: povie, či
-reel nedržal, alebo bol len krátky.
+**Nové v reporte:** povinný metrický panel (viď hore). `avg_watch_ratio` sa zbiera a zobrazuje pri
+každom reeli aj v agregáte pod verdiktom, ale **nevstupuje do prahu ani do žiadneho CI scoringu** —
+prah je stále avg watch time.

@@ -55,19 +55,21 @@ describe("compileSimpleReel", () => {
     expect(out.prompt).toMatch(/Within the first second her eyes find the lens/);
   });
 
-  it("declares one duration in the 6–7s band and states the loop", () => {
+  it("declares one duration in the approved band and states the loop", () => {
     const out = compileSimpleReel(scene(78));
-    // The default is the TOP of the approved band: at 6s, clearing the 4.5s watch-time KPI needs a
-    // ratio only 2 of 24 published reels ever reached; at 7s, 3 of 24. See the DURATION note.
-    expect(out.durationSec).toBe(7);
-    expect(out.prompt).toMatch(/\b7s, vertical 9:16\.$/);
+    // Default is 8s as of 2026-09-04 — the measured length of every reel that ever cleared the
+    // 4.5s watch KPI. See lib/recovery/reelDuration.ts.
+    expect(out.durationSec).toBe(8);
+    expect(out.prompt).toMatch(/\b8s, vertical 9:16\.$/);
     expect(out.prompt).toMatch(/loops seamlessly/);
     expect(compileSimpleReel({ ...scene(78), durationSec: 6 }).prompt).toMatch(/\b6s,/);
+    expect(compileSimpleReel({ ...scene(78), durationSec: 7 }).prompt).toMatch(/\b7s,/);
   });
 
   it("rejects a duration outside the band rather than silently clamping it", () => {
-    expect(() => compileSimpleReel({ ...scene(78), durationSec: 10 })).toThrow(/6–7s/);
-    expect(() => compileSimpleReel({ ...scene(78), durationSec: 5 })).toThrow(/6–7s/);
+    expect(() => compileSimpleReel({ ...scene(78), durationSec: 10 })).toThrow(/6–8s/);
+    expect(() => compileSimpleReel({ ...scene(78), durationSec: 5 })).toThrow(/6–8s/);
+    expect(() => compileSimpleReel({ ...scene(78), durationSec: 9 })).toThrow(/6–8s/);
     expect(() => compileSimpleReel({ ...scene(78), durationSec: REEL_DURATION_MAX_SEC })).not.toThrow();
   });
 
@@ -158,7 +160,7 @@ describe("firestarter (Reel 1)", () => {
     expect(out.prompt).toMatch(/strand of hair and the thin gold chain/);
     expect(out.prompt).toMatch(/She holds the look/);
     expect(out.prompt).toMatch(/loops seamlessly/);
-    expect(out.prompt).toMatch(/7s, vertical 9:16/);
+    expect(out.prompt).toMatch(/8s, vertical 9:16/);
   });
 
   it("is close-medium and passes validation clean", () => {

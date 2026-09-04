@@ -26,10 +26,14 @@ const SLOT_IMAGE_SIZE: Record<string, { width: number; height: number }> = {
 const VIDEO_SLOTS = new Set(["reel_video"]);
 
 // RECOVERY phase 4 — first-frame QA gate. Watch time is decided in the first two seconds, and a
-// reel that is the wrong length cannot be judged against the 6-7s shape at all. Nothing reaches
+// reel that is the wrong length cannot be judged against the target shape at all. Nothing reaches
 // status "ready" without its real duration being measured (see lib/recovery/videoDuration.ts —
 // MP4 mvhd header, no ffmpeg, ranged fetch).
-const REEL_TARGET_DURATION_SEC = 6;
+//
+// 8s as of 2026-09-04: every reel that ever cleared the 4.5s watch-time KPI was an 8.1s file, and
+// none of the nine ~5.2s reels ever got past 3.10s. Veo accepts 4/6/8 and is the only wired
+// provider that can hit the band (Kling and Seedance take only "5" or "10").
+const REEL_TARGET_DURATION_SEC = 8;
 
 // Provider binding (prompt_director_v1): when the caller leaves `model` at its "auto" default, an
 // explicit provider chosen by Prompt Director (persisted at chs_media.visual_signature.

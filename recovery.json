@@ -30,6 +30,15 @@
       "$comment": "Watch time is the only metric in this account's data that correlates with reach: every post above 4.5s has 250+ views, every post below 3s has under 180."
     },
     "secondary_kpi": ["saves", "shares"],
+    "required_report_metrics": [
+      "avg_watch_time_sec",
+      "actual_video_duration_sec",
+      "avg_watch_ratio",
+      "reach",
+      "saves",
+      "shares"
+    ],
+    "verdict_is_not_a_single_number": "Set 2026-09-04. The branch below is the pre-registered ACTION, but it may not be read on avg_watch_time alone. A reel counts as measured only when every metric in required_report_metrics is present, and the report prints all of them next to the verdict. avg_watch_ratio in particular separates 'the reel did not hold' from 'the reel was simply short' — a distinction avg_watch_time cannot make on its own, and the reason nine ~5.2s reels looked like a creative failure when they were a length failure. None of these feed CI scoring.",
     "context_only": {
       "metrics": ["views", "reach"],
       "$comment": "Views are context, never the decision. Across a 47-242 range they are noise at n=1."
