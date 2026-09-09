@@ -1,6 +1,6 @@
 import { claudeWithRetry } from "@/lib/generatePrompts";
 import { STORY_COPY_RULES } from "@/lib/storyCopyRules";
-import type { CompiledRecoveryDay } from "./recoveryDays";
+import type { SceneBriefJson } from "@/lib/sceneBrief";
 
 // RECOVERY STORY ALIGNMENT.
 //
@@ -19,6 +19,23 @@ import type { CompiledRecoveryDay } from "./recoveryDays";
 // verbatim from the story engine's own prompt, not restated here, so a recovery caption cannot
 // drift into a different voice.
 
+/**
+ * The shape a prepared day must have for its story to be derived from it.
+ *
+ * Structural rather than a concrete import, so the visual/hook experiment gets the SAME derivation
+ * instead of a second copy that drifts. The copy of this logic is what would reintroduce the exact
+ * failure it exists to prevent: a caption describing somewhere the video is not.
+ */
+export interface StoryDerivableDay {
+  /** 1-based index within its own experiment. */
+  slot: number;
+  objective: string;
+  payoff: string;
+  direction: string;
+  brief: SceneBriefJson;
+  compiled: { action: string };
+}
+
 export interface RecoveryStoryScene {
   location: string;
   mood: string;
@@ -33,7 +50,7 @@ export interface RecoveryStoryScene {
  * The story-day scene, derived from the recovery brief. Deterministic — no LLM. Every field comes
  * from the brief that already produced the reel, so the day and the reel cannot disagree.
  */
-export function buildRecoveryStoryScene(day: CompiledRecoveryDay): RecoveryStoryScene {
+export function buildRecoveryStoryScene(day: StoryDerivableDay, indexKey = "recovery_index"): RecoveryStoryScene {
   const b = day.brief;
   return {
     location: b.spatial_setup.split("—")[0].trim().replace(/\.$/, ""),
@@ -52,13 +69,13 @@ export function buildRecoveryStoryScene(day: CompiledRecoveryDay): RecoveryStory
       props: b.scene_entities ?? [],
       motifs: b.color_palette,
       energy: day.direction,
-      recovery_index: day.slot,
+      [indexKey]: day.slot,
     },
   };
 }
 
 /** Maps a recovery direction onto the existing tier vocabulary — no new tiers invented. */
-export function recoveryTierFor(day: CompiledRecoveryDay): string {
+export function recoveryTierFor(day: StoryDerivableDay): string {
   switch (day.brief.location_class) {
     case "bedroom":
     case "living_room":
@@ -66,6 +83,7 @@ export function recoveryTierFor(day: CompiledRecoveryDay): string {
     case "terrace_rooftop":
       return "wellness_fitness";
     case "cafe_restaurant":
+    case "bar":
     case "street":
       return "lived_moments";
     case "pool":
@@ -98,7 +116,7 @@ function safeJson(raw: string): Record<string, unknown> {
  * feed is its own kind of incoherence.
  */
 export async function generateRecoveryStoryCopy(args: {
-  day: CompiledRecoveryDay;
+  day: StoryDerivableDay;
   scene: RecoveryStoryScene;
   characterName: string;
   previousCaptions: string[];

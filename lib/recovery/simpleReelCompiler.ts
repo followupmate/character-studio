@@ -115,7 +115,21 @@ export interface SimpleReelInput {
    * brief when absent. Never invents furniture — falls back to a neutral clause.
    */
   openingState?: string;
+  /**
+   * Replaces the default eye-contact beat sentence.
+   *
+   * The default IS a hook — a gaze turn — and it is the right one for every recovery reel, which
+   * is why it was hardcoded. The visual/hook experiment (lib/experiments/) needs four other hook
+   * shapes, and a light-shift or environment-reaction beat cannot be expressed by a sentence that
+   * always says the eyes arrive first. This is the seam for that, and nothing else about the
+   * compiler changes: omit it and the output is byte-identical to before.
+   */
+  hookBeat?: string;
 }
+
+/** The gaze-turn beat every recovery reel uses. Exported so the experiment layer can name the
+ *  control condition rather than re-typing it and hoping the two stay the same. */
+export const DEFAULT_HOOK_BEAT = "Within the first second her eyes find the lens and stay there.";
 
 export interface SimpleReelPrompt {
   prompt: string;
@@ -184,7 +198,7 @@ export function compileSimpleReel(input: SimpleReelInput): SimpleReelPrompt {
   const prompt = [
     FRAMING_TEXT[framing],
     gazeAlreadyStated ? `She starts ${openingState}.` : `She starts ${openingState}, looking just off camera.`,
-    "Within the first second her eyes find the lens and stay there.",
+    input.hookBeat?.trim() || DEFAULT_HOOK_BEAT,
     `${action.charAt(0).toUpperCase()}${action.slice(1)}.`,
     "She holds the look.",
     "The last frame matches the first so it loops seamlessly.",

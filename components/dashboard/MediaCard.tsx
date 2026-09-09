@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Media } from "@/types";
 import { stripPromptHeader } from "@/lib/promptClean";
@@ -94,6 +94,20 @@ function cleanPrompt(raw: string): string {
   return stripPromptHeader(raw);
 }
 
+/** The experiment block persisted in visual_signature.visual_hook_experiment (jsonb, no DDL). */
+interface VhdMark {
+  version?: string;
+  index?: number;
+  experiment_total?: number;
+  motif_family?: string;
+  hook_type?: string;
+  hook_start_sec?: number;
+  payoff_sec?: number;
+  experiment_role?: string;
+  direction?: string;
+  target_duration_sec?: number;
+}
+
 // RECOVERY — a slot carries its own marker in visual_signature.recovery. Surfacing it on the card
 // is what tells the operator that the prompt they are reading is the recovery prompt and not the
 // day's normal one. Without it the two are indistinguishable, which was the first thing a real
@@ -110,6 +124,57 @@ function RecoveryTag({ media }: { media: Media }) {
     >
       RECOVERY {rec.recovery_index}/{rec.recovery_total ?? 5}
     </span>
+  );
+}
+
+// VISUAL / HOOK / DISTRIBUTION experiment — same idea, second experiment. The badge alone answers
+// "is this an experiment slot"; the details block answers "which arm, and what is it testing",
+// which is the question an operator actually has when a card looks unlike yesterday's.
+function vhdOf(media: Media): VhdMark | null {
+  const v = (media.visual_signature as { visual_hook_experiment?: VhdMark } | null | undefined)?.visual_hook_experiment;
+  return v?.index ? v : null;
+}
+
+function VhdTag({ media }: { media: Media }) {
+  const v = vhdOf(media);
+  if (!v) return null;
+  return (
+    <span
+      className="font-mono text-[8px] bg-amber/15 border border-amber/50 text-amber px-1.5 py-0.5 tracking-[0.1em] whitespace-nowrap"
+      title={`${v.direction ?? v.motif_family ?? "experiment"}${v.experiment_role ? ` · ${v.experiment_role}` : ""}`}
+    >
+      VHD {v.index}/{v.experiment_total ?? 5}
+    </span>
+  );
+}
+
+function VhdDetails({ media }: { media: Media }) {
+  const v = vhdOf(media);
+  if (!v) return null;
+  const rows: Array<[string, string | number | undefined]> = [
+    ["arm", `${v.index}/${v.experiment_total ?? 5}${v.experiment_role ? ` · ${v.experiment_role}` : ""}`],
+    ["motif", v.motif_family],
+    ["hook", v.hook_type],
+    ["first change", v.hook_start_sec !== undefined ? `${v.hook_start_sec}s` : undefined],
+    ["payoff by", v.payoff_sec !== undefined ? `${v.payoff_sec}s` : undefined],
+    ["target", v.target_duration_sec !== undefined ? `${v.target_duration_sec}s` : undefined],
+  ];
+  return (
+    <details className="border border-amber/30 bg-amber/5 px-2 py-1.5">
+      <summary className="font-mono text-[9px] tracking-[0.1em] text-amber cursor-pointer select-none">
+        EXPERIMENT · {v.direction ?? v.motif_family}
+      </summary>
+      <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+        {rows
+          .filter(([, value]) => value !== undefined && value !== null)
+          .map(([key, value]) => (
+            <React.Fragment key={key}>
+              <dt className="font-mono text-[9px] text-muted2 tracking-[0.06em]">{key}</dt>
+              <dd className="font-mono text-[9px] text-ink">{value}</dd>
+            </React.Fragment>
+          ))}
+      </dl>
+    </details>
   );
 }
 
@@ -347,6 +412,7 @@ export default function MediaCard({
           </div>
           <div className="flex items-center gap-1.5">
             <RecoveryTag media={media} />
+            <VhdTag media={media} />
             <span className="font-mono text-[8px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 tracking-[0.1em]">
               POSTNUTÉ
             </span>
@@ -392,6 +458,7 @@ export default function MediaCard({
           </div>
           <div className="flex items-center gap-1.5">
             <RecoveryTag media={media} />
+            <VhdTag media={media} />
             <Badge status={media.status} />
           </div>
         </div>
@@ -506,6 +573,7 @@ export default function MediaCard({
         </div>
         <div className="flex items-center gap-1.5">
           <RecoveryTag media={media} />
+          <VhdTag media={media} />
           <Badge status={busy ? "generating" : media.status} />
         </div>
       </div>
@@ -538,6 +606,8 @@ export default function MediaCard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <VhdDetails media={media} />
 
       {/* Generate */}
       <div className="flex flex-col gap-1.5">

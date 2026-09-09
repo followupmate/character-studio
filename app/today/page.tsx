@@ -65,6 +65,25 @@ function recoveryOfDay(items: Media[]): RecoveryMark | null {
   return null;
 }
 
+interface VhdMark {
+  index?: number;
+  experiment_total?: number;
+  motif_family?: string;
+  hook_type?: string;
+  experiment_role?: string;
+  direction?: string;
+}
+
+/** The day's visual/hook experiment marker. Read off the media rows for the same reason the
+ *  recovery one is: /today queries chs_story_days and never sees chs_daily_plans.content_mix. */
+function vhdOfDay(items: Media[]): VhdMark | null {
+  for (const m of items) {
+    const v = (m?.visual_signature as { visual_hook_experiment?: VhdMark } | null | undefined)?.visual_hook_experiment;
+    if (v?.index) return v;
+  }
+  return null;
+}
+
 function ProductionGroup({ title, hint, items, canAutoGenerate, promptDirectorEnabled }: { title: string; hint: string; items: Media[]; canAutoGenerate?: boolean; promptDirectorEnabled?: boolean }) {
   return (
     <div>
@@ -200,6 +219,18 @@ export default async function TodayPage({
                               title={rec.direction ?? undefined}
                             >
                               RECOVERY {rec.recovery_index}/{rec.recovery_total ?? 5}
+                            </span>
+                          );
+                        })()}
+                        {(() => {
+                          const vhd = vhdOfDay(story.chs_media ?? []);
+                          if (!vhd) return null;
+                          return (
+                            <span
+                              className="font-mono text-[9px] bg-amber/15 border border-amber/50 text-amber px-2 py-0.5 tracking-wider"
+                              title={`${vhd.direction ?? vhd.motif_family ?? "experiment"}${vhd.experiment_role ? ` · ${vhd.experiment_role}` : ""}`}
+                            >
+                              VHD {vhd.index}/{vhd.experiment_total ?? 5}
                             </span>
                           );
                         })()}

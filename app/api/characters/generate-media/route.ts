@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { probeVideoDuration, evaluateDurationGate } from "@/lib/recovery/videoDuration";
 import { REEL_DURATION_GATE } from "@/lib/recovery/reelDuration";
+import { readReelExperiment } from "@/lib/experiments/reelExperimentMarker";
 import {
   attemptableProviders,
   noProviderAvailableReason,
@@ -843,9 +844,12 @@ export async function POST(req: Request) {
       //     let reel_video fall through to generateWithFal and "succeed" with a .jpg.
       //   - Provider choice is routing; REEL_DURATION_GATE is an output check. The gate never
       //     picks a provider, and a provider is never picked for hitting a duration exactly.
-      const recoveryMeta = media.visual_signature?.recovery;
-      if (isVideoSlot && recoveryMeta) {
-        const targetSec = recoveryMeta.target_duration_sec ?? 8;
+      // Recovery was the first prepared experiment; the visual/hook experiment is the second and
+      // must route identically. readReelExperiment() is the single place that answers "is this a
+      // prepared experiment slot" so a new experiment cannot silently miss the video chain.
+      const experimentMeta = readReelExperiment(media.visual_signature);
+      if (isVideoSlot && experimentMeta) {
+        const targetSec = experimentMeta.targetDurationSec ?? 8;
         const plan = planRecoveryVideoProviders(targetSec, {
           FAL_API_KEY: process.env.FAL_API_KEY,
           GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
@@ -877,7 +881,7 @@ export async function POST(req: Request) {
 
         const startFrame = await findStartFrame(media.batch_id);
         if (!startFrame) {
-          const msg = "Recovery reel needs its reel_start_frame rendered first — generate that slot before the video";
+          const msg = "A prepared experiment reel needs its reel_start_frame rendered first — generate that slot before the video";
           await supabase.from("chs_media").update({ generation_status: "failed", last_error: msg }).eq("id", media.id);
           return { mediaId: media.id, slot: media.slot, provider: "none", success: false, error: msg };
         }
@@ -955,7 +959,7 @@ export async function POST(req: Request) {
         const mergedSignature = { ...(media.visual_signature ?? {}), provider_provenance: provenance };
 
         if (!producedUrl) {
-          const msg = `All recovery video providers failed — ${provenance.attempts
+          const msg = `All experiment video providers failed — ${provenance.attempts
             .map((a) => `${a.provider}(${a.durationSec}s): ${a.error}`)
             .join(" | ")}`;
           await supabase
@@ -1106,7 +1110,7 @@ export async function POST(req: Request) {
           // RECOVERY — a prepared recovery frame carries its own framing negatives (Soul V2 has no
           // crop parameter, so the negative prompt is the only lever on framing). Appended to the
           // base negatives rather than replacing them.
-          const recoveryNegatives = media.visual_signature?.recovery?.negative_prompt;
+          const recoveryNegatives = readReelExperiment(media.visual_signature)?.negativePrompt ?? null;
           const baseNegatives = getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1"));
           mediaUrl = await generateSoulImage({
             prompt: effectivePrompt,
@@ -1241,7 +1245,8 @@ interface MediaRecord {
   generation_status: string | null;
   visual_signature?: {
     prompt_director?: { model?: string };
-    recovery?: { negative_prompt?: string; slot?: number; target_duration_sec?: number };
+    recovery?: { negative_prompt?: string; slot?: number; recovery_index?: number; target_duration_sec?: number };
+    visual_hook_experiment?: { negative_prompt?: string; index?: number; target_duration_sec?: number };
   } | null;
   media_url?: string | null;
 }

@@ -92,8 +92,24 @@ interface RecoveryMarker {
   direction?: string;
 }
 
+interface VhdMarker {
+  index?: number;
+  experiment_total?: number;
+  motif_family?: string;
+  hook_type?: string;
+  hook_start_sec?: number;
+  payoff_sec?: number;
+  experiment_role?: string;
+  direction?: string;
+}
+
 interface Batch {
-  plan: { id: string; date: string; batch_status: string; content_mix?: { recovery?: RecoveryMarker } | null };
+  plan: {
+    id: string;
+    date: string;
+    batch_status: string;
+    content_mix?: { recovery?: RecoveryMarker; visual_hook_experiment?: VhdMarker } | null;
+  };
   character: Character;
   storyDay: StoryDay;
   media: Media[];
@@ -224,6 +240,10 @@ function ReviewBatchCard({ batch, today, onApprove, onSkip }: {
     recovery?.recovery_sprint && recovery.recovery_index
       ? `RECOVERY ${recovery.recovery_index}/${recovery.recovery_total ?? 5}`
       : null;
+  // Same treatment for the visual/hook experiment: a badge and an expandable line saying which arm
+  // this is, on the ordinary card. No second workflow, no second approval path.
+  const vhd = plan.content_mix?.visual_hook_experiment;
+  const vhdBadge = vhd?.index ? `VHD ${vhd.index}/${vhd.experiment_total ?? 5}` : null;
   const alreadyQueued = existingPosts.length > 0;
 
   const readyCount = media.filter((m) => m.generation_status === "completed" && m.media_url).length;
@@ -278,6 +298,16 @@ function ReviewBatchCard({ batch, today, onApprove, onSkip }: {
                 title={recovery?.direction ?? undefined}
               >
                 {recoveryBadge}
+              </span>
+            )}
+            {vhdBadge && (
+              <span
+                className="font-mono text-[8px] tracking-[0.1em] px-2 py-0.5 border border-amber/50 bg-amber/10 text-amber uppercase"
+                title={[vhd?.direction, vhd?.motif_family, vhd?.hook_type, vhd?.experiment_role]
+                  .filter(Boolean)
+                  .join(" · ")}
+              >
+                {vhdBadge}
               </span>
             )}
             {storyDay.arc_position && (
