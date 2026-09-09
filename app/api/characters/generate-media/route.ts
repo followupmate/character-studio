@@ -719,7 +719,7 @@ export async function POST(req: Request) {
     if (mediaId) {
       const { data, error } = await supabase
         .from("chs_media")
-        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status, visual_signature")
+        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status, visual_signature, higgsfield_job_id")
         .eq("id", mediaId)
         .single();
       if (error || !data) return NextResponse.json({ error: "Media not found" }, { status: 404 });
@@ -727,7 +727,7 @@ export async function POST(req: Request) {
     } else {
       const { data, error } = await supabase
         .from("chs_media")
-        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status, media_url, visual_signature")
+        .select("id, slot, type, channel, shot_archetype, higgsfield_prompt, batch_id, generation_status, media_url, visual_signature, higgsfield_job_id")
         .eq("batch_id", batchId!);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const hasVeo = !!googleApiKey;
@@ -1132,6 +1132,19 @@ export async function POST(req: Request) {
             // A single-slot request owns this function's whole 300s budget, so it can afford to
             // sit out a slow Higgsfield queue; a pooled request must leave room for its siblings.
             maxPollAttempts: isSingleSlotRequest ? SOUL_POLL_ATTEMPTS_SINGLE : SOUL_POLL_ATTEMPTS_POOLED,
+            // Resume a job this row already has in flight instead of buying a second one. The
+            // queue can outlast any budget a 300s function can offer, so "call it again" has to be
+            // free — otherwise every retry pays for an image nobody collects.
+            resumeJobState: media.higgsfield_job_id,
+            onJobSubmitted: async (state) => {
+              await supabase
+                .from("chs_media")
+                .update({ higgsfield_job_id: JSON.stringify(state) })
+                .eq("id", media.id);
+            },
+            onJobSettled: async () => {
+              await supabase.from("chs_media").update({ higgsfield_job_id: null }).eq("id", media.id);
+            },
           });
           provider = "higgsfield-soul-director";
         } else if (useBFL) {
@@ -1257,6 +1270,7 @@ interface MediaRecord {
   higgsfield_prompt: string;
   batch_id: string;
   generation_status: string | null;
+  higgsfield_job_id?: string | null;
   visual_signature?: {
     prompt_director?: { model?: string };
     recovery?: { negative_prompt?: string; slot?: number; recovery_index?: number; target_duration_sec?: number };

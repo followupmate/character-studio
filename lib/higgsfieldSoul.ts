@@ -33,6 +33,34 @@ export function classifyHiggsfieldFailure(submitStatus?: number, jobStatus?: str
 
 
 
+/**
+ * A Soul job that outlived the caller's poll budget, parked on chs_media.higgsfield_job_id so the
+ * NEXT call resumes it instead of paying for a new one.
+ *
+ * Higgsfield's queue can exceed any budget a 300s serverless function can offer — VHD #2's start
+ * frame was still "queued" after 250s of polling. Before this, every retry submitted a fresh job
+ * and spent another credit while the previous one quietly completed with nobody listening. Three
+ * credits went that way on 2026-09-09.
+ *
+ * `soul: true` is the discriminator, mirroring video-async's `falq: true` on the same column, so
+ * the two job kinds cannot read each other's state.
+ */
+export interface SoulJobState {
+  soul: true;
+  status_url: string;
+  submitted_at: string;
+}
+
+export function parseSoulJobState(raw: string | null | undefined): SoulJobState | null {
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw);
+    return j && j.soul === true && typeof j.status_url === "string" ? (j as SoulJobState) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 60 x 2.5s = 150s. The default, sized for a POOLED call where several slots share one
  *  maxDuration=300 budget and no single stuck slot may eat all of it. */
 export const SOUL_POLL_ATTEMPTS_POOLED = 60;
@@ -49,6 +77,12 @@ export async function generateSoulImage(opts: {
   mediaId: string;
   /** How long to wait for Higgsfield's queue. See the two constants above. */
   maxPollAttempts?: number;
+  /** Raw chs_media.higgsfield_job_id. When it holds a Soul job, that job is resumed. */
+  resumeJobState?: string | null;
+  /** Persist the parked job so a later call can resume it. */
+  onJobSubmitted?: (state: SoulJobState) => Promise<void>;
+  /** Clear the parked job — the work is finished, one way or the other. */
+  onJobSettled?: () => Promise<void>;
 }): Promise<string> {
   const credentials = process.env.HIGGSFIELD_API_KEY;
   if (!credentials || !credentials.includes(":")) throw new Error("HIGGSFIELD_API_KEY not configured");
@@ -68,21 +102,36 @@ export async function generateSoulImage(opts: {
     requestBody.negative_prompt = opts.negativePrompt;
   }
 
-  const submit = await fetch(`${BASE}/${SOUL_MODEL}`, {
-    method: "POST",
-    headers: { Authorization: auth, "Content-Type": "application/json" },
-    body: JSON.stringify(requestBody),
-  });
-  let job = (await submit.json().catch(() => ({}))) as {
-    status?: string; status_url?: string; images?: Array<{ url?: string }>; detail?: unknown;
-  };
-  if (!submit.ok) {
+  type SoulJob = { status?: string; status_url?: string; images?: Array<{ url?: string }>; detail?: unknown };
+  let job: SoulJob;
+
+  // RESUME an unfinished job from a previous call before submitting anything. A Higgsfield job that
+  // outlived its caller keeps running and keeps costing; picking it back up is free, and submitting
+  // over the top of it is the expensive mistake this branch exists to stop.
+  const resumed = parseSoulJobState(opts.resumeJobState);
+  if (resumed) {
+    job = (await fetch(resumed.status_url, { headers: { Authorization: auth } }).then((r) => r.json())) as SoulJob;
+    job.status_url = job.status_url ?? resumed.status_url;
+  } else {
+    const submit = await fetch(`${BASE}/${SOUL_MODEL}`, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+    job = (await submit.json().catch(() => ({}))) as SoulJob;
+    if (!submit.ok) {
     // Item 11 — distinctly-prefixed message when the failure classifies as an invalid credential,
     // so app/api/fanvue/generate-media/route.ts can grep for it and surface one clear banner
     // instead of a generic per-shot error.
-    const kind = classifyHiggsfieldFailure(submit.status);
-    const prefix = kind === "invalid_credential" ? "Higgsfield credential invalid" : "Higgsfield submit";
-    throw new Error(`${prefix} (${submit.status}): ${JSON.stringify(job).slice(0, 200)}`);
+      const kind = classifyHiggsfieldFailure(submit.status);
+      const prefix = kind === "invalid_credential" ? "Higgsfield credential invalid" : "Higgsfield submit";
+      throw new Error(`${prefix} (${submit.status}): ${JSON.stringify(job).slice(0, 200)}`);
+    }
+    // Park the job the moment it is accepted, BEFORE polling. If this function dies mid-poll — and
+    // it does, that is the whole problem — the next call still knows what to resume.
+    if (job.status_url) {
+      await opts.onJobSubmitted?.({ soul: true, status_url: job.status_url, submitted_at: new Date().toISOString() });
+    }
   }
 
   // Production finding (app/api/characters/generate-higgsfield/route.ts hit the same thing): the job
@@ -104,9 +153,22 @@ export async function generateSoulImage(opts: {
     await new Promise((r) => setTimeout(r, 2500));
     job = await (await fetch(job.status_url, { headers: { Authorization: auth } })).json();
   }
-  if (classifyHiggsfieldFailure(undefined, job.status) === "nsfw") throw new Error("Higgsfield flagged NSFW");
+  if (classifyHiggsfieldFailure(undefined, job.status) === "nsfw") {
+    await opts.onJobSettled?.();
+    throw new Error("Higgsfield flagged NSFW");
+  }
   const srcUrl = job.images?.[0]?.url;
-  if (!srcUrl) throw new Error(`Higgsfield: no image (status ${job.status ?? "unknown"})`);
+  if (!srcUrl) {
+    // Deliberately does NOT clear the parked state: the job is still running on their side, and the
+    // next call should resume it rather than buy another one.
+    const stillQueued = !["completed", "failed"].includes(job.status ?? "");
+    if (!stillQueued) await opts.onJobSettled?.();
+    throw new Error(
+      `Higgsfield: no image (status ${job.status ?? "unknown"})` +
+        (stillQueued ? " — job left running, call again to resume it without resubmitting" : "")
+    );
+  }
+  await opts.onJobSettled?.();
 
   const img = await fetch(srcUrl);
   if (!img.ok) throw new Error(`Higgsfield download failed ${img.status}`);
