@@ -12,7 +12,13 @@ import {
 import { generateKlingVideo } from "@/lib/klingProvider";
 import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
-import { generateSoulImage, soulConfigured, FALLBACK_SOUL_ID } from "@/lib/higgsfieldSoul";
+import {
+  generateSoulImage,
+  soulConfigured,
+  FALLBACK_SOUL_ID,
+  SOUL_POLL_ATTEMPTS_POOLED,
+  SOUL_POLL_ATTEMPTS_SINGLE,
+} from "@/lib/higgsfieldSoul";
 import { sanitizePrompt, stripPromptHeader } from "@/lib/promptClean";
 import { cronAuthorized } from "@/lib/apiAuth";
 import { isFlagOn } from "@/lib/featureFlags";
@@ -739,6 +745,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Nothing to generate", results: [] });
     }
 
+    // One slot in this request means it owns the whole maxDuration=300 budget, so a provider with a
+    // slow queue can be waited out. Several slots share that budget and must not let one of them
+    // consume it. Read once here rather than per-slot, since it is a property of the REQUEST.
+    const isSingleSlotRequest = mediaRecords.length === 1;
+
     // ── Fetch character ────────────────────────────────────────
     const batchIdToUse = mediaRecords[0].batch_id;
     const { data: plan } = await supabase
@@ -1118,6 +1129,9 @@ export async function POST(req: Request) {
             soulId,
             aspect: soulAspect,
             mediaId: media.id,
+            // A single-slot request owns this function's whole 300s budget, so it can afford to
+            // sit out a slow Higgsfield queue; a pooled request must leave room for its siblings.
+            maxPollAttempts: isSingleSlotRequest ? SOUL_POLL_ATTEMPTS_SINGLE : SOUL_POLL_ATTEMPTS_POOLED,
           });
           provider = "higgsfield-soul-director";
         } else if (useBFL) {

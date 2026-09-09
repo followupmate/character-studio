@@ -33,12 +33,22 @@ export function classifyHiggsfieldFailure(submitStatus?: number, jobStatus?: str
 
 
 
+/** 60 x 2.5s = 150s. The default, sized for a POOLED call where several slots share one
+ *  maxDuration=300 budget and no single stuck slot may eat all of it. */
+export const SOUL_POLL_ATTEMPTS_POOLED = 60;
+
+/** 100 x 2.5s = 250s. For a call generating ONE slot, where the whole function budget belongs to
+ *  it and the only thing a smaller number buys is giving up earlier. */
+export const SOUL_POLL_ATTEMPTS_SINGLE = 100;
+
 export async function generateSoulImage(opts: {
   prompt: string;
   negativePrompt?: string; // F0.5 — optional negative prompt
   soulId: string;
   aspect: string; // "9:16" | "3:4" | "1:1"
   mediaId: string;
+  /** How long to wait for Higgsfield's queue. See the two constants above. */
+  maxPollAttempts?: number;
 }): Promise<string> {
   const credentials = process.env.HIGGSFIELD_API_KEY;
   if (!credentials || !credentials.includes(":")) throw new Error("HIGGSFIELD_API_KEY not configured");
@@ -81,7 +91,15 @@ export async function generateSoulImage(opts: {
   // (app/api/characters/generate-media/route.ts runs at maxDuration=300 with several slots in a
   // pool), so this stays a smaller bump than the single-purpose route's — enough extra headroom to
   // absorb a slow queue without one stuck slot eating the whole shared budget.
-  for (let i = 0; i < 60 && !["completed", "failed", "nsfw"].includes(job.status ?? ""); i++) {
+  //
+  // 2026-09-09: VHD #1's start frame failed TWICE at exactly this ceiling — submit returned 200
+  // with a status_url both times and the job was still "queued" after all 60 polls, so two
+  // Higgsfield credits were spent on images this process never collected. The fix is not a blanket
+  // increase, which would resurrect the shared-budget problem the comment above describes: instead
+  // the caller says whether it owns the whole function budget, and a single-slot generation waits
+  // the ~250s it actually has rather than giving up at 150s with 150s still on the clock.
+  const maxPolls = opts.maxPollAttempts ?? SOUL_POLL_ATTEMPTS_POOLED;
+  for (let i = 0; i < maxPolls && !["completed", "failed", "nsfw"].includes(job.status ?? ""); i++) {
     if (!job.status_url) break;
     await new Promise((r) => setTimeout(r, 2500));
     job = await (await fetch(job.status_url, { headers: { Authorization: auth } })).json();
