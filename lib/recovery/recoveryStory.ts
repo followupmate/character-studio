@@ -142,6 +142,10 @@ HARD CONSTRAINTS:
 - The caption must match THIS scene. She is not travelling today. Do not name a city, a hotel, a
   bar, a dock or any place that is not in the setting above.
 - Hashtags must match this scene too. No location tags for places that are not in it.
+- Write in HER OWN VOICE, first person. Never describe her from outside ("her eyes", "she smiles")
+  — she is the one posting, not someone being photographed.
+- She is on her own. Do not invent a companion: no "we", "us", "him", or a "her"/"she" that means
+  somebody else. Anyone visible in the background is an anonymous stranger and is not addressed.
 ${args.nextDirection ? `- next_hint: one sentence pointing at tomorrow, which is: ${args.nextDirection}` : "- next_hint: one sentence pointing at tomorrow, kept vague."}
 
 Return STRICT JSON only, no markdown:
@@ -173,6 +177,43 @@ Return STRICT JSON only, no markdown:
     hook_text: hook,
     next_hint: typeof parsed.next_hint === "string" ? parsed.next_hint.trim() : "",
   };
+}
+
+/**
+ * Guard against copy that changes WHO is in the scene.
+ *
+ * Found on the first VHD dry run (2026-09-09): the wine-bar arm came back as "somewhere between
+ * the first glass and deciding to stay for another. her eyes came back and so did mine." Two
+ * defects in one sentence. It narrates Vivienne in the third person, which no caption on this
+ * account has ever done — 25 consecutive captions are first-person singular or impersonal, and the
+ * only "she" in them is the cat, who is in that day's pet_lock. And it invents a companion for a
+ * brief whose visual rules say "one sharp face only" and "no foreground companion", so the caption
+ * would have described a person the video is explicitly built not to contain.
+ *
+ * That is the same class of failure as a caption naming the wrong city — the copy contradicting
+ * the video — which is why it gets the same treatment: a rule in the prompt AND a check that can
+ * refuse the write, rather than a human noticing it once.
+ *
+ * `petInScene` allows she/her back in when the day's brief actually has an animal in it.
+ * Returns the offending words; empty means coherent.
+ */
+export function findPersonLeaks(copy: RecoveryStoryCopy, opts: { petInScene?: boolean } = {}): string[] {
+  const haystack = `${copy.ig_caption} ${copy.hook_text ?? ""}`.toLowerCase();
+  // Two deliberate exclusions, both found by running this against 25 real captions rather than
+  // against invented ones:
+  //
+  //   "you"/"your" — addressing the viewer is this account's standard sign-off ("here most days if
+  //   this is your kind of morning") and is not a second person in the scene.
+  //
+  //   "they"/"them"/"their" — English uses these for inanimate plurals, and a real caption reads
+  //   "didn't plan the flowers. they were just there". Flagging those would refuse to write a
+  //   perfectly good day, which is a worse failure than missing the rarer "they left" meaning
+  //   people: this guard blocks a write, so a false positive stalls the calendar.
+  const THIRD_PERSON = opts.petInScene
+    ? /\b(he|him|his|we|us|our|ours)\b/g
+    : /\b(he|him|his|she|her|hers|we|us|our|ours)\b/g;
+  const hits = haystack.match(THIRD_PERSON) ?? [];
+  return Array.from(new Set(hits));
 }
 
 /**

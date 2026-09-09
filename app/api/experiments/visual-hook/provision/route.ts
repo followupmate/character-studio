@@ -6,6 +6,7 @@ import { buildVhdMarker, VHD_TOTAL, VHD_VERSION } from "@/lib/experiments/visual
 import {
   buildRecoveryStoryScene,
   findLocationLeaks,
+  findPersonLeaks,
   generateRecoveryStoryCopy,
 } from "@/lib/recovery/recoveryStory";
 
@@ -44,6 +45,7 @@ interface DayPlanResult {
   hashtags: string[];
   hook: string | null;
   locationLeaks: string[];
+  personLeaks: string[];
   targetDurationSec: number;
   action: string;
   startFramePrompt: string;
@@ -165,6 +167,7 @@ export async function POST(req: Request) {
     }
 
     const leaks = findLocationLeaks(copy, forbiddenPlaces);
+    const people = findPersonLeaks(copy, { petInScene: !!day.brief.pet_lock });
     const taken = occupied.get(date);
 
     const row: DayPlanResult = {
@@ -181,6 +184,7 @@ export async function POST(req: Request) {
       hashtags: copy.hashtags,
       hook: copy.hook_text,
       locationLeaks: leaks,
+      personLeaks: people,
       targetDurationSec: day.compiled.durationSec,
       action: day.compiled.action,
       startFramePrompt: day.startFrame.prompt,
@@ -198,6 +202,17 @@ export async function POST(req: Request) {
     if (leaks.length > 0) {
       return NextResponse.json(
         { error: `copy for VHD #${day.plan.experimentIndex} names ${leaks.join(", ")} — refusing to write it`, results },
+        { status: 422 }
+      );
+    }
+    if (people.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            `copy for VHD #${day.plan.experimentIndex} uses ${people.join(", ")} — it either describes her from ` +
+            `outside or puts a second person in a scene built for one. Refusing to write it.`,
+          results,
+        },
         { status: 422 }
       );
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildRecoveryStoryScene, findLocationLeaks, recoveryTierFor } from "@/lib/recovery/recoveryStory";
+import { buildRecoveryStoryScene, findLocationLeaks, findPersonLeaks, recoveryTierFor } from "@/lib/recovery/recoveryStory";
 import { compileRecoveryDays } from "@/lib/recovery/recoveryDays";
 import { STORY_COPY_RULES } from "@/lib/storyCopyRules";
 
@@ -88,5 +88,78 @@ describe("caption rules are shared, not duplicated", () => {
     expect(STORY_COPY_RULES).toContain("hook_text");
     expect(STORY_COPY_RULES).toContain("hashtags");
     expect(STORY_COPY_RULES.length).toBeGreaterThan(400);
+  });
+});
+
+describe("findPersonLeaks", () => {
+  const copy = (ig_caption: string, hook_text: string | null = null) => ({
+    ig_caption,
+    hashtags: [],
+    hook_text,
+    next_hint: "",
+  });
+
+  it("catches the caption that started this rule", () => {
+    // Real output from the first VHD dry run, 2026-09-09. It narrates her from outside AND puts a
+    // second person in a scene whose visual rules say "one sharp face only, no foreground
+    // companion" — the copy would have described someone the video is built not to contain.
+    const leaks = findPersonLeaks(
+      copy("somewhere between the first glass and deciding to stay for another. her eyes came back and so did mine.")
+    );
+    expect(leaks).toContain("her");
+  });
+
+  it("catches an invented companion", () => {
+    expect(findPersonLeaks(copy("we stayed for one more."))).toContain("we");
+    expect(findPersonLeaks(copy("he ordered for both of us."))).toEqual(expect.arrayContaining(["he", "us"]));
+  });
+
+  it("passes the account's own voice", () => {
+    // Twenty-five consecutive real captions from chs_story_days, read 2026-09-09. Every one is
+    // first-person singular or impersonal. If this rule would have rejected any of them it is the
+    // wrong rule, so they are the calibration set rather than invented examples.
+    const real = [
+      "said yes to an address on a scrap of paper. naples at dusk, campari, no plans after this. still not looking at flights",
+      "hand in the water, then not. that was the whole decision.",
+      "adjusted the chain and decided that was enough for today.",
+      "one espresso. no rush. the morning earns itself.",
+      "up before the city. just me, warm concrete, and a strand of hair that keeps escaping.",
+      "lamp on, curtain half-drawn, chain caught the light. the rest of the evening is mine",
+      "went down before the heat. positano belongs to early risers and i plan to keep it that way.",
+      "got to the pool before anyone else. stayed there until I had no excuse not to.",
+      "positano, day one. walked straight through the suite to the terrace. the key card is still in my hand.",
+      "back after a few days off. the mirror remembers before you do.",
+      "said yes before i thought about it. the city at this hour made that easy.",
+      "checked out an hour ago. already at the flower stall. the list can wait another five minutes.",
+      "asked for late checkout before i even unpacked. the pool was reason enough. still here",
+      "the night had its own plans. i just got in the car.",
+      "two hours in. the light changed and somehow i'm still here.",
+      "finally said it out loud. the city took it well",
+      "ordered the drink before i found a chair. that's how you know the afternoon is going to be fine.",
+      "the gym bag won. finally.",
+      "only stopped in for one. the light made that impossible to stick to.",
+      "packed for the gym. ended up here. close enough.",
+      "didn't plan the flowers. they were just there and the color was right.",
+      "finally did the solo cafe morning i kept promising myself. still not telling anyone why i'm smiling.",
+      "good news arrived. put the phone down. staying here with it for a minute",
+      "said one drink. the city had other plans.",
+      "here most days if this is your kind of afternoon.",
+    ];
+    for (const c of real) expect(findPersonLeaks(copy(c)), c).toEqual([]);
+  });
+
+  it("does not treat addressing the viewer as a second person in the scene", () => {
+    // "your kind of morning" is this account's standard sign-off and must survive.
+    expect(findPersonLeaks(copy("here most days if this is your kind of quiet."))).toEqual([]);
+  });
+
+  it("allows she/her back when the day's brief actually has an animal in it", () => {
+    const c = copy("brought the cat flowers. she's not impressed. the ranunculus are though.");
+    expect(findPersonLeaks(c)).toContain("she");
+    expect(findPersonLeaks(c, { petInScene: true })).toEqual([]);
+  });
+
+  it("checks the hook as well as the caption", () => {
+    expect(findPersonLeaks(copy("quiet one.", "he waited"))).toContain("he");
   });
 });
