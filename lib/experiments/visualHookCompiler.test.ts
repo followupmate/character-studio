@@ -4,11 +4,14 @@ import {
   compileVisualHookStartFrame,
   findMetaLanguage,
   HOOK_BEATS,
+  splitWardrobeClauses,
   toReelFraming,
+  VHD_CLOSING_BEAT,
+  visibleWardrobeFor,
 } from "@/lib/experiments/visualHookCompiler";
 import { compileVisualHookDays, VISUAL_HOOK_DAYS } from "@/lib/experiments/visualHookDays";
 import { compileRecoveryDays } from "@/lib/recovery/recoveryDays";
-import { compileSimpleReel, DEFAULT_HOOK_BEAT } from "@/lib/recovery/simpleReelCompiler";
+import { compileSimpleReel, DEFAULT_CLOSING_BEATS, DEFAULT_HOOK_BEAT } from "@/lib/recovery/simpleReelCompiler";
 import { HOOK_TYPES, VHD_PAYOFF_CEILING_SEC } from "@/lib/experiments/visualHookPlan";
 
 const days = compileVisualHookDays();
@@ -20,6 +23,7 @@ describe("the recovery motion compiler is not disturbed", () => {
     const base = { sceneBrief: VISUAL_HOOK_DAYS[0].brief, dayNumber: 1, durationSec: 8 };
     expect(compileSimpleReel(base).prompt).toBe(compileSimpleReel({ ...base, hookBeat: DEFAULT_HOOK_BEAT }).prompt);
     expect(compileSimpleReel(base).prompt).toContain(DEFAULT_HOOK_BEAT);
+    for (const line of DEFAULT_CLOSING_BEATS) expect(compileSimpleReel(base).prompt).toContain(line);
   });
 
   it("still compiles all five recovery days cleanly", () => {
@@ -38,9 +42,21 @@ describe("hook structure", () => {
     }
   });
 
-  it("starts every first change immediately, never eventually", () => {
-    for (const t of HOOK_TYPES) {
-      expect(HOOK_BEATS[t].hookBeat, t).toMatch(/almost immediately/i);
+  it("never defers the first change", () => {
+    // This was a check for the literal words "almost immediately". The environment-reaction beat is
+    // now the operator's own wording and does not carry them — its immediacy rests on being the
+    // first sentence after the opening state, which the template guarantees. So the test checks the
+    // failure mode instead of a magic string: no beat may push the change into the future.
+    const DEFERRED = /\b(eventually|after a (?:while|moment|few)|later|slowly begins|in time|gradually)\b/i;
+    for (const t of HOOK_TYPES) expect(HOOK_BEATS[t].hookBeat, t).not.toMatch(DEFERRED);
+  });
+
+  it("puts the hook beat immediately after the opening state in the compiled prompt", () => {
+    for (const d of days) {
+      const openingAt = d.compiled.prompt.indexOf(HOOK_BEATS[d.plan.hookType].openingState);
+      const beatAt = d.compiled.prompt.indexOf(HOOK_BEATS[d.plan.hookType].hookBeat);
+      expect(openingAt, `#${d.slot}`).toBeGreaterThan(-1);
+      expect(beatAt, `#${d.slot}`).toBeGreaterThan(openingAt);
     }
   });
 
@@ -84,6 +100,23 @@ describe("all five arms compile clean", () => {
     expect(new Set(days.map((d) => d.durationSec)).size).toBe(1);
   });
 
+  it("asks for no loop and no forced return", () => {
+    // Loop closure is a diagnostic, not a goal. An end-frame lock was tried and reverted on
+    // 2026-09-04: the loop delta went 4.0 -> 0.4 while manual QA saw a frozen head on a moving
+    // body. Nothing here should spend a sentence on it, and nothing should force a reset.
+    for (const d of days) {
+      expect(d.compiled.prompt, `#${d.slot}`).not.toMatch(/loop/i);
+      expect(d.compiled.prompt, `#${d.slot}`).not.toMatch(/\b(returns? to the (?:same|starting) (?:pose|position)|matches the first)\b/i);
+      expect(d.compiled.prompt, `#${d.slot}`).toContain(VHD_CLOSING_BEAT);
+    }
+  });
+
+  it("ends on the settle, right before the duration line", () => {
+    for (const d of days) {
+      expect(d.compiled.prompt, `#${d.slot}`).toContain(`${VHD_CLOSING_BEAT} ${d.durationSec}s, vertical 9:16.`);
+    }
+  });
+
   it("carries the hook's own beat, not the default one, wherever the hook differs", () => {
     for (const d of days) {
       expect(d.compiled.prompt, `#${d.slot}`).toContain(HOOK_BEATS[d.plan.hookType].hookBeat);
@@ -124,8 +157,31 @@ describe("the start frame", () => {
 
   it("names the scene's own background and never a substituted one", () => {
     for (const d of days) {
-      expect(d.startFrame.prompt, `#${d.slot}`).toContain(d.brief.wardrobe_lock);
       expect(d.startFrame.prompt, `#${d.slot}`).toContain(d.brief.spatial_setup);
+    }
+  });
+
+  it("sends only the wardrobe the crop can actually show", () => {
+    for (const d of days) {
+      // Footwear and bare feet are never in any of these crops.
+      expect(d.startFrame.prompt, `#${d.slot}`).not.toMatch(/\b(sandals|shoes|boots|heels|bare feet)\b/i);
+      // Legwear only survives the waist-up crop, whose frame ends AT the waistband.
+      if (d.plan.framing !== "medium_graphic") {
+        expect(d.startFrame.prompt, `#${d.slot}`).not.toMatch(/\b(trousers|jeans|shorts|leggings)\b/i);
+      }
+      // The identity anchors are above the crop line and must always survive the filter.
+      expect(d.startFrame.wardrobeVisible, `#${d.slot}`).toMatch(/gold chain/i);
+      expect(d.startFrame.wardrobeVisible, `#${d.slot}`).toMatch(/hoop earrings/i);
+    }
+  });
+
+  it("records the full lock and what was withheld, so the omission is auditable", () => {
+    for (const d of days) {
+      expect(d.startFrame.wardrobeLockFull, `#${d.slot}`).toBe(d.brief.wardrobe_lock);
+      expect(d.startFrame.wardrobeOmitted.length, `#${d.slot}`).toBeGreaterThan(0);
+      for (const clause of d.startFrame.wardrobeOmitted) {
+        expect(d.brief.wardrobe_lock, `#${d.slot}`).toContain(clause);
+      }
     }
   });
 
@@ -158,6 +214,41 @@ describe("the invariant is enforced at compile time, not documented", () => {
     const before = JSON.stringify(VISUAL_HOOK_DAYS[2].brief);
     compileVisualHookReel({ plan: VISUAL_HOOK_DAYS[2].plan, brief: VISUAL_HOOK_DAYS[2].brief, durationSec: 8 });
     expect(JSON.stringify(VISUAL_HOOK_DAYS[2].brief)).toBe(before);
+  });
+});
+
+describe("the wardrobe filter", () => {
+  const LOCK =
+    "cream ribbed camisole (thin fixed straps, close to the body, no logo), soft charcoal knit lounge trousers (mid-rise, relaxed), bare feet, thin gold chain necklace, small gold hoop earrings, dark wavy hair loose";
+
+  it("splits on top-level commas only, never inside a garment's own parentheses", () => {
+    expect(splitWardrobeClauses(LOCK)).toEqual([
+      "cream ribbed camisole (thin fixed straps, close to the body, no logo)",
+      "soft charcoal knit lounge trousers (mid-rise, relaxed)",
+      "bare feet",
+      "thin gold chain necklace",
+      "small gold hoop earrings",
+      "dark wavy hair loose",
+    ]);
+  });
+
+  it("drops legwear and footwear from a chest-up crop", () => {
+    const r = visibleWardrobeFor(LOCK, "close_medium");
+    expect(r.visible).not.toMatch(/trousers|bare feet/);
+    expect(r.visible).toMatch(/camisole/);
+    expect(r.omitted).toEqual(["soft charcoal knit lounge trousers (mid-rise, relaxed)", "bare feet"]);
+  });
+
+  it("keeps legwear for the waist-up crop, where a waistband can genuinely read", () => {
+    const r = visibleWardrobeFor(LOCK, "medium_graphic");
+    expect(r.visible).toMatch(/trousers/);
+    expect(r.omitted).toEqual(["bare feet"]);
+  });
+
+  it("sends the lock whole rather than sending nothing when the filter matches everything", () => {
+    const r = visibleWardrobeFor("black jeans, tan sandals", "close");
+    expect(r.visible).toBe("black jeans, tan sandals");
+    expect(r.omitted).toEqual([]);
   });
 });
 

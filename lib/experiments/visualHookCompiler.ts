@@ -69,8 +69,14 @@ export const HOOK_BEATS: Record<HookType, HookBeats> = {
   },
   environment_reaction: {
     openingState: "close to the lens, looking off to one side into the room",
-    hookBeat: "Almost immediately something further that way catches her, and her eyebrows lift a fraction.",
-    payoffAction: "her eyes come back and settle on the lens",
+    // Given verbatim by the operator, split at its own "then" so the change and the payoff land in
+    // the compiler's two separate slots. Jamming both into the hook beat would leave the action
+    // slot to invent a second action, which is the one thing the shape rules forbid.
+    //
+    // Note: this is the only beat without an explicit "almost immediately". Its immediacy rests on
+    // being the first sentence after the opening state.
+    hookBeat: "A small movement in the room catches her attention; her eyebrows lift slightly.",
+    payoffAction: "then her eyes return to the lens",
   },
   micro_action: {
     openingState: "close to the lens, looking down at her own hand, already raised toward her collarbone",
@@ -176,9 +182,83 @@ export function findMetaLanguage(prompt: string): string | null {
   return prompt.match(META_LANGUAGE)?.[0] ?? null;
 }
 
+/**
+ * How a VHD motion prompt ends.
+ *
+ * NOT the recovery loop line. Loop closure was demoted to a diagnostic on 2026-09-04, after an
+ * end-frame lock cut the first-vs-last-frame delta from 4.0 to 0.4 out of 100 — a tenfold
+ * "improvement" on a metric that was measuring the wrong thing, while manual QA saw a head held
+ * unnaturally still on a moving body. It is not a goal and not a gate here, so the prompt does not
+ * spend a sentence asking for it, and nothing forces the subject back to a starting pose: no
+ * end_image_url, no reset instruction.
+ */
+export const VHD_CLOSING_BEAT = "She settles naturally and holds the look.";
+
+/* ── Wardrobe: only what the crop can actually show ──────────────────────────
+ *
+ * The start frame is a chest-up or waist-up portrait, and listing trousers, jeans and sandals in
+ * it spends the prompt's scarcest resource on pixels that do not exist. Worse, a garment named but
+ * unseen is an instruction the model can only satisfy by widening the frame — which is exactly the
+ * full-body-with-a-small-face failure the crop lines exist to prevent.
+ *
+ * The FULL wardrobe_lock is untouched: it stays in the scene brief on chs_daily_plans, and the
+ * start-frame slot records what was sent and what was withheld, so the omission is auditable
+ * rather than silent.
+ */
+const LEGWEAR = /\b(trousers|pants|jeans|shorts|skirt|leggings|joggers|slacks|culottes|waistband)\b/i;
+const FOOTWEAR = /\b(sandals|shoes|boots|sneakers|trainers|heels|loafers|mules|slippers|socks|feet|barefoot)\b/i;
+
+/** What each crop can genuinely show. `medium_graphic` ends AT the waist, so a waistband can read. */
+const HIDDEN_BY_FRAMING: Record<VhdFraming, RegExp[]> = {
+  close: [LEGWEAR, FOOTWEAR],
+  close_medium: [LEGWEAR, FOOTWEAR],
+  medium_graphic: [FOOTWEAR],
+};
+
+/** Splits a wardrobe lock on its top-level commas — the ones inside parentheses describe a single
+ *  garment and must not break it in half. */
+export function splitWardrobeClauses(lock: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of lock) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+    if (ch === "," && depth === 0) {
+      if (current.trim()) out.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) out.push(current.trim());
+  return out;
+}
+
+export interface VisibleWardrobe {
+  visible: string;
+  omitted: string[];
+}
+
+export function visibleWardrobeFor(lock: string, framing: VhdFraming): VisibleWardrobe {
+  const hide = HIDDEN_BY_FRAMING[framing];
+  const clauses = splitWardrobeClauses(lock);
+  const kept = clauses.filter((c) => !hide.some((re) => re.test(c)));
+  const omitted = clauses.filter((c) => hide.some((re) => re.test(c)));
+  // A filter that removes everything has misread the lock. Send it whole rather than send nothing.
+  if (kept.length === 0) return { visible: lock, omitted: [] };
+  return { visible: kept.join(", "), omitted };
+}
+
 export interface VisualHookStartFrame {
   prompt: string;
   negativePrompt: string;
+  /** Exactly what went to Soul V2. */
+  wardrobeVisible: string;
+  /** The clauses withheld because the crop cannot show them. Recorded, never discarded. */
+  wardrobeOmitted: string[];
+  /** The untouched lock, carried so the slot's provenance is complete on its own. */
+  wardrobeLockFull: string;
 }
 
 /**
@@ -197,6 +277,7 @@ export function compileVisualHookStartFrame(plan: VisualHookPlan, brief: SceneBr
   if (motifProblem) throw new Error(`VisualHookPlan #${plan.experimentIndex}: ${motifProblem}`);
 
   const beats = HOOK_BEATS[plan.hookType];
+  const wardrobe = visibleWardrobeFor(brief.wardrobe_lock, plan.framing);
 
   const prompt = [
     CROP_OPENING[plan.framing],
@@ -205,7 +286,7 @@ export function compileVisualHookStartFrame(plan: VisualHookPlan, brief: SceneBr
     // The start frame IS the hook's frame 0. If it shows a resolved, settled pose, the video has
     // nothing to resolve and the first second is spent arriving at a starting point.
     `She is ${beats.openingState}. Face clearly visible and unobscured.`,
-    `Wearing (upper body only in frame): ${brief.wardrobe_lock}.`,
+    `Wearing: ${wardrobe.visible}.`,
     `Background: ${brief.spatial_setup}`,
     BACKGROUND_TEXT[plan.backgroundComplexity],
     SOCIAL_TEXT[plan.socialPresence],
@@ -225,7 +306,13 @@ export function compileVisualHookStartFrame(plan: VisualHookPlan, brief: SceneBr
     .filter((v, i, a) => a.indexOf(v) === i)
     .join(", ");
 
-  return { prompt, negativePrompt };
+  return {
+    prompt,
+    negativePrompt,
+    wardrobeVisible: wardrobe.visible,
+    wardrobeOmitted: wardrobe.omitted,
+    wardrobeLockFull: brief.wardrobe_lock,
+  };
 }
 
 /* ── Motion: plan -> the existing recovery compiler ──────────────────────── */
@@ -272,6 +359,7 @@ export function compileVisualHookReel(input: VisualHookReelInput): SimpleReelPro
     openingState: beats.openingState,
     hookBeat: beats.hookBeat,
     action: input.action?.trim() || beats.payoffAction,
+    closingBeat: VHD_CLOSING_BEAT,
   });
 
   // The invariant, checked rather than asserted in prose.

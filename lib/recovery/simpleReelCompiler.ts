@@ -125,11 +125,28 @@ export interface SimpleReelInput {
    * compiler changes: omit it and the output is byte-identical to before.
    */
   hookBeat?: string;
+  /**
+   * Replaces the two closing sentences ("She holds the look." and the loop line).
+   *
+   * Same seam as `hookBeat`, and for the same reason: the loop line is correct for the recovery
+   * reels and is not a goal anywhere else. Loop closure was explicitly demoted on 2026-09-04 after
+   * the end-frame lock produced a frozen head on a moving body — the loop delta improved tenfold
+   * while the motion got visibly worse. It is a diagnostic, never a gate, and an experiment that
+   * is not testing looping should not be spending prompt on it. Omit this and the output is
+   * byte-identical to before.
+   */
+  closingBeat?: string;
 }
 
 /** The gaze-turn beat every recovery reel uses. Exported so the experiment layer can name the
  *  control condition rather than re-typing it and hoping the two stay the same. */
 export const DEFAULT_HOOK_BEAT = "Within the first second her eyes find the lens and stay there.";
+
+/** The closing pair every recovery reel uses. Exported for the same reason DEFAULT_HOOK_BEAT is. */
+export const DEFAULT_CLOSING_BEATS = [
+  "She holds the look.",
+  "The last frame matches the first so it loops seamlessly.",
+];
 
 export interface SimpleReelPrompt {
   prompt: string;
@@ -200,8 +217,7 @@ export function compileSimpleReel(input: SimpleReelInput): SimpleReelPrompt {
     gazeAlreadyStated ? `She starts ${openingState}.` : `She starts ${openingState}, looking just off camera.`,
     input.hookBeat?.trim() || DEFAULT_HOOK_BEAT,
     `${action.charAt(0).toUpperCase()}${action.slice(1)}.`,
-    "She holds the look.",
-    "The last frame matches the first so it loops seamlessly.",
+    ...(input.closingBeat?.trim() ? [input.closingBeat.trim()] : DEFAULT_CLOSING_BEATS),
     `${durationSec}s, vertical 9:16.`,
   ].join(" ");
 

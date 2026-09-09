@@ -282,6 +282,15 @@ export async function POST(req: Request) {
               ...(spec.negative ? { negative_prompt: spec.negative } : {}),
             },
             prompt_director: { model: spec.model },
+            ...(spec.slot === "reel_start_frame"
+              ? {
+                  wardrobe_provenance: {
+                    full: day.startFrame.wardrobeLockFull,
+                    sent_to_soul: day.startFrame.wardrobeVisible,
+                    omitted_not_in_crop: day.startFrame.wardrobeOmitted,
+                  },
+                }
+              : {}),
           },
           generation_status: spec.prompt ? "completed" : "pending",
           status: "pending",
