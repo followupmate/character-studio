@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className={${garamond.variable}   font-sans bg-bg text-ink antialiased}>
+      <body className={`${garamond.variable} ${inter.variable} ${jetbrains.variable} font-sans bg-bg text-ink antialiased`}>
         {children}
       </body>
     </html>
