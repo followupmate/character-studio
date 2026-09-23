@@ -7,18 +7,21 @@ const garamond = EB_Garamond({
   style: ["normal", "italic"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-garamond",
+  display: "swap",
 });
 
 const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-inter",
+  display: "swap",
 });
 
 const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
   variable: "--font-jetbrains",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -35,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className={`${garamond.variable} ${inter.variable} ${jetbrains.variable} font-sans bg-bg text-ink antialiased`}>
+      <body className={${garamond.variable}   font-sans bg-bg text-ink antialiased}>
         {children}
       </body>
     </html>
