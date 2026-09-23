@@ -6,19 +6,15 @@ import { LUXURY_NEGATIVES } from "@/lib/luxuryWorld"; // F1
 // blacklist — base negatives are fixed per output type, contextual ones are added only when the
 // scene/slot actually implies the risk. For images (soul2), Higgsfield Soul 2.0 guidance calls
 // for a short negative block specifically — see contextualImageNegatives() below.
-// F0.5 — added anti-doubling terms (from production incident diagnosis)
+// Anti-doubling: do NOT list collage/diptych/panel terms here — negating them primes Soul
+// toward multi-panel output (see BANNED_COLLAGE_TERMS in lib/imagePromptCompiler.ts).
+// Positive single-frame lock belongs on the prompt (SINGLE_FRAME_LOCK / compileImagePrompt).
 const BASE_IMAGE_NEGATIVES = [
   "beauty filter",
   "plastic skin",
   "CGI look",
   "identity drift",
   "warped anatomy",
-  "split frame",
-  "diptych",
-  "collage",
-  "two panels",
-  "duplicated person",
-  "second copy of the same woman",
 ];
 
 // Text-rendering protection (production incident, day 82) — Higgsfield rendered visible text

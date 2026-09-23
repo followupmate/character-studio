@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { stripPromptHeader } from "@/lib/promptClean";
+import { SINGLE_FRAME_LOCK } from "@/lib/imagePromptCompiler";
 import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -116,7 +117,10 @@ export async function POST(req: Request) {
     }
     // Keep the user's visual direction unchanged; add only the minimum subject-presence instruction.
     // Identity consistency remains controlled by custom_reference_id (Soul ID).
-    const prompt = `${SUBJECT_ANCHOR}\n\n${basePrompt}`;
+    // SINGLE_FRAME_LOCK is required on this repair path — unlike generate-media, we do not run
+    // compileImagePrompt here. Without it, Soul can return vertical triptych / duplicated clones
+    // even when the user prompt has no collage keywords (production 2026-09-23 story_bts).
+    const prompt = `${SUBJECT_ANCHOR}\n\n${SINGLE_FRAME_LOCK}\n\n${basePrompt}`;
 
     // Persist override + mark generating.
     const update: Record<string, string> = { generation_status: "generating", last_error: "" };

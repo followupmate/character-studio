@@ -199,7 +199,7 @@ describe("compilePromptDirector — image / soul2", () => {
   it("keeps the negative block short for Soul 2.0 (base + text-rendering protection, no blind blacklist)", async () => {
     const pkg = await compilePromptDirector(baseInput());
     const negativeCount = (pkg.negativePrompt ?? "").split(",").filter((s) => s.trim()).length;
-    // F0.5 — increased from 15 to 20 to accommodate anti-doubling negatives (split frame, diptych, etc.)
+    // Collage/diptych negatives removed (they primed multi-panel); keep short Soul negative budget.
     expect(negativeCount).toBeLessThanOrEqual(20);
     expect(pkg.negativePrompt).toContain("no text");
   });
