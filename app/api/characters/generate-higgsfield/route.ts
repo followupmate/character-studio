@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { stripPromptHeader } from "@/lib/promptClean";
+import { stripPromptHeader, stripVideoModelTerms } from "@/lib/promptClean";
 import { SINGLE_FRAME_LOCK } from "@/lib/imagePromptCompiler";
 import { supabase } from "@/lib/supabase";
+import { recomputeBatchStatus } from "@/lib/dailyBatch";
 
 export const runtime = "nodejs";
 // Was 120 — genuinely too tight: generateSoulImage()'s own poll loop (lib/higgsfieldSoul.ts) can run
@@ -52,7 +53,8 @@ function aspectFor(channel: string | null | undefined): string {
 }
 
 function cleanPrompt(raw: string): string {
-  return stripPromptHeader(raw);
+  // Soul is image-only: drop any video-model vocabulary a prompt may have picked up.
+  return stripVideoModelTerms(stripPromptHeader(raw));
 }
 
 // Lightweight poll for the (older) async flow / status checks.
@@ -190,6 +192,7 @@ export async function POST(req: Request) {
       .from("chs_media")
       .update({ media_url: finalUrl, source_url: finalUrl, generation_status: "completed", status: "ready", last_error: null })
       .eq("id", mediaId);
+    await recomputeBatchStatus(media.batch_id);
 
     return NextResponse.json({ success: true, mediaId, media_url: finalUrl, soulId });
   } catch (error) {

@@ -19,7 +19,8 @@ import {
   SOUL_POLL_ATTEMPTS_POOLED,
   SOUL_POLL_ATTEMPTS_SINGLE,
 } from "@/lib/higgsfieldSoul";
-import { sanitizePrompt, stripPromptHeader } from "@/lib/promptClean";
+import { sanitizePrompt, stripPromptHeader, stripVideoModelTerms } from "@/lib/promptClean";
+import { recomputeBatchStatus } from "@/lib/dailyBatch";
 import { cronAuthorized } from "@/lib/apiAuth";
 import { isFlagOn } from "@/lib/featureFlags";
 import { getBaseImageNegatives } from "@/lib/promptDirector/negativeBuilder"; // F0.5
@@ -789,7 +790,9 @@ export async function POST(req: Request) {
 
       // If promptOverride is provided (manual regeneration from UI), save it to DB
       // so future regenerations also use the corrected prompt.
-      const effectivePrompt = promptOverride?.trim() || media.higgsfield_prompt;
+      const rawPrompt = promptOverride?.trim() || media.higgsfield_prompt;
+      // Image providers must never see video-model vocabulary (2026-09-24 "kling" leak).
+      const effectivePrompt = isVideoSlot || !rawPrompt ? rawPrompt : stripVideoModelTerms(rawPrompt);
       if (promptOverride?.trim() && promptOverride.trim() !== media.higgsfield_prompt) {
         await supabase
           .from("chs_media")
@@ -1251,6 +1254,8 @@ export async function POST(req: Request) {
     const imageRecords = mediaRecords.filter((m) => !VIDEO_SLOTS.has(m.slot));
     const videoRecords = mediaRecords.filter((m) => VIDEO_SLOTS.has(m.slot));
     const results = [...(await runPool(imageRecords)), ...(await runPool(videoRecords))];
+
+    await recomputeBatchStatus(batchIdToUse);
 
     const succeeded = results.filter((r) => r.success).length;
     return NextResponse.json({ success: true, generated: succeeded, total: results.length, results });

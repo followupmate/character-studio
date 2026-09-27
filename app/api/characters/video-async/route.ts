@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { stripPromptHeader } from "@/lib/promptClean";
 import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
+import { recomputeBatchStatus } from "@/lib/dailyBatch";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -148,6 +149,7 @@ export async function POST(req: Request) {
           .from("chs_media")
           .update({ media_url: finalUrl, source_url: finalUrl, generation_status: "completed", status: "ready", higgsfield_job_id: null, last_error: null })
           .eq("id", mediaId);
+        await recomputeBatchStatus(media.batch_id);
 
         return NextResponse.json({ status: "ready", url: finalUrl });
       } catch (pollErr) {

@@ -18,6 +18,28 @@ export function stripPromptHeader(raw: string): string {
     .trim();
 }
 
+// Image prompts must never carry video-model vocabulary (2026-09-24: "kling" leaked into a
+// story_bts Soul prompt). Drops any "Model: ... Video Prompt" header line and every sentence that
+// names a video model / video workflow. Positive-only: removes text, never adds negation words
+// (keeps SINGLE_FRAME_LOCK's no-collage-words contract intact).
+const VIDEO_MODEL_TERMS = /\b(kling|seedance|veo(?:\s?\d(?:\.\d)?)?|wan\s?2(?:\.\d)?|image[- ]to[- ]video|text[- ]to[- ]video|i2v|t2v|video model|video prompt|motion prompt|reel_video)\b/i;
+
+export function stripVideoModelTerms(raw: string): string {
+  if (!raw || !VIDEO_MODEL_TERMS.test(raw)) return raw;
+  return raw
+    .split("\n")
+    .filter((line) => !/^\s*Model:.*\b(video|kling|seedance|veo)\b/i.test(line))
+    .map((line) =>
+      line
+        .split(/(?<=[.!?])\s+/)
+        .filter((sentence) => !VIDEO_MODEL_TERMS.test(sentence))
+        .join(" ")
+    )
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // Sanitize prompt for Google IMAGE_SAFETY and Veo video safety classifiers.
 // Targets known triggers: "nude" as clothing color, detailed anatomical body
 // descriptions combined with minimal clothing. These trigger post-generation

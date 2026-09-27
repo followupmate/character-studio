@@ -20,6 +20,8 @@ import { getStrategyInputByProvenance } from "@/lib/creativeIntelligence/generat
 import { compilePromptDirector } from "@/lib/promptDirector";
 import { writeSoul2Prompt } from "@/lib/promptDirector/promptWriter";
 import type { PromptDirectorInput, PromptPackage } from "@/lib/promptDirector";
+import { resolveSceneSemantics, STATIONARY_ACTION_CLASSES } from "@/lib/sceneSemantics";
+import { stripVideoModelTerms } from "@/lib/promptClean";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek", "nano_banana", "caption"];
 
@@ -43,6 +45,45 @@ export function promptDirectorTargetForSlot(slot: SlotSpec): Pick<PromptDirector
     return { outputType: "video", generationMode: "image_to_video", targetModel: "kling" };
   }
   return { outputType: "image", generationMode: "text_to_image", targetModel: "soul2" };
+}
+
+// ROOT-CAUSE FIX (2026-09-24..27) — the reel_video archetype is picked by cooldown/CI only
+// (pickArchetypesForBatch), blind to the scene. walking_motion on a seated/stationary scene (e.g.
+// luxe_car rear seat) is then rejected DETERMINISTICALLY by validateSceneCoherence's
+// locomotion_coherence rule, and both the in-batch retry and reconcileFailedSlots re-ran the SAME
+// archetype, so the slot could never succeed. Resolve the scene's action class the same way the
+// validator does and fall back to light_motion (stationary, no props -> cannot trip
+// locomotion_coherence or prop_coherence).
+export const SAFE_REEL_VIDEO_ARCHETYPE = "light_motion";
+
+export function coherentReelVideoArchetype(
+  archetypeId: string | undefined,
+  brief: import("@/lib/sceneBrief").SceneBriefJson | Record<string, unknown> | null | undefined,
+  opts: { sceneLocation?: string | null; activityHint?: string | null } = {}
+): string | undefined {
+  if (archetypeId !== "walking_motion" || !brief) return archetypeId;
+  const semantics = resolveSceneSemantics(brief as Parameters<typeof resolveSceneSemantics>[0], opts);
+  return STATIONARY_ACTION_CLASSES.has(semantics.actionClass) ? SAFE_REEL_VIDEO_ARCHETYPE : archetypeId;
+}
+
+function isSemanticValidationError(err: unknown): boolean {
+  return /Semantic validation failed/i.test(String(err ?? ""));
+}
+
+// Single source of truth for chs_daily_plans.batch_status. Same meaning the batch always used
+// (generation_status "completed" on every row = ready), but recomputed from the DB so the manual
+// repair paths (generate-media / generate-higgsfield / video-async) no longer leave a stale
+// failed/partial_failed label on a batch whose slots are all done.
+export async function recomputeBatchStatus(batchId: string): Promise<"ready" | "partial_failed" | "failed" | null> {
+  const { data: rows } = await supabase
+    .from("chs_media")
+    .select("generation_status")
+    .eq("batch_id", batchId);
+  if (!rows || rows.length === 0) return null;
+  const done = rows.filter((m) => m.generation_status === "completed").length;
+  const status = done === rows.length ? "ready" : done > 0 ? "partial_failed" : "failed";
+  await supabase.from("chs_daily_plans").update({ batch_status: status }).eq("id", batchId);
+  return status;
 }
 
 interface SlotGenerationResult {
@@ -512,6 +553,17 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     preferredShotStyle: ciStrategyInput?.preferredShotStyle,
   });
 
+  if (archetypeMap["reel_video"]) {
+    const coherent = coherentReelVideoArchetype(archetypeMap["reel_video"], sceneBriefJson, {
+      sceneLocation: storyDay.location ?? null,
+      activityHint: situation?.activity ?? storyDay.narrative ?? null,
+    });
+    if (coherent && coherent !== archetypeMap["reel_video"]) {
+      console.warn(`[dailyBatch] reel_video archetype ${archetypeMap["reel_video"]} -> ${coherent} (stationary scene)`);
+      archetypeMap["reel_video"] = coherent;
+    }
+  }
+
   await prereserveSlots(batchId, storyDayId, slotsToGenerate, archetypeMap);
 
   const guidanceCache = new Map<string, string>();
@@ -586,8 +638,17 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
 
   if (failedSlots.length > 0) {
     const retrySettled = await Promise.allSettled(
-      failedSlots.map((f) => {
+      failedSlots.map(async (f) => {
         const slot = slotsToGenerate.find((s) => s.slot === f.slot)!;
+        // A semantic-validation failure is deterministic — retrying the same archetype can only
+        // fail again. Retry the video slot with the stationary-safe archetype instead.
+        if (slot.type === "video" && isSemanticValidationError(f.error) && archetypeMap[slot.slot] !== SAFE_REEL_VIDEO_ARCHETYPE) {
+          archetypeMap[slot.slot] = SAFE_REEL_VIDEO_ARCHETYPE;
+          f.archetype = SAFE_REEL_VIDEO_ARCHETYPE;
+          if (!guidanceCache.has(SAFE_REEL_VIDEO_ARCHETYPE)) {
+            guidanceCache.set(SAFE_REEL_VIDEO_ARCHETYPE, await getArchetypeGuidance(SAFE_REEL_VIDEO_ARCHETYPE));
+          }
+        }
         return runSlot({
           slot,
           archetypeId: archetypeMap[slot.slot],
@@ -629,14 +690,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
 
   const stillFailed = generated.filter((g) => !g.ok).length;
   const status: DailyBatchResult["status"] =
-    stillFailed === 0 ? "ready" :
-    stillFailed === generated.length ? "failed" :
-    "partial_failed";
-
-  await supabase
-    .from("chs_daily_plans")
-    .update({ batch_status: status })
-    .eq("id", batchId);
+    (await recomputeBatchStatus(batchId)) ??
+    (stillFailed === 0 ? "ready" : stillFailed === generated.length ? "failed" : "partial_failed");
 
   // FANVUE LAYER (flag-gated): post-batch, create a monetization DRAFT from today's scene.
   // Pure DB write — never publishes, never calls the Fanvue MCP. Non-fatal.
@@ -874,10 +929,14 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
           compactSituationTranslation: args.compactSituationTranslation,
         });
 
+    // Image prompts go to Soul — never let video-model vocabulary (kling/seedance/i2v...) reach it.
+    const finalPrompt = args.slot.type === "photo" ? stripVideoModelTerms(result.prompt) : result.prompt;
+
     const { error: updErr } = await supabase
       .from("chs_media")
       .update({
-        higgsfield_prompt: result.prompt,
+        higgsfield_prompt: finalPrompt,
+        shot_archetype: args.archetypeId,
         visual_signature: mergeVisualSignature(result.visualSignature, args.situationTags, result.promptPackage),
         // Slot-level hook (carousel overlay / extractHookText) wins when the doctrine path produced
         // one; otherwise the day's own hook_text. The Prompt Director path never produces a
@@ -918,7 +977,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
   const { data: failed } = await supabase
     .from("chs_media")
     .select(`
-      id, slot, batch_id, retry_count, shot_archetype,
+      id, slot, batch_id, retry_count, shot_archetype, last_error,
       chs_daily_plans!inner(id, character_id, story_day_id, scene_brief, scene_brief_doctrine)
     `)
     .eq("generation_status", "failed")
@@ -936,6 +995,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
     batch_id: string;
     retry_count: number;
     shot_archetype: string;
+    last_error: string | null;
     chs_daily_plans: {
       id: string;
       character_id: string;
@@ -966,6 +1026,18 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
     const rcDiscovery = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "discovery_mode");
     const rcFormat = rcDiscovery ? pickReelFormat(Number((storyDay as { day_number?: number }).day_number) || 0) : undefined;
     const slot = dailySlots(rcDiscovery, rcFormat, (storyDay as { tier?: string }).tier).find((s) => s.slot === row.slot)!;
+
+    // Same deterministic-failure guard as the in-batch retry: never re-run an archetype the
+    // semantic validator already rejected for this scene.
+    if (slot.type === "video") {
+      const coherent =
+        isSemanticValidationError(row.last_error)
+          ? SAFE_REEL_VIDEO_ARCHETYPE
+          : coherentReelVideoArchetype(row.shot_archetype, row.chs_daily_plans.scene_brief, {
+              sceneLocation: (storyDay as { location?: string | null }).location ?? null,
+            });
+      if (coherent && coherent !== row.shot_archetype) row.shot_archetype = coherent;
+    }
 
     const guidance = await getArchetypeGuidance(row.shot_archetype);
     const doctrine = resolveDoctrine((char as { prompt_doctrine?: unknown }).prompt_doctrine);
@@ -1020,7 +1092,8 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
       await supabase
         .from("chs_media")
         .update({
-          higgsfield_prompt: result.prompt,
+          higgsfield_prompt: slot.type === "photo" ? stripVideoModelTerms(result.prompt) : result.prompt,
+          shot_archetype: row.shot_archetype,
           visual_signature: mergeVisualSignature(result.visualSignature, undefined, result.promptPackage),
           // RECOVERY phase 1A — same mapping as runSlot() above; a reconciled slot must not be the
           // one row in the batch that comes back with NULL telemetry.
@@ -1054,15 +1127,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
 
   const batchIds = Array.from(new Set((failed ?? []).map((f: { batch_id: string }) => f.batch_id)));
   for (const batchId of batchIds) {
-    const { data: all } = await supabase
-      .from("chs_media")
-      .select("generation_status")
-      .eq("batch_id", batchId);
-    if (!all) continue;
-    const allCompleted = all.every((m) => m.generation_status === "completed");
-    const anyCompleted = all.some((m) => m.generation_status === "completed");
-    const status = allCompleted ? "ready" : anyCompleted ? "partial_failed" : "failed";
-    await supabase.from("chs_daily_plans").update({ batch_status: status }).eq("id", batchId);
+    await recomputeBatchStatus(batchId);
   }
 
   return { retried: failed.length, succeeded };
