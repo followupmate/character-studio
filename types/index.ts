@@ -85,6 +85,8 @@ export interface Character {
   personality: Record<string, string>;
   platforms: CharacterPlatform[];
   posting_time: string;
+  posting_tz?: string | null;
+  posting_schedule?: Record<string, { story?: string | null; reel?: string | null; carousel?: string | null } | null> | null;
   is_active: boolean;
   created_at: string;
   lora_model_id: string | null;

@@ -22,7 +22,8 @@ export const maxDuration = 300;
 // slot) — they stay visible for the operator. Schedule via cron-job.org every 5 min for ~2h
 // after the story cron (?secret=CRON_SECRET), same as /api/publish/cron.
 
-const PHOTO_ORDER = ["reel_start_frame", "story_bts"];
+// story_bts first: it is the time-critical slot (posts ~11:00 local); the reel has hours of slack.
+const PHOTO_ORDER = ["story_bts", "reel_start_frame"];
 
 type Row = {
   id: string;

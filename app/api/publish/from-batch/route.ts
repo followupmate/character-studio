@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { scheduledIso } from "@/lib/publishTime";
+import { scheduleFor, localDateIn, isMissingScheduleColumn, type PostingSchedule } from "@/lib/publishTime";
 import { requireCron } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
@@ -18,6 +18,8 @@ interface Character {
   id: string;
   name: string;
   posting_time: string;
+  posting_tz?: string | null;
+  posting_schedule?: PostingSchedule | null;
   platforms: string[];
   fanvue_link: string | null;
 }
@@ -131,9 +133,12 @@ async function processCharacter(
     .map((s) => bySlot(s))
     .filter((s): s is SlotMedia => !!s);
 
+  const carouselAt = scheduleFor(char, date, "carousel");
   if (carouselSlots.length >= 2 && carouselSlots.every(ready)) {
     if (existingTypes.has("carousel")) {
       result.skipped.push("carousel (already queued)");
+    } else if (carouselAt === null) {
+      result.skipped.push("carousel (no slot in posting_schedule for this weekday)");
     } else if (hasInstagram) {
       const ordered = [...carouselSlots].sort((a, b) => (a.sequence_index ?? 0) - (b.sequence_index ?? 0));
       const { data: post, error } = await supabase
@@ -144,7 +149,7 @@ async function processCharacter(
           character_id: char.id,
           platform: "instagram",
           post_type: "carousel",
-          scheduled_at: scheduledIso(date, char.posting_time, 0),
+          scheduled_at: carouselAt,
           status: "scheduled",
           ig_caption: captionFromStory,
           hashtags: hashtagsFromStory,
@@ -171,10 +176,12 @@ async function processCharacter(
   // 2) Reel — instagram + youtube (if both platforms enabled)
   const reel = bySlot("reel_video");
   if (ready(reel)) {
+    const reelTime = scheduleFor(char, date, "reel"); // legacy: posting_time +8h
     if (existingTypes.has("reel")) {
       result.skipped.push("reel (already queued)");
+    } else if (reelTime === null) {
+      result.skipped.push("reel (no slot in posting_schedule for this weekday)");
     } else {
-      const reelTime = scheduledIso(date, char.posting_time, 8 * 60); // +8h, prime time
       const platforms: Array<"instagram" | "youtube"> = [];
       if (hasInstagram) platforms.push("instagram");
       if (hasYouTube) platforms.push("youtube");
@@ -209,9 +216,12 @@ async function processCharacter(
 
   // 3) Story — instagram only, +90min after carousel
   const story = bySlot("story_bts");
+  const storyAt = scheduleFor(char, date, "story"); // legacy: posting_time +90min
   if (ready(story) && hasInstagram) {
     if (existingTypes.has("story")) {
       result.skipped.push("story (already queued)");
+    } else if (storyAt === null) {
+      result.skipped.push("story (no slot in posting_schedule for this weekday)");
     } else {
       const { data: post, error } = await supabase
         .from("chs_posts")
@@ -220,7 +230,7 @@ async function processCharacter(
           character_id: char.id,
           platform: "instagram",
           post_type: "story",
-          scheduled_at: scheduledIso(date, char.posting_time, 90),
+          scheduled_at: storyAt,
           status: "scheduled",
           story_day_id: (storyDay as StoryDay).id,
           source: "batch",
@@ -249,30 +259,35 @@ async function handle(req: Request): Promise<NextResponse> {
     const url = new URL(req.url);
     const characterId = url.searchParams.get("character_id");
     const dateParam = url.searchParams.get("date");
-    const date = dateParam ?? new Date().toISOString().split("T")[0];
+    const utcToday = new Date().toISOString().split("T")[0];
 
-    let charQuery = supabase
-      .from("chs_characters")
-      .select("id, name, posting_time, platforms, fanvue_link")
-      .eq("is_active", true);
-
-    if (characterId) {
-      charQuery = charQuery.eq("id", characterId);
+    const buildQuery = (cols: string) => {
+      let q = supabase.from("chs_characters").select(cols).eq("is_active", true);
+      if (characterId) q = q.eq("id", characterId);
+      return q;
+    };
+    let { data: characters, error: charErr } = await buildQuery(
+      "id, name, posting_time, posting_tz, posting_schedule, platforms, fanvue_link"
+    );
+    if (isMissingScheduleColumn(charErr)) {
+      // Migration 20260929_posting_schedule.sql not applied yet -> legacy behaviour.
+      ({ data: characters, error: charErr } = await buildQuery("id, name, posting_time, platforms, fanvue_link"));
     }
-
-    const { data: characters, error: charErr } = await charQuery;
     if (charErr) throw charErr;
     if (!characters || characters.length === 0) {
       return NextResponse.json({ success: true, processed: [] });
     }
 
     const results: PerCharacterResult[] = [];
-    for (const char of characters as Character[]) {
+    for (const char of characters as unknown as Character[]) {
+      // Characters with a posting_schedule work on their LOCAL calendar date (so the weekday
+      // lookup is right around midnight); legacy characters keep the UTC date.
+      const date = dateParam ?? (char.posting_schedule ? localDateIn(char.posting_tz) : utcToday);
       results.push(await processCharacter(char, date));
     }
 
     const totalCreated = results.reduce((s, r) => s + r.created.length, 0);
-    return NextResponse.json({ success: true, date, totalCreated, processed: results });
+    return NextResponse.json({ success: true, date: dateParam ?? utcToday, totalCreated, processed: results });
   } catch (error) {
     console.error("[from-batch]", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });

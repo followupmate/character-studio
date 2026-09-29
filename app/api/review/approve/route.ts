@@ -1,19 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { scheduleFor, isMissingScheduleColumn } from "@/lib/publishTime";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-function scheduledIso(dateStr: string, postingTime: string, offsetMinutes = 0): string {
-  const [h, m] = postingTime.split(":").map(Number);
-  const dt = new Date(`${dateStr}T00:00:00.000Z`);
-  dt.setUTCHours(h ?? 10, m ?? 0, 0, 0);
-  dt.setUTCMinutes(dt.getUTCMinutes() + offsetMinutes);
-  if (dt.getTime() < Date.now()) {
-    return new Date(Date.now() + 60_000).toISOString();
-  }
-  return dt.toISOString();
-}
 
 export async function POST(req: Request) {
   try {
@@ -39,11 +29,18 @@ export async function POST(req: Request) {
     }
 
     // 2. Fetch character details
-    const { data: character, error: charErr } = await supabase
-      .from("chs_characters")
-      .select("id, name, posting_time, platforms")
-      .eq("id", characterId)
-      .single();
+    const charQuery = (cols: string) =>
+      supabase.from("chs_characters").select(cols).eq("id", characterId).single();
+    type CharRow = {
+      id: string; name: string; posting_time: string; platforms: string[];
+      posting_tz?: string | null; posting_schedule?: import("@/lib/publishTime").PostingSchedule | null;
+    };
+    let { data: characterRaw, error: charErr } = await charQuery("id, name, posting_time, posting_tz, posting_schedule, platforms");
+    if (isMissingScheduleColumn(charErr)) {
+      // Migration not applied yet -> legacy behaviour.
+      ({ data: characterRaw, error: charErr } = await charQuery("id, name, posting_time, platforms"));
+    }
+    const character = characterRaw as unknown as CharRow | null;
 
     if (charErr || !character) {
       return NextResponse.json({ error: "Character not found" }, { status: 404 });
@@ -98,6 +95,8 @@ export async function POST(req: Request) {
     if (carouselSlots.length === 5 && carouselSlots.every(ready)) {
       if (existingTypes.has("carousel")) {
         skipped.push("carousel (already queued)");
+      } else if (scheduleFor(character, date, "carousel") === null) {
+        skipped.push("carousel (no slot in posting_schedule for this weekday)");
       } else if (hasInstagram) {
         const ordered = [...carouselSlots].sort(
           (a, b) => (a.sequence_index ?? 0) - (b.sequence_index ?? 0)
@@ -110,7 +109,7 @@ export async function POST(req: Request) {
             character_id: characterId,
             platform:    "instagram",
             post_type:   "carousel",
-            scheduled_at: scheduledIso(date, character.posting_time, 0),
+            scheduled_at: scheduleFor(character, date, "carousel"),
             status:      "scheduled",
             ig_caption:  caption,
             hashtags,
@@ -133,10 +132,12 @@ export async function POST(req: Request) {
     // ── Reel ──────────────────────────────────────────────────
     const reel = bySlot("reel_video");
     if (ready(reel)) {
+      const reelTime = scheduleFor(character, date, "reel");
       if (existingTypes.has("reel")) {
         skipped.push("reel (already queued)");
+      } else if (reelTime === null) {
+        skipped.push("reel (no slot in posting_schedule for this weekday)");
       } else {
-        const reelTime = scheduledIso(date, character.posting_time, 8 * 60);
         const platforms: Array<"instagram" | "youtube"> = [];
         if (hasInstagram) platforms.push("instagram");
         if (hasYouTube)   platforms.push("youtube");
@@ -170,8 +171,11 @@ export async function POST(req: Request) {
     // ── Story ─────────────────────────────────────────────────
     const story = bySlot("story_bts");
     if (ready(story) && hasInstagram) {
+      const storyAt = scheduleFor(character, date, "story");
       if (existingTypes.has("story")) {
         skipped.push("story (already queued)");
+      } else if (storyAt === null) {
+        skipped.push("story (no slot in posting_schedule for this weekday)");
       } else {
         const { data: post, error } = await supabase
           .from("chs_posts")
@@ -180,7 +184,7 @@ export async function POST(req: Request) {
             character_id: characterId,
             platform:     "instagram",
             post_type:    "story",
-            scheduled_at: scheduledIso(date, character.posting_time, 90),
+            scheduled_at: storyAt,
             status:       "scheduled",
             story_day_id: storyDayId,
             source:       "batch",
