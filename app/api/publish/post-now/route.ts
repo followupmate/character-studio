@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getIgAccessToken } from "@/lib/igToken";
 import { formatIgCaption } from "@/lib/captionTemplate";
+import { AudioPublishError, isTrendingAudioEnabled, publishReelWithAudio, type PublishedAudio } from "@/lib/igReelAudioPublish";
+import { loadCharacterAudioFlag, loadRecentAudioIds, saveAudioOnPost } from "@/lib/igAudioStore";
+import { probeVideoDuration } from "@/lib/recovery/videoDuration";
+import { errMessage } from "@/lib/fbToken";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// 60 -> 300: the legacy path polls a video container every 30 s (up to 10x) and the audio path may spend up
+// to ~150 s on processing before it can fall back to that legacy path. Same ceiling as the other publish routes.
+export const maxDuration = 300;
 
 async function getYouTubeAccessToken(): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -167,17 +173,49 @@ export async function POST(req: Request) {
     }
 
     let platformPostId = "";
+    let publishedAudio: PublishedAudio | null = null;
 
     if (post.platform === "instagram") {
       // Defense in depth: banned (funnel) lines are dropped and hashtags capped at 5 right before
       // publishing, regardless of what an older chs_posts row contains. See lib/captionTemplate.ts.
       const caption = formatIgCaption(post.ig_caption, post.hashtags);
 
-      platformPostId = await postToInstagram(
-        media.media_url,
-        caption,
-        media.type === "video"
-      );
+      // Hybrid reel publish (flag `ig_trending_audio` / env IG_TRENDING_AUDIO_ENABLED, default OFF):
+      // Facebook-Login Graph API + trending audio. ANY failure before media_publish falls through to the
+      // unchanged Instagram-Login path below. Flag off => this block does nothing.
+      if (media.type === "video" && (await isTrendingAudioEnabled(() => loadCharacterAudioFlag(post.character_id as string | null)))) {
+        try {
+          const mediaUrl = media.media_url;
+          const r = await publishReelWithAudio(
+            { videoUrl: mediaUrl, caption },
+            {
+              loadRecentAudioIds: () => loadRecentAudioIds(),
+              probeDurationMs: async (u) => {
+                const p = await probeVideoDuration(u);
+                return p.durationSec ? Math.round(p.durationSec * 1000) : null;
+              },
+            }
+          );
+          platformPostId = r.mediaId;
+          publishedAudio = r.audio;
+          console.log(`[post-now] reel ${post_id} published with audio ${r.audio.id} (${r.audio.tier})`);
+        } catch (e) {
+          // media_publish outcome unknown -> falling back could double-post. Surface the error instead.
+          if (e instanceof AudioPublishError && e.ambiguous) {
+            throw new Error(`AUDIO_PUBLISH_AMBIGUOUS: check the Instagram profile before retrying — ${e.message}`);
+          }
+          const stage = e instanceof AudioPublishError ? e.stage : "unknown";
+          console.warn(`[post-now] audio publish failed at stage=${stage} (${errMessage(e)}); falling back to Instagram-Login publish without audio`);
+        }
+      }
+
+      if (!platformPostId) {
+        platformPostId = await postToInstagram(
+          media.media_url,
+          caption,
+          media.type === "video"
+        );
+      }
     } else if (post.platform === "youtube") {
       if (media.type !== "video") throw new Error("YouTube requires video");
       platformPostId = await postToYouTube(
@@ -197,7 +235,9 @@ export async function POST(req: Request) {
       })
       .eq("id", post_id);
 
-    return NextResponse.json({ success: true, platform_post_id: platformPostId });
+    if (publishedAudio) await saveAudioOnPost(post_id, publishedAudio);
+
+    return NextResponse.json({ success: true, platform_post_id: platformPostId, ...(publishedAudio ? { audio_id: publishedAudio.id } : {}) });
   } catch (error) {
     console.error("[post-now]", error);
 
