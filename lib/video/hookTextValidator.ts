@@ -13,6 +13,8 @@
  * Banned-term check (captionTemplate.isBannedText) is applied too: the hook
  * must obey the same funnel/platform ban as the caption.
  */
+import fs from "node:fs/promises";
+import path from "node:path";
 import { isBannedText } from "../captionTemplate";
 import {
   HOOK_SPEC,
@@ -69,16 +71,30 @@ type Spell = { correct(word: string): boolean };
 
 let spellPromise: Promise<Spell> | null = null;
 
-/** Lazy, memoised en_US nspell instance (dictionary-en is ESM + top-level await). */
+/**
+ * Lazy, memoised en_US nspell instance. dictionary-en is ESM with top-level await and reads its
+ * .aff/.dic via import.meta.url; if the bundler/runtime cannot load it that way we read the same
+ * two files straight from node_modules (next.config.ts outputFileTracingIncludes ships them).
+ */
 export function loadSpell(): Promise<Spell> {
   if (!spellPromise) {
     spellPromise = (async () => {
-      const [{ default: nspell }, { default: dict }] = await Promise.all([
-        import("nspell"),
-        import("dictionary-en"),
-      ]);
-      return nspell(Buffer.from(dict.aff), Buffer.from(dict.dic)) as Spell;
-    })();
+      const { default: nspell } = await import("nspell");
+      let aff: Uint8Array;
+      let dic: Uint8Array;
+      try {
+        const { default: dict } = await import("dictionary-en");
+        aff = dict.aff;
+        dic = dict.dic;
+      } catch {
+        const dir = path.join(process.cwd(), "node_modules", "dictionary-en");
+        [aff, dic] = await Promise.all([fs.readFile(path.join(dir, "index.aff")), fs.readFile(path.join(dir, "index.dic"))]);
+      }
+      return nspell(Buffer.from(aff), Buffer.from(dic)) as Spell;
+    })().catch((e) => {
+      spellPromise = null; // do not cache a failure
+      throw e;
+    });
   }
   return spellPromise;
 }

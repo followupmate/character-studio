@@ -3,9 +3,14 @@ import { stripPromptHeader } from "@/lib/promptClean";
 import { fal } from "@fal-ai/client";
 import { supabase } from "@/lib/supabase";
 import { recomputeBatchStatus } from "@/lib/dailyBatch";
+import { isFlagOn } from "@/lib/featureFlags";
+import { readReelRecipeMarker, type ReelRecipeMarker } from "@/lib/recovery/reelRecipes";
+import { applyHookOverlayToBuffer, hookOverlayEnabled } from "@/lib/video/hookOverlayPipeline";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// 60 -> 120 (Phase 2): the final poll tick now may also run the hook overlay (ffmpeg re-encode of an
+// 8-10 s clip, hard-capped at 70 s inside applyHookOverlayToBuffer) plus up to three uploads.
+export const maxDuration = 120;
 
 // Async reel-video pipeline — avoids the serverless timeout that kills long (3-4 min) video gens.
 // One endpoint, called repeatedly by the client:
@@ -32,6 +37,32 @@ interface FalQState {
 
 function clean(p: string): string {
   return stripPromptHeader(p);
+}
+
+// Hook overlay is decided per call: HOOK_OVERLAY_ENABLED=false/true wins, otherwise the character's
+// hook_overlay_v1 flag (batch -> plan -> character). Only reels carrying a reel_recipe marker (curated
+// hook text) are ever eligible — hook text never comes from anywhere else.
+async function overlayEnabledFor(batchId: string | null): Promise<boolean> {
+  const env = process.env.HOOK_OVERLAY_ENABLED;
+  if (env === "false") return false;
+  if (env === "true") return true;
+  if (!batchId) return false;
+  try {
+    const { data: plan } = await supabase.from("chs_daily_plans").select("character_id").eq("id", batchId).maybeSingle();
+    if (!plan?.character_id) return false;
+    const { data: ch } = await supabase.from("chs_characters").select("feature_flags").eq("id", plan.character_id).maybeSingle();
+    return hookOverlayEnabled(isFlagOn(ch?.feature_flags, "hook_overlay_v1"));
+  } catch (e) {
+    console.warn("[video-async] overlay flag lookup failed, overlay off:", e instanceof Error ? e.message : e);
+    return false; // a flag lookup problem must never block publishing the raw reel
+  }
+}
+
+async function uploadPublic(path: string, body: Buffer, contentType: string): Promise<string> {
+  const { error: upErr } = await supabase.storage.from("character-media").upload(path, body, { contentType, upsert: true });
+  if (upErr) throw new Error(`storage upload failed: ${upErr.message}`);
+  const { data: pub } = supabase.storage.from("character-media").getPublicUrl(path);
+  return `${pub.publicUrl}?t=${Date.now()}`;
 }
 
 function parseState(raw: string | null): FalQState | null {
@@ -90,7 +121,7 @@ export async function POST(req: Request) {
 
     const { data: media, error } = await supabase
       .from("chs_media")
-      .select("id, slot, batch_id, higgsfield_prompt, higgsfield_job_id, media_url")
+      .select("id, slot, batch_id, higgsfield_prompt, higgsfield_job_id, media_url, visual_signature")
       .eq("id", mediaId)
       .single();
     if (error || !media) return NextResponse.json({ error: "Media not found" }, { status: 404 });
@@ -133,17 +164,94 @@ export async function POST(req: Request) {
           return NextResponse.json({ status: "generating", phase: "audio" });
         }
 
-        // Final video ready → download + upload to Supabase Storage.
+        // Final video ready → download (+ optional hook overlay) + upload to Supabase Storage.
         const vid = await fetch(outUrl);
         if (!vid.ok) throw new Error(`download failed ${vid.status}`);
         const buf = Buffer.from(await vid.arrayBuffer());
-        const storagePath = `videos/${mediaId}.mp4`;
-        const { error: upErr } = await supabase.storage
-          .from("character-media")
-          .upload(storagePath, buf, { contentType: "video/mp4", upsert: true });
-        if (upErr) throw new Error(`storage upload failed: ${upErr.message}`);
-        const { data: pub } = supabase.storage.from("character-media").getPublicUrl(storagePath);
-        const finalUrl = `${pub.publicUrl}?t=${Date.now()}`;
+
+        // Hook overlay (Phase 2, default off). raw -> source_url, overlay -> media_url.
+        const marker = readReelRecipeMarker(media.visual_signature);
+        if (marker && (await overlayEnabledFor(media.batch_id))) {
+          const outcome = await applyHookOverlayToBuffer({ video: buf, hookText: marker.hook_text });
+          const sigWith = (status: string, detail?: string) => ({
+            ...((media.visual_signature as Record<string, unknown> | null) ?? {}),
+            reel_recipe: { ...marker, overlay_status: status, ...(detail ? { overlay_detail: detail.slice(0, 300) } : {}) } satisfies ReelRecipeMarker,
+          });
+
+          if (outcome.kind === "applied") {
+            const rawUrl = await uploadPublic(`videos/${mediaId}-raw.mp4`, buf, "video/mp4");
+            const overlayUrl = await uploadPublic(`videos/${mediaId}.mp4`, outcome.video, "video/mp4");
+            let coverUrl: string | null = null;
+            if (outcome.cover) {
+              try {
+                coverUrl = await uploadPublic(`videos/${mediaId}-cover.jpg`, outcome.cover, "image/jpeg");
+              } catch (coverErr) {
+                console.warn("[video-async] cover upload failed (ignored):", coverErr instanceof Error ? coverErr.message : coverErr);
+              }
+            }
+            console.log(`[video-async] hook overlay applied media=${mediaId} ms=${outcome.ms} text="${outcome.hookText}"`);
+            await supabase
+              .from("chs_media")
+              .update({
+                media_url: overlayUrl,
+                source_url: rawUrl,
+                ...(coverUrl ? { thumbnail_url: coverUrl } : {}),
+                generation_status: "completed",
+                status: "ready",
+                higgsfield_job_id: null,
+                last_error: null,
+                visual_signature: sigWith("applied"),
+              })
+              .eq("id", mediaId);
+            await recomputeBatchStatus(media.batch_id);
+            return NextResponse.json({ status: "ready", url: overlayUrl, overlay: "applied" });
+          }
+
+          if (outcome.kind === "needs_review") {
+            // The hook TEXT itself is invalid. Do not publish: keep the raw clip in source_url,
+            // leave media_url empty (from-batch only publishes rows with a media_url) and mark the
+            // row failed with retry_count at the reconcile ceiling so neither reconcileFailedSlots
+            // nor auto-media re-submits (= pays for) another video.
+            const detail = outcome.issues.map((i) => `${i.code}${i.detail ? `(${i.detail})` : ""}`).join(", ");
+            console.error(`[video-async] hook overlay NEEDS REVIEW media=${mediaId} text="${outcome.hookText}": ${detail}`);
+            const rawUrl = await uploadPublic(`videos/${mediaId}-raw.mp4`, buf, "video/mp4");
+            await supabase
+              .from("chs_media")
+              .update({
+                media_url: null,
+                source_url: rawUrl,
+                generation_status: "failed",
+                retry_count: 3,
+                status: "pending",
+                higgsfield_job_id: null,
+                last_error: `needs_review: hook text "${outcome.hookText}" invalid — ${detail}`.slice(0, 500),
+                visual_signature: sigWith("needs_review", detail),
+              })
+              .eq("id", mediaId);
+            await recomputeBatchStatus(media.batch_id);
+            return NextResponse.json({ status: "error", error: `needs_review: hook text invalid — ${detail}`, sourceUrl: rawUrl }, { status: 422 });
+          }
+
+          // render_failed: infrastructure problem -> publish the raw reel without overlay.
+          console.error(`[video-async] hook overlay render failed, publishing WITHOUT overlay media=${mediaId}: ${outcome.error}`);
+          const rawOnlyUrl = await uploadPublic(`videos/${mediaId}.mp4`, buf, "video/mp4");
+          await supabase
+            .from("chs_media")
+            .update({
+              media_url: rawOnlyUrl,
+              source_url: rawOnlyUrl,
+              generation_status: "completed",
+              status: "ready",
+              higgsfield_job_id: null,
+              last_error: null,
+              visual_signature: sigWith("render_failed", outcome.error),
+            })
+            .eq("id", mediaId);
+          await recomputeBatchStatus(media.batch_id);
+          return NextResponse.json({ status: "ready", url: rawOnlyUrl, overlay: "render_failed" });
+        }
+
+        const finalUrl = await uploadPublic(`videos/${mediaId}.mp4`, buf, "video/mp4");
 
         await supabase
           .from("chs_media")
@@ -198,10 +306,16 @@ export async function POST(req: Request) {
       // continuation of the reel, and forcing Kling to converge on it produced visibly wrong physics
       // (hair moving backward against the described motion) to hit that end pose in time. The reel
       // stays single-image i2v — captivating on its own, not anchored to an unrelated end frame.
+      // Phase 2 reel recipes carry their own negative prompt (e.g. ootd_stop allows walking in) and
+      // target duration (8 s, inside REEL_DURATION_GATE). Every other reel is untouched.
+      const recipe = readReelRecipeMarker(media.visual_signature);
+      const recipeExtras = recipe
+        ? { duration: String(recipe.target_duration_sec), ...(recipe.negative_prompt ? { negative_prompt: recipe.negative_prompt } : {}) }
+        : { duration: "10" };
       falModel = startFrameUrl ? "fal-ai/kling-video/v3/pro/image-to-video" : "fal-ai/kling-video/v3/pro/text-to-video";
       input = startFrameUrl
-        ? { prompt: cinematic, duration: "10", start_image_url: startFrameUrl, generate_audio: false }
-        : { prompt: cinematic, duration: "10", aspect_ratio: "9:16", generate_audio: false };
+        ? { prompt: cinematic, ...recipeExtras, start_image_url: startFrameUrl, generate_audio: false }
+        : { prompt: cinematic, ...recipeExtras, aspect_ratio: "9:16", generate_audio: false };
       needsAudio = audioStyle !== "silent"; // Kling's own audio is forced off above → mmaudio after
     } else if (model === "seedance-fast" || model === "seedance-i2v") {
       // Identity holds ONLY if the start frame clearly shows her face (see archetypeDeck reel_start_frame).

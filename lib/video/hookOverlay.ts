@@ -126,6 +126,8 @@ export async function applyHookOverlay(opts: {
   ffmpegPath?: string;
   /** Also keep the overlay PNG here (debug/QA). */
   keepPngAt?: string;
+  /** Hard ffmpeg timeout (ms). Default 120 s. */
+  timeoutMs?: number;
 }): Promise<{ ffmpegPath: string }> {
   const bin = opts.ffmpegPath ?? (await resolveFfmpegPath());
   if (!bin) throw new Error("ffmpeg binary not found (ffmpeg-static / FFMPEG_PATH)");
@@ -136,6 +138,7 @@ export async function applyHookOverlay(opts: {
     await runFfmpeg(
       bin,
       buildOverlayFfmpegArgs({ inputVideo: opts.inputVideo, overlayPng: pngPath, output: opts.output, startSec: opts.startSec }),
+      opts.timeoutMs,
     );
   } finally {
     if (!opts.keepPngAt) await fs.rm(pngPath, { force: true });
