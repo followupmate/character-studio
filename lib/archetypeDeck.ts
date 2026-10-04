@@ -214,6 +214,9 @@ function humanizeArchetypeId(id: string): string {
 interface PickArgs {
   characterId: string;
   slots: SlotSpec[];
+  // Phase 2 — archetype ids that may exist in chs_shot_archetypes but must never be drawn at
+  // random (the reel recipes: they are assigned explicitly by dailyBatch when reel_recipes_v1 is on).
+  excludeArchetypeIds?: ReadonlyArray<string>;
   // creative_intelligence_generation_v1: optional, soft nudge only — never overrides cooldown
   // exclusion or same-batch dedupe (applied strictly AFTER `pool` is already filtered below).
   preferredShotStyle?: string | null;
@@ -300,12 +303,15 @@ export function selectArchetypesForSlots({
   return selected as Record<SlotName, string>;
 }
 
-export async function pickArchetypesForBatch({ characterId, slots, preferredShotStyle }: PickArgs): Promise<Record<SlotName, string>> {
-  const { data: archetypes, error: archErr } = await supabase
+export async function pickArchetypesForBatch({ characterId, slots, preferredShotStyle, excludeArchetypeIds }: PickArgs): Promise<Record<SlotName, string>> {
+  const { data: allArchetypes, error: archErr } = await supabase
     .from("chs_shot_archetypes")
     .select("*");
 
-  if (archErr || !archetypes) throw archErr ?? new Error("Archetype deck empty");
+  if (archErr || !allArchetypes) throw archErr ?? new Error("Archetype deck empty");
+  const archetypes = excludeArchetypeIds?.length
+    ? allArchetypes.filter((a: { id: string }) => !excludeArchetypeIds.includes(a.id))
+    : allArchetypes;
 
   const { data: usage } = await supabase
     .from("chs_archetype_usage")

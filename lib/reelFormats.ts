@@ -12,6 +12,9 @@
 // real text overlay added later in the editor. The actual hook words live in
 // story_days.hook_text (e.g. "she finally went"), applied on top in post.
 
+import type { ActionClass } from "@/lib/sceneSemantics";
+import { REEL_RECIPE_LIST, getReelRecipe, recipeSupportsActionClass } from "@/lib/recovery/reelRecipes";
+
 export interface ReelFormat {
   id: string;
   label: string;
@@ -26,7 +29,10 @@ export interface ReelFormat {
   overlayStyle: string;
 }
 
-export const REEL_FORMATS: ReelFormat[] = [
+// Phase 2: the default rotation is the two reel recipes (lib/recovery/reelRecipes.ts). The seven
+// original formats below are kept verbatim as LEGACY_REEL_FORMATS and come back with
+// REEL_FORMATS_LEGACY=true (no deploy needed beyond the env var).
+export const LEGACY_REEL_FORMATS: ReelFormat[] = [
   {
     id: "pov",
     label: "POV",
@@ -78,10 +84,52 @@ export const REEL_FORMATS: ReelFormat[] = [
   },
 ];
 
+export const REEL_FORMATS: ReelFormat[] = REEL_RECIPE_LIST.map((r) => ({
+  id: r.id,
+  label: r.label,
+  coverCue: r.coverCue,
+  videoDirective: r.videoDirective,
+  overlayStyle: r.overlayStyle,
+}));
+
+export function legacyReelFormatsEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return env.REEL_FORMATS_LEGACY === "true";
+}
+
+/** The rotation currently in force (recipes, or the legacy seven behind REEL_FORMATS_LEGACY). */
+export function activeReelFormats(env: Record<string, string | undefined> = process.env): ReelFormat[] {
+  return legacyReelFormatsEnabled(env) ? LEGACY_REEL_FORMATS : REEL_FORMATS;
+}
+
 // Deterministic rotation by a per-day seed (day_number), so formats cycle evenly
 // rather than repeating or clustering.
-export function pickReelFormat(seed: number): ReelFormat {
+export function pickReelFormat(seed: number, env: Record<string, string | undefined> = process.env): ReelFormat {
+  const formats = activeReelFormats(env);
   const s = Number.isFinite(seed) ? Math.trunc(seed) : 0;
-  const i = ((s % REEL_FORMATS.length) + REEL_FORMATS.length) % REEL_FORMATS.length;
-  return REEL_FORMATS[i];
+  const i = ((s % formats.length) + formats.length) % formats.length;
+  return formats[i];
+}
+
+/**
+ * Scene-aware rotation. The calendar rotation (pickReelFormat) proposes a format; if the scene's
+ * action class cannot carry it (ootd_stop on a seated scene, grwm_loading on a swim), the next
+ * compatible recipe is used instead. Returns undefined when no recipe fits — the caller then runs
+ * the pre-recipe flow unchanged. Legacy formats have no scene filter of their own here (their
+ * rules live in FORMAT_REQUIRED_ACTIONS / checkFormatCoherence), so with REEL_FORMATS_LEGACY=true
+ * this behaves exactly like pickReelFormat.
+ */
+export function pickReelFormatForScene(
+  seed: number,
+  actionClass: ActionClass | null | undefined,
+  env: Record<string, string | undefined> = process.env
+): ReelFormat | undefined {
+  if (legacyReelFormatsEnabled(env)) return pickReelFormat(seed, env);
+  const preferred = pickReelFormat(seed, env);
+  if (!actionClass) return preferred;
+  const fits = (f: ReelFormat) => {
+    const r = getReelRecipe(f.id);
+    return !!r && recipeSupportsActionClass(r, actionClass);
+  };
+  if (fits(preferred)) return preferred;
+  return REEL_FORMATS.find((f) => f.id !== preferred.id && fits(f));
 }

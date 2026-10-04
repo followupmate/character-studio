@@ -34,11 +34,14 @@ export {
   REEL_DURATION_GATE,
 } from "./reelDuration";
 
-export type ReelFraming = "close" | "close_medium";
+export type ReelFraming = "close" | "close_medium" | "medium";
 
 const FRAMING_TEXT: Record<ReelFraming, string> = {
   close: "Close on her, camera static at eye height.",
   close_medium: "Close-medium on her, camera static at chest height.",
+  // Phase 2 (reel recipes): outfit-readable framing for ootd_stop. Only reachable when a recipe
+  // asks for it — every pre-existing caller keeps close / close_medium.
+  medium: "Medium shot on her from the knees up, camera static at waist height.",
 };
 
 // One readable action per action class. Every entry is something a person can do WITHOUT moving
@@ -136,6 +139,14 @@ export interface SimpleReelInput {
    * byte-identical to before.
    */
   closingBeat?: string;
+  /**
+   * Replaces the default negative prompt entirely (Phase 2 reel recipes).
+   *
+   * The default list contains "no camera movement" / "no zoom" / "no cuts" and was written for a
+   * seated, nearly static recovery reel. A recipe in which she walks into frame needs its own
+   * list. Omit it and the output is byte-identical to before.
+   */
+  negativePrompt?: string;
 }
 
 /** The gaze-turn beat every recovery reel uses. Exported so the experiment layer can name the
@@ -146,6 +157,19 @@ export const DEFAULT_HOOK_BEAT = "Within the first second her eyes find the lens
 export const DEFAULT_CLOSING_BEATS = [
   "She holds the look.",
   "The last frame matches the first so it loops seamlessly.",
+];
+
+/** The negative list every reel used before per-recipe overrides existed. */
+export const DEFAULT_REEL_NEGATIVES = [
+  "no speech",
+  "no text",
+  "no captions",
+  "no watermark",
+  "no camera movement",
+  "no zoom",
+  "no cuts",
+  "no second person in frame",
+  "no face morphing",
 ];
 
 export interface SimpleReelPrompt {
@@ -223,17 +247,7 @@ export function compileSimpleReel(input: SimpleReelInput): SimpleReelPrompt {
 
   // Kept out of the positive prompt on purpose — the point of this compiler is that the positive
   // prompt contains the shot and nothing else.
-  const negativePrompt = [
-    "no speech",
-    "no text",
-    "no captions",
-    "no watermark",
-    "no camera movement",
-    "no zoom",
-    "no cuts",
-    "no second person in frame",
-    "no face morphing",
-  ].join(", ");
+  const negativePrompt = input.negativePrompt?.trim() || DEFAULT_REEL_NEGATIVES.join(", ");
 
   const validation = validateSceneCoherence({
     brief: input.sceneBrief,

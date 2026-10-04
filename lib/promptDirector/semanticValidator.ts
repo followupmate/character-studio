@@ -76,6 +76,16 @@ export const FORMAT_REQUIRED_ACTIONS: Record<string, { actions: ReadonlyArray<st
     actions: ["gesture", "grooming", "locomotion"],
     why: "a reveal needs a before/after state change the subject performs",
   },
+  // Phase 2 reel recipes. Static copy of ReelRecipe.requiredActionClasses (importing the recipe
+  // module here would create a cycle through the compiler); reelRecipes.test.ts keeps them in sync.
+  ootd_stop: {
+    actions: ["locomotion", "standing_still"],
+    why: "OOTD stop needs a scene where she can arrive and stop in frame with the outfit readable",
+  },
+  grwm_loading: {
+    actions: ["grooming", "gesture", "seated_still", "standing_still"],
+    why: "GRWM loading needs an in-place get-ready touch (hair, collar, jewellery)",
+  },
   // POV, wait_for_it, romanticize and relatable_confession impose no action requirement — they are
   // framing/expression shapes that work over any action class.
 };

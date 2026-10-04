@@ -8,6 +8,12 @@ export const REEL_ARCHETYPE_ACTION: Record<string, string> = {
   walking_motion: "she walks, continuing forward motion",
   gesture_motion: "she makes a single small, self-contained gesture — turning her head, raising a cup, adjusting a sleeve",
   light_motion: "light shifts across her — she stays relatively still while the environment moves",
+  // Phase 2 reel recipes (lib/recovery/reelRecipes.ts). Static copies on purpose: this module is
+  // imported by a CLIENT component and by the semantic validator, so it must not import the recipe
+  // module (which imports the compiler -> validator -> this file). reelRecipes.test.ts asserts the
+  // strings stay identical to the recipes'.
+  ootd_stop: "she comes to a stop, one hand smoothing the front of her outfit as her eyes find the lens",
+  grwm_loading: "she finishes one small get-ready touch and her shoulders drop into a satisfied half-smile",
 };
 
 export function plannedActionForReelArchetype(archetypeId: string | undefined): string | undefined {

@@ -81,3 +81,22 @@ describe("plannedActionForReelArchetype (§21 — deterministic, no LLM call)", 
     expect(plannedActionForReelArchetype(undefined)).toBeUndefined();
   });
 });
+
+// Phase 2 — generateDailyBatch() / runSlot() are not unit-reachable (Supabase + LLM), so, like the
+// §21 test above, pin the wiring in the source so it cannot be dropped silently.
+describe("reel recipe wiring (source pins)", () => {
+  it("recipes are gated by reel_recipes_v1 / REEL_RECIPES_ENABLED and need the archetype row", () => {
+    expect(src).toMatch(/reelRecipesEnabled\(isFlagOn\(character\.feature_flags, "reel_recipes_v1"\)\)/);
+    expect(src).toMatch(/archetypeRowExists\(picked\.id\)/);
+  });
+  it("recipe archetypes are excluded from the random motion pool", () => {
+    expect(src).toMatch(/excludeArchetypeIds: REEL_RECIPE_IDS/);
+  });
+  it("the recipe prompt only replaces the generator for the reel_video slot whose archetype IS the recipe", () => {
+    expect(src).toMatch(/args\.slot\.slot === "reel_video" && args\.archetypeId === args\.reelRecipe\.id/);
+  });
+  it("the recipe marker (hook text, negatives) is persisted in visual_signature.reel_recipe and hook_text comes from it", () => {
+    expect(src).toMatch(/withReelRecipeMarker\(/);
+    expect(src).toMatch(/hook_text: result\.hookText \?\? args\.dayHookText/);
+  });
+});

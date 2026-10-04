@@ -28,4 +28,23 @@ describe("coherentReelVideoArchetype", () => {
   it("never touches other archetypes", () => {
     expect(coherentReelVideoArchetype("gesture_motion", seatedCar)).toBe("gesture_motion");
   });
+
+  // Phase 2 — generalised: reel recipes follow their requiredActionClasses.
+  const street = { spatial_setup: "She walks down a cobblestone street, old stone walls on both sides." };
+  const mirror = { spatial_setup: "She stands in front of a full-length mirror in the dressing area, linen wardrobe behind her." };
+  const swimming = { spatial_setup: "She swims slow lengths in a pool." };
+  it("keeps ootd_stop on a walking or standing scene, swaps it on a seated one", () => {
+    expect(coherentReelVideoArchetype("ootd_stop", street, { sceneLocation: "street" })).toBe("ootd_stop");
+    expect(coherentReelVideoArchetype("ootd_stop", mirror, { sceneLocation: "dressing room" })).toBe("ootd_stop");
+    expect(coherentReelVideoArchetype("ootd_stop", seatedCar, { sceneLocation: "rear cabin of a moving luxury car" })).toBe(SAFE_REEL_VIDEO_ARCHETYPE);
+  });
+  it("keeps grwm_loading on a standing scene, swaps it on walking / swimming", () => {
+    expect(coherentReelVideoArchetype("grwm_loading", mirror, { sceneLocation: "dressing room" })).toBe("grwm_loading");
+    expect(coherentReelVideoArchetype("grwm_loading", street, { sceneLocation: "street" })).toBe(SAFE_REEL_VIDEO_ARCHETYPE);
+    expect(coherentReelVideoArchetype("grwm_loading", swimming, { sceneLocation: "pool" })).toBe(SAFE_REEL_VIDEO_ARCHETYPE);
+  });
+  it("is a no-op without a brief", () => {
+    expect(coherentReelVideoArchetype("ootd_stop", null)).toBe("ootd_stop");
+    expect(coherentReelVideoArchetype(undefined, street)).toBeUndefined();
+  });
 });

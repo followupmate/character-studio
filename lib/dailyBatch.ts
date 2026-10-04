@@ -14,13 +14,23 @@ import { pickStylingProfile, StylingProfile } from "@/lib/stylingDeck";
 import { isFlagOn } from "@/lib/featureFlags";
 import type { LifeState } from "@/lib/lifeState";
 import { maybeCreateFanvueUnlock } from "@/lib/fanvueUnlock";
-import { pickReelFormat, ReelFormat } from "@/lib/reelFormats";
+import { pickReelFormatForScene, ReelFormat } from "@/lib/reelFormats";
+import {
+  compileRecipeReel,
+  getReelRecipe,
+  isReelRecipeId,
+  recipeSupportsActionClass,
+  reelRecipesEnabled,
+  REEL_RECIPE_IDS,
+  type ReelRecipe,
+  type ReelRecipeMarker,
+} from "@/lib/recovery/reelRecipes";
 import { extractSituation, translateSituationForSlotPrompt, compactSituationTranslation, situationContextForSceneBrief, normalizeOutfitArchetypeFamily, normalizePoseArchetype, classifyOutfitCategory, GenerativeSituation } from "@/lib/situationPlanner";
 import { getStrategyInputByProvenance } from "@/lib/creativeIntelligence/generationStrategyAdapter";
 import { compilePromptDirector } from "@/lib/promptDirector";
 import { writeSoul2Prompt } from "@/lib/promptDirector/promptWriter";
 import type { PromptDirectorInput, PromptPackage } from "@/lib/promptDirector";
-import { resolveSceneSemantics, STATIONARY_ACTION_CLASSES } from "@/lib/sceneSemantics";
+import { resolveSceneSemantics, STATIONARY_ACTION_CLASSES, type ActionClass } from "@/lib/sceneSemantics";
 import { stripVideoModelTerms } from "@/lib/promptClean";
 
 const ALLOWED_DOCTRINES: DoctrineKey[] = ["cinematic", "instagram", "editorial", "deepseek", "nano_banana", "caption"];
@@ -56,14 +66,38 @@ export function promptDirectorTargetForSlot(slot: SlotSpec): Pick<PromptDirector
 // locomotion_coherence or prop_coherence).
 export const SAFE_REEL_VIDEO_ARCHETYPE = "light_motion";
 
+// Phase 2 — generalised: every archetype that only makes sense for some scene action classes
+// declares its rule here; the safe fallback is the same for all of them. walking_motion keeps its
+// original rule (never on a stationary scene); the reel recipes follow their requiredActionClasses.
+const REEL_ARCHETYPE_COHERENCE: Record<string, (cls: ActionClass) => boolean> = {
+  walking_motion: (cls) => !STATIONARY_ACTION_CLASSES.has(cls),
+  ...Object.fromEntries(
+    REEL_RECIPE_IDS.map((id) => [id, (cls: ActionClass) => recipeSupportsActionClass(getReelRecipe(id)!, cls)])
+  ),
+};
+
 export function coherentReelVideoArchetype(
   archetypeId: string | undefined,
   brief: import("@/lib/sceneBrief").SceneBriefJson | Record<string, unknown> | null | undefined,
   opts: { sceneLocation?: string | null; activityHint?: string | null } = {}
 ): string | undefined {
-  if (archetypeId !== "walking_motion" || !brief) return archetypeId;
+  const rule = archetypeId ? REEL_ARCHETYPE_COHERENCE[archetypeId] : undefined;
+  if (!archetypeId || !rule || !brief) return archetypeId;
   const semantics = resolveSceneSemantics(brief as Parameters<typeof resolveSceneSemantics>[0], opts);
-  return STATIONARY_ACTION_CLASSES.has(semantics.actionClass) ? SAFE_REEL_VIDEO_ARCHETYPE : archetypeId;
+  return rule(semantics.actionClass) ? archetypeId : SAFE_REEL_VIDEO_ARCHETYPE;
+}
+
+/** Scene action class for the reel-format / recipe choice; undefined when the brief can't be read. */
+export function sceneActionClassOf(
+  brief: import("@/lib/sceneBrief").SceneBriefJson | Record<string, unknown> | null | undefined,
+  opts: { sceneLocation?: string | null; activityHint?: string | null } = {}
+): ActionClass | undefined {
+  if (!brief) return undefined;
+  try {
+    return resolveSceneSemantics(brief as Parameters<typeof resolveSceneSemantics>[0], opts).actionClass;
+  } catch {
+    return undefined;
+  }
 }
 
 function isSemanticValidationError(err: unknown): boolean {
@@ -90,6 +124,9 @@ interface SlotGenerationResult {
   prompt: string;
   visualSignature: { palette: string; lens: string; movement: string } | null;
   hookText: string | null;
+  // Phase 2 — set only when the reel_video prompt came from a reel recipe; persisted under
+  // chs_media.visual_signature.reel_recipe and read back by video-async (hook overlay + negatives).
+  reelRecipeMarker?: ReelRecipeMarker;
   // Only set on the prompt_director_v1 path — full structured provenance persisted alongside the
   // compiled prompt (see mergeVisualSignature below).
   promptPackage?: PromptPackage;
@@ -490,7 +527,23 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
 
   const discoveryMode = isFlagOn(character.feature_flags, "discovery_mode");
   // Rotate a proven reel format per day (stable seed = day_number) in discovery mode.
-  const reelFormat = discoveryMode ? pickReelFormat(Number(storyDay.day_number) || 0) : undefined;
+  const dayNo = Number(storyDay.day_number) || 0;
+  const sceneActionClass = sceneActionClassOf(sceneBriefJson, {
+    sceneLocation: storyDay.location ?? null,
+    activityHint: situation?.activity ?? storyDay.narrative ?? null,
+  });
+  const reelFormat = discoveryMode ? pickReelFormatForScene(dayNo, sceneActionClass) : undefined;
+  // Phase 2 — reel recipe (ootd_stop / grwm_loading) for today's reel_video. Off unless the
+  // character has reel_recipes_v1 or REEL_RECIPES_ENABLED=true; requires the scene to be able to
+  // carry it (pickReelFormatForScene filters by action class).
+  let reelRecipe: ReelRecipe | undefined;
+  if (reelRecipesEnabled(isFlagOn(character.feature_flags, "reel_recipes_v1"))) {
+    const picked = getReelRecipe(pickReelFormatForScene(dayNo, sceneActionClass)?.id);
+    // The recipe's archetype row must exist (Phase 2 SQL) — otherwise logArchetypeUsage would hit
+    // the chs_archetype_usage FK AFTER the prompt was saved. Missing row -> no recipe, old flow.
+    if (picked && (await archetypeRowExists(picked.id))) reelRecipe = picked;
+    else if (picked) console.warn(`[dailyBatch] reel recipe ${picked.id} skipped: chs_shot_archetypes row missing (run the Phase 2 SQL)`);
+  }
   const slotsToGenerate = await determineSlotsNeeded(batchId, forceRegenerate, discoveryMode, reelFormat, storyDay.tier ?? undefined);
 
   if (slotsToGenerate.length === 0) {
@@ -551,6 +604,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     characterId,
     slots: slotsToGenerate,
     preferredShotStyle: ciStrategyInput?.preferredShotStyle,
+    // Recipe archetypes are never drawn from the random motion pool — only assigned below.
+    excludeArchetypeIds: REEL_RECIPE_IDS,
   });
 
   if (archetypeMap["reel_video"]) {
@@ -562,6 +617,12 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       console.warn(`[dailyBatch] reel_video archetype ${archetypeMap["reel_video"]} -> ${coherent} (stationary scene)`);
       archetypeMap["reel_video"] = coherent;
     }
+  }
+
+  const useRecipeForReel = !!reelRecipe && !!archetypeMap["reel_video"];
+  if (useRecipeForReel) {
+    console.warn(`[dailyBatch] reel_video archetype ${archetypeMap["reel_video"]} -> ${reelRecipe!.id} (reel recipe)`);
+    archetypeMap["reel_video"] = reelRecipe!.id;
   }
 
   await prereserveSlots(batchId, storyDayId, slotsToGenerate, archetypeMap);
@@ -607,6 +668,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           situationTags,
           promptDirectorOn,
           reelVideoArchetypeId: archetypeMap["reel_video"],
+          reelRecipe: useRecipeForReel ? reelRecipe : undefined,
           tier: storyDay.tier ?? null,
           dayNumber: Number(storyDay.day_number) || null,
           visualTone: character.visual_tone ?? null,
@@ -668,6 +730,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           situationTags,
           promptDirectorOn,
           reelVideoArchetypeId: archetypeMap["reel_video"],
+          reelRecipe: useRecipeForReel ? reelRecipe : undefined,
           tier: storyDay.tier ?? null,
           dayNumber: Number(storyDay.day_number) || null,
           visualTone: character.visual_tone ?? null,
@@ -836,6 +899,20 @@ function mergeVisualSignature(
   };
 }
 
+// Phase 2 — additive, same pattern as situation_tags / prompt_director: chs_media.visual_signature is
+// a generic jsonb column, so the reel-recipe marker needs no migration.
+function withReelRecipeMarker(
+  sig: Record<string, unknown> | null,
+  marker?: ReelRecipeMarker
+): Record<string, unknown> | null {
+  return marker ? { ...(sig ?? {}), reel_recipe: marker } : sig;
+}
+
+async function archetypeRowExists(id: string): Promise<boolean> {
+  const { data } = await supabase.from("chs_shot_archetypes").select("id").eq("id", id).maybeSingle();
+  return !!data;
+}
+
 interface RunSlotArgs {
   slot: SlotSpec;
   archetypeId: string;
@@ -869,6 +946,9 @@ interface RunSlotArgs {
   // when compiling reel_start_frame) so plannedActionForReelArchetype() can derive a deterministic
   // plannedVideoIntent.action without a second lookup inside runSlot() itself.
   reelVideoArchetypeId?: string;
+  // Phase 2 — when set (and this is the reel_video slot with archetypeId === recipe.id) the prompt
+  // is compiled by the recipe instead of the slot-prompt / Prompt Director path.
+  reelRecipe?: ReelRecipe;
   // RECOVERY phase 3 — scene context for the semantic validator.
   sceneLocation?: string | null;
   activityHint?: string | null;
@@ -901,7 +981,18 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
     .eq("slot", args.slot.slot);
 
   try {
-    const result: SlotGenerationResult = args.promptDirectorOn
+    const recipeReel =
+      args.reelRecipe && args.slot.slot === "reel_video" && args.archetypeId === args.reelRecipe.id
+        ? compileRecipeReel(args.reelRecipe, {
+            sceneBrief: args.sceneBriefJson,
+            sceneLocation: args.sceneLocation,
+            activityHint: args.activityHint,
+            dayNumber: args.dayNumber,
+          })
+        : null;
+    const result: SlotGenerationResult = recipeReel
+      ? { prompt: recipeReel.prompt, visualSignature: null, hookText: recipeReel.hookText, reelRecipeMarker: recipeReel.marker }
+      : args.promptDirectorOn
       ? await generateSlotPromptViaDirector({
           slot: args.slot,
           archetypeId: args.archetypeId,
@@ -937,7 +1028,10 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
       .update({
         higgsfield_prompt: finalPrompt,
         shot_archetype: args.archetypeId,
-        visual_signature: mergeVisualSignature(result.visualSignature, args.situationTags, result.promptPackage),
+        visual_signature: withReelRecipeMarker(
+          mergeVisualSignature(result.visualSignature, args.situationTags, result.promptPackage),
+          result.reelRecipeMarker
+        ),
         // Slot-level hook (carousel overlay / extractHookText) wins when the doctrine path produced
         // one; otherwise the day's own hook_text. The Prompt Director path never produces a
         // slot-level hook, so on a discovery-mode day this is what actually fills the column.
@@ -1024,7 +1118,11 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
     // Resolve the slot spec with the same discovery deck + reel format the initial
     // generation used, so a retried reel keeps its format.
     const rcDiscovery = isFlagOn((char as { feature_flags?: unknown }).feature_flags, "discovery_mode");
-    const rcFormat = rcDiscovery ? pickReelFormat(Number((storyDay as { day_number?: number }).day_number) || 0) : undefined;
+    const rcDayNo = Number((storyDay as { day_number?: number }).day_number) || 0;
+    const rcActionClass = sceneActionClassOf(row.chs_daily_plans.scene_brief, {
+      sceneLocation: (storyDay as { location?: string | null }).location ?? null,
+    });
+    const rcFormat = rcDiscovery ? pickReelFormatForScene(rcDayNo, rcActionClass) : undefined;
     const slot = dailySlots(rcDiscovery, rcFormat, (storyDay as { tier?: string }).tier).find((s) => s.slot === row.slot)!;
 
     // Same deterministic-failure guard as the in-batch retry: never re-run an archetype the
@@ -1037,6 +1135,58 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
               sceneLocation: (storyDay as { location?: string | null }).location ?? null,
             });
       if (coherent && coherent !== row.shot_archetype) row.shot_archetype = coherent;
+    }
+
+    // Phase 2 — a reel_video row that carries a recipe archetype is re-compiled by the recipe
+    // (deterministic; same hook text, same marker). If recipes are off now, or the recipe no longer
+    // fits/validates, fall back to the SAFE archetype and the normal director path below.
+    if (slot.slot === "reel_video" && isReelRecipeId(row.shot_archetype)) {
+      const recipe = getReelRecipe(row.shot_archetype)!;
+      const rcRecipesOn = reelRecipesEnabled(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "reel_recipes_v1"));
+      let recipeReel: ReturnType<typeof compileRecipeReel> | null = null;
+      if (rcRecipesOn) {
+        try {
+          recipeReel = compileRecipeReel(recipe, {
+            sceneBrief: row.chs_daily_plans.scene_brief,
+            sceneLocation: (storyDay as { location?: string | null }).location ?? null,
+            dayNumber: rcDayNo,
+          });
+        } catch (recipeErr) {
+          console.warn(`[dailyBatch] reconcile: recipe ${recipe.id} not usable, falling back:`, recipeErr instanceof Error ? recipeErr.message : recipeErr);
+        }
+      }
+      if (recipeReel) {
+        try {
+          await supabase.from("chs_media").update({ generation_status: "retrying", retry_count: row.retry_count + 1 }).eq("id", row.id);
+          await supabase
+            .from("chs_media")
+            .update({
+              higgsfield_prompt: recipeReel.prompt,
+              shot_archetype: recipe.id,
+              visual_signature: { reel_recipe: recipeReel.marker },
+              hook_text: recipeReel.hookText,
+              visual_tone_used: (char as { visual_tone?: string | null }).visual_tone ?? null,
+              styling_note_used: (char as { styling_note?: string | null }).styling_note ?? null,
+              generation_status: "completed",
+              last_error: null,
+            })
+            .eq("id", row.id);
+          await logArchetypeUsage({
+            characterId: row.chs_daily_plans.character_id,
+            archetypeId: recipe.id,
+            channel: slot.channel,
+            batchId: row.batch_id,
+          });
+          succeeded++;
+        } catch (err) {
+          await supabase
+            .from("chs_media")
+            .update({ generation_status: "failed", last_error: (err instanceof Error ? err.message : String(err)).slice(0, 1000) })
+            .eq("id", row.id);
+        }
+        continue;
+      }
+      row.shot_archetype = SAFE_REEL_VIDEO_ARCHETYPE;
     }
 
     const guidance = await getArchetypeGuidance(row.shot_archetype);
