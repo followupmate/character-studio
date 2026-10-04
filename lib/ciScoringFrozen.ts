@@ -19,3 +19,15 @@
 export function isCiScoringFrozen(): boolean {
   return (process.env.CI_SCORING_FROZEN ?? "false").toLowerCase() === "true";
 }
+
+// CI_BIAS_INERT (phase 1, 2026-10) — the SUPERSET of the freeze for GENERATION-time creative
+// intelligence. CI_SCORING_FROZEN only drops the tier bias, archetype weights and preferredShotStyle;
+// it still let the CI recommendation steer the moment-family draw, inject ciGuidanceText into the story
+// prompt and nudge the sexual-energy draw (lib/storyGeneration.ts). When this returns true,
+// generateStoryDayContent() does not even SELECT a CI recommendation (strategyInput = null), so all of
+// those paths are inert at once and no false "CI shaped today" provenance is written to chs_story_days.
+// True when CI_BIAS_INERT=true OR the existing CI_SCORING_FROZEN=true (a freeze that still lets CI steer
+// the story prompt is the loop this sprint exists to break). growth_score keeps being computed/written.
+export function isCiBiasInert(): boolean {
+  return (process.env.CI_BIAS_INERT ?? "false").toLowerCase() === "true" || isCiScoringFrozen();
+}

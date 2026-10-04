@@ -29,7 +29,7 @@ import {
   LifeEvent,
 } from "@/lib/lifeState";
 import { getGrowthBias } from "@/lib/growthScore";
-import { isCiScoringFrozen } from "@/lib/ciScoringFrozen";
+import { isCiScoringFrozen, isCiBiasInert } from "@/lib/ciScoringFrozen";
 import { allowedSexualEnergyLevels, sexualEnergyRangeGuidance, isActiveTier, pickSexualEnergyLevel, SexualEnergyBias } from "@/lib/sexualEnergyConfig";
 import { pickPlayfulHotWorldProfile, playfulHotWorldGuidance } from "@/lib/playfulHotWorldConfig";
 import { getSituationMemory, computeFrequencyPenalties, softAvoidCliches, weeklyBalanceNudges, situationMemoryGuidance, outfitCategoryNudges } from "@/lib/situationMemory";
@@ -216,7 +216,9 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
   // this same selection back via getStrategyInputByProvenance, never re-selects). Never throws;
   // null means "not available today" (flag off, no/stale/insufficient snapshot, or an error) and
   // every downstream consumer treats that identically to CI never having existed.
-  const ciOn = isFlagOn(flags, "creative_intelligence_generation_v1");
+  // CI_BIAS_INERT / CI_SCORING_FROZEN (lib/ciScoringFrozen.ts isCiBiasInert): CI is not even consulted, so
+  // the moment-family bias, ciGuidanceText and sexual-energy bias below are all inert together.
+  const ciOn = isFlagOn(flags, "creative_intelligence_generation_v1") && !isCiBiasInert();
   const strategyInput: GenerationStrategyInput | null = ciOn ? await selectGenerationStrategyInput(character.id) : null;
 
   // GROWTH LAYER (flag-gated): gentle, capped tier bias (no-op until ≥10 reels w/ metrics).
@@ -229,14 +231,16 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
   // preferredTier is picked from the same scored snapshot growth_layer averages directly), so the
   // freeze drops the bias entirely and pickTier() falls back to its own unbiased weighting.
   // growth_score keeps being computed and written; it just stops steering what gets made.
-  if (isCiScoringFrozen()) {
+  if (isCiScoringFrozen() || isCiBiasInert() || isFlagOn(flags, "tier_rotation_v1")) {
     tierBias = undefined;
   } else if (strategyInput?.preferredTier) {
     tierBias = { [strategyInput.preferredTier]: biasDeltaFor(strategyInput) };
   } else if (growthOn) {
     tierBias = (await getGrowthBias(character.id))?.modifier;
   }
-  const tier = args.forceTier ?? (await pickTier(character.id, 6, tierBias));
+  // tier_rotation_v1: flat LRU rotation (lib/storyTier.ts pickTierRotation) — bias is ignored.
+  const rotationOn = isFlagOn(flags, "tier_rotation_v1");
+  const tier = args.forceTier ?? (await pickTier(character.id, 6, tierBias, { rotation: rotationOn }));
   const driftSeeds = await pickDriftSeeds(character.id, dayNumber);
 
   const lifeOn = isFlagOn(flags, "life_layer");
@@ -265,7 +269,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
   const momentFamilyBias: MomentFamilyBias | undefined =
     strategyInput?.preferredMomentFamily ? { [strategyInput.preferredMomentFamily]: biasDeltaFor(strategyInput) } : undefined;
   const family =
-    tier === "lived_moments" ? pickMomentFamily(await getLastMomentFamily(character.id), Math.random, momentFamilyBias) : null;
+    tier === "lived_moments" ? pickMomentFamily(await getLastMomentFamily(character.id), Math.random, momentFamilyBias, rotationOn) : null;
   const magnetism = tier === "lived_moments" ? pickMagnetismLevel() : null;
 
   const ciGuidanceText = strategyInput ? buildCreativeIntelligenceGuidance(strategyInput) : undefined;

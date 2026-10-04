@@ -66,15 +66,41 @@ function weightedPick(bias?: TierBias): StoryTier {
   return "everyday_life";
 }
 
-export async function pickTier(characterId: string, lookbackDays = 6, bias?: TierBias): Promise<StoryTier> {
+// tier_rotation_v1 (phase 1, 2026-10): flat, history-driven rotation instead of TIER_WEIGHTS + bias.
+// The weighted draw (30/20/20/15/15) plus growth/CI bias narrowed the mix and looped on yesterday's
+// views. Rotation = least-recently-used: every ACTIVE tier comes up once per cycle (~20% each), the
+// order within a cycle is random, and no tier repeats back-to-back. Pure + injectable rng so it is
+// unit-testable; TIER_WEIGHTS itself is deliberately left untouched (flag off = byte-identical).
+export const TIER_ROTATION_LOOKBACK_DAYS = 10;
+
+// `recent` is most-recent-first. A tier's age is its index in `recent` (never seen = Infinity).
+export function pickTierRotation(recent: StoryTier[], rng: () => number = Math.random): StoryTier {
+  const age = (t: StoryTier) => {
+    const i = recent.indexOf(t);
+    return i === -1 ? Number.POSITIVE_INFINITY : i;
+  };
+  const oldest = Math.max(...ALL_TIERS.map(age));
+  const candidates = ALL_TIERS.filter((t) => age(t) === oldest);
+  return candidates[Math.min(candidates.length - 1, Math.floor(rng() * candidates.length))];
+}
+
+export interface PickTierOptions {
+  /** tier_rotation_v1: LRU rotation; `bias` is ignored when true. */
+  rotation?: boolean;
+}
+
+export async function pickTier(characterId: string, lookbackDays = 6, bias?: TierBias, opts: PickTierOptions = {}): Promise<StoryTier> {
+  const rotation = opts.rotation === true;
   const { data } = await supabase
     .from("chs_story_days")
     .select("tier")
     .eq("character_id", characterId)
     .order("date", { ascending: false })
-    .limit(lookbackDays);
+    .limit(rotation ? Math.max(lookbackDays, TIER_ROTATION_LOOKBACK_DAYS) : lookbackDays);
 
   const recent = (data ?? []).map((d) => d.tier as StoryTier).filter((t) => ALL_TIERS.includes(t));
+
+  if (rotation) return pickTierRotation(recent);
 
   // Weighted random, but avoid the same tier 3 days in a row (visible variety).
   for (let i = 0; i < 5; i++) {
@@ -122,6 +148,16 @@ const MOMENT_FAMILY_WEIGHTS: Record<MomentFamily, number> = {
   city_transit: 0.10,
 };
 
+// tier_rotation_v1: flat mix (each of the 5 worlds 20%). The anti-repeat exclusion in pickMomentFamily
+// still removes yesterday's family, so the effective draw is uniform over the other four.
+const MOMENT_FAMILY_WEIGHTS_FLAT: Record<MomentFamily, number> = {
+  home_private: 0.20,
+  friends_fun: 0.20,
+  vacation_beach_water: 0.20,
+  pets_spontaneous: 0.20,
+  city_transit: 0.20,
+};
+
 // Per-day magnetism intensity for lived_moments (mostly soft, rarely sensual).
 export const MAGNETISM_LEVELS: MagnetismLevel[] = ["soft", "playful", "flirty", "sensual"];
 const MAGNETISM_WEIGHTS: Record<MagnetismLevel, number> = {
@@ -161,9 +197,11 @@ export type MomentFamilyBias = Partial<Record<MomentFamily, number>>;
 // alternative exists; `last` from another tier / null is simply ignored. `bias` is applied to
 // the SURVIVING pool only (after the anti-repeat exclusion above) — it can never reintroduce
 // yesterday's excluded family, matching the anti-repetition invariant used for TierBias.
-export function pickMomentFamily(last?: MomentFamily | null, rng: () => number = Math.random, bias?: MomentFamilyBias): MomentFamily {
+// `flat` (tier_rotation_v1) uses a uniform mix and ignores `bias` entirely.
+export function pickMomentFamily(last?: MomentFamily | null, rng: () => number = Math.random, bias?: MomentFamilyBias, flat = false): MomentFamily {
   const pool = last ? MOMENT_FAMILIES.filter((f) => f !== last) : MOMENT_FAMILIES;
   const survivingPool = pool.length > 0 ? pool : MOMENT_FAMILIES;
+  if (flat) return weightedFrom(MOMENT_FAMILY_WEIGHTS_FLAT, survivingPool, rng);
   if (!bias) return weightedFrom(MOMENT_FAMILY_WEIGHTS, survivingPool, rng);
 
   const adjusted: Record<MomentFamily, number> = { ...MOMENT_FAMILY_WEIGHTS };

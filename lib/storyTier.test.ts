@@ -314,3 +314,109 @@ describe("open_life_generation_v1 — situationMode", () => {
     expect(TIER_WEIGHTS.luxe_car).toBeCloseTo(0.15, 6);
   });
 });
+
+// ── tier_rotation_v1 (phase 1, 2026-10) ───────────────────────────────────────
+import { pickTierRotation, TIER_ROTATION_LOOKBACK_DAYS } from "./storyTier";
+import type { StoryTier as RotStoryTier } from "./storyTier";
+import { isCiBiasInert } from "./ciScoringFrozen";
+
+describe("pickTierRotation (LRU)", () => {
+  const ACTIVE = Object.keys(TIER_WEIGHTS) as RotStoryTier[];
+
+  it("lookback is 10 days", () => {
+    expect(TIER_ROTATION_LOOKBACK_DAYS).toBe(10);
+  });
+
+  it("with no history returns an active tier", () => {
+    expect(ACTIVE).toContain(pickTierRotation([], () => 0));
+  });
+
+  it("prefers a never-used tier over any used one", () => {
+    const recent: RotStoryTier[] = ["lived_moments", "everyday_life", "intimate_aesthetic", "wellness_fitness"];
+    expect(pickTierRotation(recent, () => 0)).toBe("luxe_car");
+    expect(pickTierRotation(recent, () => 0.99)).toBe("luxe_car");
+  });
+
+  it("when all tiers were used, picks the least recently used (largest index)", () => {
+    const recent: RotStoryTier[] = ["luxe_car", "wellness_fitness", "intimate_aesthetic", "everyday_life", "lived_moments"];
+    expect(pickTierRotation(recent, () => 0)).toBe("lived_moments");
+  });
+
+  it("never repeats the previous day's tier", () => {
+    for (const last of ACTIVE) {
+      for (let i = 0; i < 20; i++) {
+        expect(pickTierRotation([last], () => i / 20)).not.toBe(last);
+      }
+    }
+  });
+
+  it("simulated 500 days: exactly flat (each tier 20%) and no immediate repeats", () => {
+    let seed = 7;
+    const rng = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+    const history: RotStoryTier[] = [];
+    const counts: Record<string, number> = {};
+    for (let d = 0; d < 500; d++) {
+      const t = pickTierRotation(history.slice(0, TIER_ROTATION_LOOKBACK_DAYS), rng);
+      if (history[0]) expect(t).not.toBe(history[0]);
+      history.unshift(t);
+      counts[t] = (counts[t] ?? 0) + 1;
+    }
+    for (const t of ACTIVE) expect(counts[t]).toBe(100);
+  });
+
+  it("ignores TIER_WEIGHTS: luxe_car (15%) and lived_moments (30%) come up equally often", () => {
+    // covered by the flat-count test above; this pins that the weights themselves are untouched
+    expect(TIER_WEIGHTS.lived_moments).toBeCloseTo(0.30, 6);
+    expect(TIER_WEIGHTS.luxe_car).toBeCloseTo(0.15, 6);
+  });
+});
+
+describe("pickMomentFamily flat (tier_rotation_v1)", () => {
+  it("flat=true draws uniformly (each non-excluded family ≈ 25%) and still avoids `last`", () => {
+    const counts: Record<string, number> = {};
+    const N = 4000;
+    for (let i = 0; i < N; i++) {
+      const f = pickMomentFamily("home_private", () => i / N, undefined, true);
+      expect(f).not.toBe("home_private");
+      counts[f] = (counts[f] ?? 0) + 1;
+    }
+    for (const f of ["friends_fun", "vacation_beach_water", "pets_spontaneous", "city_transit"]) {
+      expect(counts[f] / N).toBeGreaterThan(0.24);
+      expect(counts[f] / N).toBeLessThan(0.26);
+    }
+  });
+
+  it("flat=true ignores any bias", () => {
+    const withBias = pickMomentFamily(null, () => 0.1, { city_transit: 0.1 }, true);
+    const without = pickMomentFamily(null, () => 0.1, undefined, true);
+    expect(withBias).toBe(without);
+  });
+
+  it("flat=false (default) is unchanged: first-bucket home_private at rng 0", () => {
+    expect(pickMomentFamily(null, () => 0)).toBe("home_private");
+  });
+});
+
+describe("isCiBiasInert", () => {
+  const save = { a: process.env.CI_BIAS_INERT, b: process.env.CI_SCORING_FROZEN };
+  const restore = () => {
+    if (save.a === undefined) delete process.env.CI_BIAS_INERT; else process.env.CI_BIAS_INERT = save.a;
+    if (save.b === undefined) delete process.env.CI_SCORING_FROZEN; else process.env.CI_SCORING_FROZEN = save.b;
+  };
+
+  it("false by default", () => {
+    delete process.env.CI_BIAS_INERT; delete process.env.CI_SCORING_FROZEN;
+    expect(isCiBiasInert()).toBe(false);
+    restore();
+  });
+  it("true via CI_BIAS_INERT", () => {
+    delete process.env.CI_SCORING_FROZEN; process.env.CI_BIAS_INERT = "TRUE";
+    expect(isCiBiasInert()).toBe(true);
+    restore();
+  });
+  it("true via the existing CI_SCORING_FROZEN", () => {
+    delete process.env.CI_BIAS_INERT; process.env.CI_SCORING_FROZEN = "true";
+    expect(isCiBiasInert()).toBe(true);
+    restore();
+  });
+});
