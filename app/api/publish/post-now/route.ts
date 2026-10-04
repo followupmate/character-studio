@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getIgAccessToken } from "@/lib/igToken";
+import { formatIgCaption } from "@/lib/captionTemplate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -168,13 +169,9 @@ export async function POST(req: Request) {
     let platformPostId = "";
 
     if (post.platform === "instagram") {
-      const caption = [
-        post.ig_caption ?? "",
-        "",
-        (post.hashtags ?? []).map((h: string) => `#${h}`).join(" "),
-      ]
-        .filter((l) => l !== "")
-        .join("\n");
+      // Defense in depth: banned (funnel) lines are dropped and hashtags capped at 5 right before
+      // publishing, regardless of what an older chs_posts row contains. See lib/captionTemplate.ts.
+      const caption = formatIgCaption(post.ig_caption, post.hashtags);
 
       platformPostId = await postToInstagram(
         media.media_url,

@@ -17,7 +17,7 @@ import { buildFanvueContinuationPlan } from "@/lib/fanvueContinuation";
 // FANVUE LAYER (v1.1, flag: fanvue_drafts) — turn an IG scene into a monetization DRAFT (chs_fanvue_unlocks).
 // Pure DB write, post-batch, NEVER auto-publishes and NEVER calls the Fanvue MCP. The draft proposes an
 // intensity (soft/medium/strong) that the user approves later. IG stays public-safe; the stronger framing
-// lives only on the draft row. The IG CTA is decoupled and rate-limited to ~25–35% of outputs.
+// lives only on the draft row. No IG caption CTA is generated (ig_cta stays null) as of phase 1.
 //
 // fanvue_paid_continuation_v1 (flag, requires fanvue_drafts): when on, maybeCreateFanvueUnlock writes
 // a structured continuation_plan (source tease/paid promise/content level/6-shot arc, see
@@ -36,26 +36,12 @@ export {
   playfulHotWorldClause,
 };
 
-const IG_CTAS = ["the full set is inside", "the rest is on fanvue", "uncut version inside", "you only get the rest somewhere else"];
+// IG CTA removed (phase 1, 2026-10): the public Instagram caption never carries a Fanvue / link-in-bio /
+// "somewhere else" line any more — the funnel lives in the bio link only. The ig_cta column on
+// chs_fanvue_unlocks is kept (always null for new drafts) so the DB schema and the /fanvue UI are
+// unchanged; app/api/publish/from-batch/route.ts no longer reads it.
 
 function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
-
-// IG CTA budget: keep CTAs on ~25–35% of recent outputs. Uses recent drafts as the denominator proxy.
-async function shouldAttachIgCta(characterId: string): Promise<boolean> {
-  const since = new Date(Date.now() - 14 * 86400000).toISOString();
-  const { data } = await supabase
-    .from("chs_fanvue_unlocks")
-    .select("ig_cta")
-    .eq("character_id", characterId)
-    .gte("created_at", since);
-  const rows = data ?? [];
-  if (rows.length < 4) return Math.random() < 0.30; // not enough history yet
-  const withCta = rows.filter((r) => !!r.ig_cta).length;
-  const ratio = withCta / rows.length;
-  if (ratio < 0.25) return true;
-  if (ratio > 0.35) return false;
-  return Math.random() < 0.30;
-}
 
 export function buildFanvuePrompt(
   series: string,
@@ -127,8 +113,7 @@ export async function maybeCreateFanvueUnlock(args: {
   const descriptor = (args.storyDay.hook_text || args.storyDay.location || args.storyDay.mood || "the full set").toString().toLowerCase();
   const wardrobe = typeof args.sceneBriefJson?.wardrobe_lock === "string" ? (args.sceneBriefJson.wardrobe_lock as string) : "";
 
-  const attachCta = await shouldAttachIgCta(args.characterId);
-  const ig_cta = attachCta ? pick(IG_CTAS) : null;
+  const ig_cta: string | null = null;
 
   if (args.pipelineV1) {
     const plan = buildFanvueContinuationPlan({

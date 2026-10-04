@@ -675,7 +675,7 @@ The hook is a short text overlay the photographer places on the finished photo. 
 
 everyday_life: relatable, warm — "slow morning", "no plans today", "twenty minutes of light", "didn't leave the house"
 wellness_fitness: confident, earned — "earned it", "two more than yesterday", "post-gym glow", "five am club"
-intimate_aesthetic: daring with a quiet invitation — "do not disturb", "the rest is private", "come find me", "you wouldn't"
+intimate_aesthetic: daring and self-possessed — "do not disturb", "one more minute", "you wouldn't"
 lifestyle_travel: location-punchy — "rome at noon", "arrived. not leaving.", "last light here"
 
 By slot: carousel_1 (wide/establishing) sets the scene; carousel_3 (texture/detail) is sensory/material; carousel_5 (emotional close) is the most impactful line.

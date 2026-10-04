@@ -141,7 +141,8 @@ ${STORY_COPY_RULES}
 HARD CONSTRAINTS:
 - The caption must match THIS scene. She is not travelling today. Do not name a city, a hotel, a
   bar, a dock or any place that is not in the setting above.
-- Hashtags must match this scene too. No location tags for places that are not in it.
+- Hashtags must match this scene too: 3 to 5 topical tags (Instagram caps a post at 5), no generic tags like reels/explore/fyp. No location tags for places that are not in it.
+- The caption never mentions another platform, a link, "link in bio", "somewhere else", "the rest", "inside", "uncut", "private" or "exclusive".
 - Write in HER OWN VOICE, first person. Never describe her from outside ("her eyes", "she smiles")
   — she is the one posting, not someone being photographed.
 - She is on her own. Do not invent a companion: no "we", "us", "him", or a "her"/"she" that means
@@ -149,7 +150,7 @@ HARD CONSTRAINTS:
 ${args.nextDirection ? `- next_hint: one sentence pointing at tomorrow, which is: ${args.nextDirection}` : "- next_hint: one sentence pointing at tomorrow, kept vague."}
 
 Return STRICT JSON only, no markdown:
-{"ig_caption":"...","hashtags":["...10 items, no # prefix..."],"hook_text":"... or null","next_hint":"..."}`;
+{"ig_caption":"...","hashtags":["...3 to 5 topical items, no # prefix..."],"hook_text":"... or null","next_hint":"..."}`;
 
   const msg = await claudeWithRetry({
     model: "claude-sonnet-4-6",

@@ -83,8 +83,8 @@ Do NOT invent a new story — stay true to today's narrative.
 
 ${storyContext}Return JSON with exactly these fields:
 {
-  "ig_caption": "150-220 character caption in English, with 1-3 emojis, ending with a CTA",
-  "hashtags": ["array", "of", "20-25", "hashtags", "without", "hash", "symbol"],
+  "ig_caption": "150-220 character caption in English, at most 1 emoji, no CTA and no mention of other platforms, links, or link in bio",
+  "hashtags": ["array", "of", "3-5", "topical", "hashtags", "without", "hash", "symbol"],
   "yt_title": "Max 70 char SEO-optimized YouTube title",
   "yt_description": "300-400 char YouTube description, most important info in first 2 lines"
 }`;

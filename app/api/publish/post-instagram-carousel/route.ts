@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getIgAccessToken } from "@/lib/igToken";
+import { formatIgCaption } from "@/lib/captionTemplate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -34,13 +35,8 @@ export async function POST(req: Request) {
     if (!media_ids || media_ids.length < 2) throw new Error("Carousel requires at least 2 items");
     if (media_ids.length > 10) throw new Error("Carousel supports max 10 items");
 
-    const fullCaption = [
-      caption ?? "",
-      "",
-      ...(hashtags ?? []).map((h: string) => `#${h}`),
-    ]
-      .filter((l) => l !== "")
-      .join("\n");
+    // Same public-caption policy as post-now: banned funnel lines dropped, max 5 hashtags.
+    const fullCaption = formatIgCaption(caption, hashtags);
 
     // Step 1: create child containers
     const childIds: string[] = [];

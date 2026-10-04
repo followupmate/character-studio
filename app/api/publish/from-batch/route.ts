@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { scheduleFor, localDateIn, isMissingScheduleColumn, type PostingSchedule } from "@/lib/publishTime";
 import { requireCron } from "@/lib/apiAuth";
+import { appendSendLine, sanitizeCaption, normalizeHashtags } from "@/lib/captionTemplate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,6 +29,7 @@ interface StoryDay {
   id: string;
   character_id: string;
   date: string;
+  day_number?: number | null;
   ig_caption: string | null;
   hashtags: string[] | null;
 }
@@ -60,7 +62,7 @@ async function processCharacter(
 
   const { data: storyDay } = await supabase
     .from("chs_story_days")
-    .select("id, character_id, date, ig_caption, hashtags")
+    .select("id, character_id, date, day_number, ig_caption, hashtags")
     .eq("character_id", char.id)
     .eq("date", date)
     .maybeSingle();
@@ -106,22 +108,20 @@ async function processCharacter(
 
   const existingTypes = new Set(((existingPosts as Array<{ post_type: string }>) ?? []).map((p) => p.post_type));
 
-  // IG → Fanvue funnel: if the day's unlock draft carries an ig_cta (rate-limited
-  // to ~25–35% of days by the fanvue layer), append it to the public caption.
-  // The CTA points at the bio link (char.fanvue_link goes into the IG bio / story sticker).
-  let captionFromStory = (storyDay as StoryDay).ig_caption;
-  const { data: unlockDraft } = await supabase
-    .from("chs_fanvue_unlocks")
-    .select("ig_cta")
-    .eq("story_day_id", (storyDay as StoryDay).id)
-    .not("ig_cta", "is", null)
-    .limit(1)
-    .maybeSingle();
-  if (captionFromStory && unlockDraft?.ig_cta) {
-    captionFromStory = `${captionFromStory}\n\n${unlockDraft.ig_cta} — link in bio 🔗`;
+  // Public caption policy (phase 1, 2026-10): NO Fanvue / link-in-bio / "somewhere else" lines in the
+  // caption. The funnel lives in the bio link only. The old chs_fanvue_unlocks.ig_cta append was removed
+  // on purpose — existing ig_cta values in the DB are intentionally ignored here.
+  // sanitizeCaption() drops any banned line the story LLM wrote; appendSendLine() adds a soft,
+  // deterministic (by day_number, ~40% of days) send/save line.
+  const sanitizedCaption = sanitizeCaption((storyDay as StoryDay).ig_caption);
+  if (sanitizedCaption.removed.length > 0) {
+    result.warnings.push(`caption: removed ${sanitizedCaption.removed.length} banned line(s)`);
   }
+  const captionFromStory: string | null = sanitizedCaption.text
+    ? appendSendLine(sanitizedCaption.text, (storyDay as StoryDay).day_number)
+    : null;
 
-  const hashtagsFromStory = (storyDay as StoryDay).hashtags ?? [];
+  const hashtagsFromStory = normalizeHashtags((storyDay as StoryDay).hashtags);
   const hasInstagram = char.platforms.includes("instagram");
   const hasYouTube = char.platforms.includes("youtube");
 
