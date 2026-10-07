@@ -149,7 +149,7 @@ Cover in this order:
 3. Action — what she is doing right now (one verb in present participle). DEFAULT VERBS WITHOUT PROPS: walking, standing, looking, leaning, descending, riding (escalator), pausing, turning. Use a prop-action verb (holding, examining, peeling, reading) ONLY if this slot's archetype is hands_object, interaction_object, creator_process, or setup_shot. Otherwise: empty hands, hands in pockets, or hands at sides.
 4. Setting — location respecting the scene brief SPATIAL SETUP exactly. Do NOT invent geometry (no walls where there are stairs, no escalators going into walls, no impossible perspectives). Camera position must be one that physically exists in the described setup.
 5. Light — one source + direction + indoor/outdoor + rough time (e.g. "fluorescent overhead, late afternoon, indoor")
-6. Camera — lens in mm, aperture, shot type (e.g. "50mm f/2.8, medium shot, eye level")
+6. Camera — lens in mm, aperture, shot type (e.g. "50mm f/2.8, medium shot, eye level"). Camera level, horizon level, vertical frame upright — never "tilt", "tilted", "dutch angle", "canted" or "rotated" (a tilted start frame comes out rotated 90° and the video copies it)
 7. Quality tags — pick 3: photorealistic, natural skin texture, candid photo, real photograph, 35mm film, documentary photography
 8. Frame contains — explicit closure: "Frame contains: [list everything visible from steps 1-4, including 'empty hands' or specific prop if applicable]. Nothing else in frame."
 

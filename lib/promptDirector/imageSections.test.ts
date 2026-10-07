@@ -91,3 +91,23 @@ describe("buildRealismSection — F3 phone-exposure gating", () => {
     expect(text).toContain("true-to-life exposure");
   });
 });
+
+// Phase 5 — scene-brief camera_language is LLM text; "medium shot, slight tilt" produced a start
+// frame rotated 90° (2026-10-07). Camera-tilt phrasing must never reach the camera section.
+import { buildCameraSection } from "./imageSections";
+describe("buildCameraSection — phase 5 orientation guard", () => {
+  it("strips tilt / dutch phrasing from camera_language", () => {
+    const text = buildCameraSection(
+      input({ sceneBrief: { ...SCENE_BRIEF, camera_language: "handheld 50mm, slight tilt, dutch angle" } }, { slot: "reel_start_frame", channel: "reel" })
+    ).join(" ");
+    expect(text).not.toMatch(/tilt|dutch/i);
+    expect(text).toContain("handheld 50mm");
+  });
+  it("leaves a clean camera_language untouched", () => {
+    expect(buildCameraSection(input()).join(" ")).toContain("static handheld 50mm");
+  });
+  it("drops camera_language entirely when it was only a tilt", () => {
+    const lines = buildCameraSection(input({ sceneBrief: { ...SCENE_BRIEF, camera_language: "slight tilt" } }));
+    expect(lines.join(" ")).not.toMatch(/tilt/i);
+  });
+});

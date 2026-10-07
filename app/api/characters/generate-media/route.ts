@@ -24,6 +24,7 @@ import { recomputeBatchStatus } from "@/lib/dailyBatch";
 import { cronAuthorized } from "@/lib/apiAuth";
 import { isFlagOn } from "@/lib/featureFlags";
 import { getBaseImageNegatives } from "@/lib/promptDirector/negativeBuilder"; // F0.5
+import { applyOrientationGuard, needsOrientationGuard, withOrientationNegatives } from "@/lib/orientationGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -792,7 +793,17 @@ export async function POST(req: Request) {
       // so future regenerations also use the corrected prompt.
       const rawPrompt = promptOverride?.trim() || media.higgsfield_prompt;
       // Image providers must never see video-model vocabulary (2026-09-24 "kling" leak).
-      const effectivePrompt = isVideoSlot || !rawPrompt ? rawPrompt : stripVideoModelTerms(rawPrompt);
+      const cleanedImagePrompt = isVideoSlot || !rawPrompt ? rawPrompt : stripVideoModelTerms(rawPrompt);
+      // Phase 5 — orientation guard for the reel start frame (Kling i2v copies a rotated start frame
+      // into the whole reel, 2026-10-07): drop camera-tilt phrasing, append a level/upright lock, and
+      // (Soul paths below) add rotation negatives. Generation-time only; the stored prompt is untouched.
+      const orientationGuarded = !isVideoSlot && needsOrientationGuard(media);
+      let effectivePrompt = cleanedImagePrompt;
+      if (orientationGuarded && cleanedImagePrompt?.trim()) {
+        const g = applyOrientationGuard(cleanedImagePrompt);
+        effectivePrompt = g.prompt;
+        if (g.removed.length) console.log(`[generate-media] ${media.slot}: orientation guard removed ${JSON.stringify(g.removed)}`);
+      }
       if (promptOverride?.trim() && promptOverride.trim() !== media.higgsfield_prompt) {
         await supabase
           .from("chs_media")
@@ -1097,7 +1108,10 @@ export async function POST(req: Request) {
                 // F0.5 — include base image negatives (+ luxury negatives when luxury_world_v1 on)
                 mediaUrl = await generateSoulImage({
                   prompt: effectivePrompt,
-                  negativePrompt: getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1")),
+                  negativePrompt: (() => {
+                    const n = getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1"));
+                    return orientationGuarded ? withOrientationNegatives(n) : n;
+                  })(),
                   soulId,
                   aspect: soulAspect,
                   mediaId: media.id,
@@ -1128,7 +1142,10 @@ export async function POST(req: Request) {
           const baseNegatives = getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1"));
           mediaUrl = await generateSoulImage({
             prompt: effectivePrompt,
-            negativePrompt: recoveryNegatives ? `${baseNegatives}, ${recoveryNegatives}` : baseNegatives,
+            negativePrompt: (() => {
+              const n = recoveryNegatives ? `${baseNegatives}, ${recoveryNegatives}` : baseNegatives;
+              return orientationGuarded ? withOrientationNegatives(n) : n;
+            })(),
             soulId,
             aspect: soulAspect,
             mediaId: media.id,

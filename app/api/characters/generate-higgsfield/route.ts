@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { stripPromptHeader, stripVideoModelTerms } from "@/lib/promptClean";
 import { SINGLE_FRAME_LOCK } from "@/lib/imagePromptCompiler";
+import { applyOrientationGuard, needsOrientationGuard } from "@/lib/orientationGuard";
 import { supabase } from "@/lib/supabase";
 import { recomputeBatchStatus } from "@/lib/dailyBatch";
 
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
 
     const { data: media, error: mErr } = await supabase
       .from("chs_media")
-      .select("id, type, channel, higgsfield_prompt, batch_id")
+      .select("id, type, channel, slot, higgsfield_prompt, batch_id")
       .eq("id", mediaId)
       .single();
     if (mErr || !media) {
@@ -122,7 +123,10 @@ export async function POST(req: Request) {
     // SINGLE_FRAME_LOCK is required on this repair path — unlike generate-media, we do not run
     // compileImagePrompt here. Without it, Soul can return vertical triptych / duplicated clones
     // even when the user prompt has no collage keywords (production 2026-09-23 story_bts).
-    const prompt = `${SUBJECT_ANCHOR}\n\n${SINGLE_FRAME_LOCK}\n\n${basePrompt}`;
+    // Phase 5 — reel start frame: no camera-tilt phrasing + level/upright lock (a rotated start frame is
+    // copied by Kling into the whole reel). This repair path has no negative prompt, so the lock is it.
+    const guardedPrompt = needsOrientationGuard(media) ? applyOrientationGuard(basePrompt).prompt : basePrompt;
+    const prompt = `${SUBJECT_ANCHOR}\n\n${SINGLE_FRAME_LOCK}\n\n${guardedPrompt}`;
 
     // Persist override + mark generating.
     const update: Record<string, string> = { generation_status: "generating", last_error: "" };

@@ -232,7 +232,7 @@ You will output TWO things, separated by the literal line "---DOCTRINE---":
 PART 1 — STRUCTURED JSON (machine-readable continuity lock).
 Valid JSON only, no markdown:
 {
-  "camera_language": "one short phrase in plain words (e.g. 'static handheld 50mm' or 'slow dolly 35mm')",
+  "camera_language": "one short phrase in plain words (e.g. 'static handheld 50mm' or 'slow dolly 35mm'). Camera always level and upright — never a tilt, dutch angle, canted or rotated frame",
   "color_palette": ["3 to 5 simple color tokens. At least ONE must be an actual colour, not a neutral — an all-beige/grey/charcoal palette reads flat and dated. Pick what suits the tier and mood (e.g. 'terracotta', 'sage green', 'butter yellow', 'faded denim blue', 'warm cream', 'soft clay pink', 'deep olive', 'warm oak'). Neutrals are fine alongside a colour, never instead of one."],
   "visual_rules": ["3 to 5 plain STRUCTURAL rules each in 3-7 words (e.g. 'wardrobe never changed', 'no mirrors', 'no legible text', 'one light source')"],
   "location_constraints": ["3 to 5 GEOMETRIC/SPATIAL constraints — describe what is WHERE in physical space. Examples: 'tall window 1.5m to her right, sheer linen curtain half-drawn', 'open oak shelving along the left wall at 1.6m height', 'round marble-topped table 60cm in front of her', 'trailing pothos on the shelf above the counter', 'no signage or text visible in frame'. AVOID vague constraints like 'same lighting' — instead say 'one window, light entering from the left at 40 degrees'."],

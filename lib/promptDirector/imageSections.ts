@@ -1,3 +1,4 @@
+import { stripTiltPhrasing } from "@/lib/orientationGuard";
 import type { PromptDirectorInput } from "./types";
 import { archetypeAllowsProp, cleanList, isCloseUpArchetype, sacredAnatomyAnchors, sacredList } from "./helpers";
 
@@ -412,7 +413,10 @@ export function buildCameraSection(input: PromptDirectorInput): string[] {
   } else {
     lines.push("medium shot");
   }
-  lines.push(input.sceneBrief.camera_language);
+  // Phase 5 — scene-brief camera_language is LLM text ("medium shot, slight tilt" rotated the
+  // 2026-10-07 start frame 90°): camera-tilt / dutch / rotated phrasing never reaches an image prompt.
+  const camera = stripTiltPhrasing(input.sceneBrief.camera_language).text;
+  if (camera) lines.push(camera);
   return capSection(lines, SOUL2_WORD_BUDGET.camera);
 }
 
