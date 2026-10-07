@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getIgAccessToken } from "@/lib/igToken";
-import { formatIgCaption } from "@/lib/captionTemplate";
+import { dateKeyInZone, formatIgCaption, formatReelCaption } from "@/lib/captionTemplate";
 import { AudioPublishError, isTrendingAudioEnabled, publishReelWithAudio, type PublishedAudio } from "@/lib/igReelAudioPublish";
 import { loadCharacterAudioFlag, loadRecentAudioIds, saveAudioOnPost } from "@/lib/igAudioStore";
 import { probeVideoDuration } from "@/lib/recovery/videoDuration";
@@ -178,7 +178,12 @@ export async function POST(req: Request) {
     if (post.platform === "instagram") {
       // Defense in depth: banned (funnel) lines are dropped and hashtags capped at 5 right before
       // publishing, regardless of what an older chs_posts row contains. See lib/captionTemplate.ts.
-      const caption = formatIgCaption(post.ig_caption, post.hashtags);
+      // Phase 5: an IG video is always a REEL -> the caption must end with one share/send line.
+      // Idempotent for captions from-batch already finished; fixes rows queued before this change.
+      const caption =
+        media.type === "video"
+          ? formatReelCaption(post.ig_caption, post.hashtags, dateKeyInZone(post.scheduled_at ?? new Date()), String(post_id))
+          : formatIgCaption(post.ig_caption, post.hashtags);
 
       // Hybrid reel publish (flag `ig_trending_audio` / env IG_TRENDING_AUDIO_ENABLED, default OFF):
       // Facebook-Login Graph API + trending audio. ANY failure before media_publish falls through to the

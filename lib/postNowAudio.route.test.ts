@@ -38,6 +38,7 @@ vi.mock("@/lib/recovery/videoDuration", () => ({ probeVideoDuration: async () =>
 
 import { POST } from "@/app/api/publish/post-now/route";
 import { _resetFbTokenCache } from "@/lib/fbToken";
+import { REEL_SHARE_LINES, pickReelShareLine } from "@/lib/captionTemplate";
 
 const j = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
 const req = () => new Request("http://x/api/publish/post-now", { method: "POST", body: JSON.stringify({ post_id: "p1" }) });
@@ -188,5 +189,31 @@ describe("post-now — flag on", () => {
     await POST(req());
     const logged = JSON.stringify((console.warn as unknown as { mock: { calls: unknown[] } }).mock.calls);
     expect(logged).not.toContain("PAGE_TOKEN_X");
+  });
+});
+
+describe("post-now — phase 5 reel share CTA", () => {
+  const captionSent = () => {
+    const c = igCalls().find((x) => x.url.endsWith("/LEGACYIG/media"))!;
+    return new URLSearchParams(c.body).get("caption")!;
+  };
+
+  it("an IG reel caption ends with the share line for its scheduled (Bratislava) day; follow-CTA replaced", async () => {
+    state.post = { ...state.post, ig_caption: "terrace, coffee.\nhere most days if this is your kind of quiet.", hashtags: ["ootd"], scheduled_at: "2026-10-07T16:00:00Z" };
+    await POST(req());
+    expect(captionSent()).toBe(`terrace, coffee.\n${pickReelShareLine("2026-10-07")}\n\n#ootd`);
+  });
+
+  it("keeps a share line written by from-batch (idempotent)", async () => {
+    const line = REEL_SHARE_LINES[4];
+    state.post = { ...state.post, ig_caption: `terrace, coffee.\n${line}`, hashtags: [], scheduled_at: "2026-10-07T16:00:00Z" };
+    await POST(req());
+    expect(captionSent()).toBe(`terrace, coffee.\n${line}`);
+  });
+
+  it("an image post caption is unchanged", async () => {
+    state.post = { ...state.post, ig_caption: "terrace.\nhere most days if this is your kind of quiet.", hashtags: [], chs_media: { type: "image", media_url: "https://cdn/i.jpg" } };
+    await POST(req());
+    expect(captionSent()).toBe("terrace.\nhere most days if this is your kind of quiet.");
   });
 });

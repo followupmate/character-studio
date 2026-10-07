@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { scheduleFor, localDateIn, isMissingScheduleColumn, type PostingSchedule } from "@/lib/publishTime";
 import { requireCron } from "@/lib/apiAuth";
-import { appendSendLine, sanitizeCaption, normalizeHashtags } from "@/lib/captionTemplate";
+import { appendSendLine, ensureReelShareCta, sanitizeCaption, normalizeHashtags } from "@/lib/captionTemplate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -121,6 +121,11 @@ async function processCharacter(
     ? appendSendLine(sanitizedCaption.text, (storyDay as StoryDay).day_number)
     : null;
 
+  // Phase 5: the IG REEL caption always ends with one share/send line (deterministic rotation by the
+  // story date, never the same line two days running) instead of the ~40% send-line / follow-CTA.
+  // Built from the sanitized text WITHOUT appendSendLine() so two asks are never stacked.
+  const reelCaptionFromStory: string = ensureReelShareCta(sanitizedCaption.text, (storyDay as StoryDay).date);
+
   const hashtagsFromStory = normalizeHashtags((storyDay as StoryDay).hashtags);
   const hasInstagram = char.platforms.includes("instagram");
   const hasYouTube = char.platforms.includes("youtube");
@@ -196,7 +201,7 @@ async function processCharacter(
             post_type: "reel",
             scheduled_at: reelTime,
             status: "scheduled",
-            ig_caption: platform === "instagram" ? captionFromStory : null,
+            ig_caption: platform === "instagram" ? reelCaptionFromStory : null,
             hashtags: platform === "instagram" ? hashtagsFromStory : null,
             yt_title: platform === "youtube" ? `${char.name} — ${date}` : null,
             yt_description: platform === "youtube" ? (captionFromStory ?? "") : null,

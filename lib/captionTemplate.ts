@@ -10,6 +10,10 @@
 //      dedupe, strip '#', drop banned/generic tags and slice to MAX_HASHTAGS.
 //
 // The funnel to Fanvue lives in the bio link and manual Stories only — never in the caption.
+//
+// Phase 5 (2026-10-07): REEL captions always end with ONE share/send line from REEL_SHARE_LINES
+// (ensureReelShareCta / formatReelCaption) — shares had been 0 for days while reels ended with
+// follow-style lines. Feed (carousel) and stories keep appendSendLine()/formatIgCaption() unchanged.
 
 export const MAX_HASHTAGS = 5;
 export const SEND_LINE_RATE = 0.4; // ~40% of days
@@ -107,6 +111,129 @@ export function appendSendLine(caption: string, dayNumber: number | null | undef
   if (ALREADY_HAS_INVITE.test(base)) return base;
   const line = pickSendLine(dayNumber);
   return line ? `${base}\n${line}` : base;
+}
+
+/* ── Reel share CTA (phase 5) ─────────────────────────────────────────────── */
+
+// Lowercase, editorial, soft, recipient-specific. Every line must pass isBannedText() and the
+// sanitizer (tested), and must not contain a follow/save ask. Order matters: the rotation below
+// walks this list with a step that is coprime to its length.
+export const REEL_SHARE_LINES: readonly string[] = [
+  "send this to the one who's still deciding.",
+  "send this to your slow-morning person.",
+  "for the friend who needs a quiet minute.",
+  "send this to the one you'd bring here.",
+  "for the friend who's always up for one more coffee.",
+  "send this to the one with your kind of calm.",
+  "for the one who deserves a slower day.",
+  "send this to your getting-ready person.",
+  "for the friend you'd share the window seat with.",
+  "send this to the one who'd stay for the view.",
+];
+
+// Step 3 is coprime to 10: consecutive days never get the same line and every line is used once
+// per 10-day cycle. (If the pool size changes, keep the step coprime — the test checks it.)
+export const REEL_SHARE_STEP = 3;
+
+// CTA lines removed anywhere in a reel caption (follow / save / send / share invitations), so the
+// share line is never stacked on top of another ask.
+const CTA_ANYWHERE: readonly RegExp[] = [
+  /\bhere most days\b/i,
+  /\bif you(?:'|’)?(?:ll| will)? stay\b/i,
+  /\bstay for more\b/i,
+  /\bmore (?:like|of) this\b/i,
+  /\bstick around\b/i,
+  /\bfollow (?:along|for|me|if)\b/i,
+  /\b(?:send|save|share) (?:this|it)\b/i,
+  /\bfor whoever\b/i,
+  /\bfor the (?:friend|one) who\b/i,
+  /\btag (?:a|your|someone|the)\b/i,
+];
+// Weaker signals, only treated as a CTA on the LAST line ("…if this is your kind of quiet.").
+const CTA_LAST_LINE: readonly RegExp[] = [
+  /\byour kind of\b/i,
+  /\byou know where to find me\b/i,
+  /\bsee you (?:tomorrow|here)\b/i,
+  /\bcome back tomorrow\b/i,
+];
+
+const norm = (l: string) => l.trim().toLowerCase().replace(/[’]/g, "'");
+const SHARE_LINE_SET = new Set(REEL_SHARE_LINES.map(norm));
+
+export function isReelShareLine(line: string): boolean {
+  return SHARE_LINE_SET.has(norm(line));
+}
+
+export function isCtaLine(line: string, isLast = false): boolean {
+  if (CTA_ANYWHERE.some((re) => re.test(line))) return true;
+  return isLast && CTA_LAST_LINE.some((re) => re.test(line));
+}
+
+/** Days since 1970-01-01 for a 'YYYY-MM-DD…' key, an integer day number, or null. */
+export function dayIndexFromKey(key: string | number | null | undefined): number | null {
+  if (typeof key === "number") return Number.isFinite(key) ? Math.trunc(key) : null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(key ?? ""));
+  if (!m) return null;
+  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isFinite(t) ? Math.floor(t / 86_400_000) : null;
+}
+
+/** Calendar date (YYYY-MM-DD) of an instant in a time zone — the reel's "day" for the rotation. */
+export function dateKeyInZone(iso: string | Date | null | undefined, timeZone = "Europe/Bratislava"): string | null {
+  if (!iso) return null;
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+
+function strHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0;
+  return h;
+}
+
+/**
+ * Deterministic share line. With a day key (date or day number) it rotates through the pool with
+ * REEL_SHARE_STEP, so two consecutive days never repeat. Without one it hashes `fallbackSalt`
+ * (e.g. the post id) — stable per post.
+ */
+export function pickReelShareLine(dayKey: string | number | null | undefined, fallbackSalt = ""): string {
+  const n = REEL_SHARE_LINES.length;
+  const day = dayIndexFromKey(dayKey);
+  const idx = day !== null ? (((day * REEL_SHARE_STEP) % n) + n) % n : strHash(fallbackSalt) % n;
+  return REEL_SHARE_LINES[idx];
+}
+
+/**
+ * Reel caption ends with exactly one share line. Idempotent: a caption that already ends with a
+ * pool line is returned unchanged (so the from-batch pick survives a later post-now pass even if the
+ * scheduled day differs). Any other CTA line (follow / save / send / share) is removed first — never
+ * two asks. An empty caption becomes just the share line.
+ */
+export function ensureReelShareCta(caption: string | null | undefined, dayKey: string | number | null | undefined, fallbackSalt = ""): string {
+  const lines = (caption ?? "").split(/\r?\n/).map((l) => l.replace(/\s+$/, ""));
+  while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+  if (lines.length && isReelShareLine(lines[lines.length - 1])) return lines.join("\n").trim();
+  const lastIdx = lines.length - 1;
+  const kept = lines.filter((l, i) => l.trim() === "" || !isCtaLine(l, i === lastIdx));
+  // a weak last-line CTA can expose another weak CTA above it ("…your kind of quiet" twice) — one more pass
+  while (kept.length && (kept[kept.length - 1].trim() === "" || isCtaLine(kept[kept.length - 1], true))) kept.pop();
+  const body = kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const line = pickReelShareLine(dayKey, fallbackSalt);
+  return body ? `${body}\n${line}` : line;
+}
+
+/** Final public REEL caption: sanitize -> share line -> blank line -> up to 5 hashtags. */
+export function formatReelCaption(
+  caption: string | null | undefined,
+  hashtags: ReadonlyArray<string> | null | undefined,
+  dayKey: string | number | null | undefined,
+  fallbackSalt = ""
+): string {
+  const { text } = sanitizeCaption(caption);
+  const withCta = ensureReelShareCta(text, dayKey, fallbackSalt);
+  const tags = normalizeHashtags(hashtags).map((t) => `#${t}`).join(" ");
+  return [withCta, tags].filter((l) => l !== "").join("\n\n");
 }
 
 /** Final public caption: sanitized text, blank line, then up to 5 normalized hashtags. */
