@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { scheduleFor, localDateIn, isMissingScheduleColumn, type PostingSchedule } from "@/lib/publishTime";
 import { requireCron } from "@/lib/apiAuth";
 import { appendSendLine, ensureReelShareCta, sanitizeCaption, normalizeHashtags } from "@/lib/captionTemplate";
+import { groundCaption, reelGroundingText } from "@/lib/captionGrounding";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,6 +14,7 @@ interface SlotMedia {
   sequence_index: number | null;
   media_url: string | null;
   generation_status: string | null;
+  higgsfield_prompt?: string | null;
 }
 
 interface Character {
@@ -88,7 +90,7 @@ async function processCharacter(
 
   const { data: media } = await supabase
     .from("chs_media")
-    .select("id, slot, sequence_index, media_url, generation_status")
+    .select("id, slot, sequence_index, media_url, generation_status, higgsfield_prompt")
     .eq("batch_id", (plan as DailyPlan).id);
 
   if (!media || media.length === 0) {
@@ -124,7 +126,21 @@ async function processCharacter(
   // Phase 5: the IG REEL caption always ends with one share/send line (deterministic rotation by the
   // story date, never the same line two days running) instead of the ~40% send-line / follow-CTA.
   // Built from the sanitized text WITHOUT appendSendLine() so two asks are never stacked.
-  const reelCaptionFromStory: string = ensureReelShareCta(sanitizedCaption.text, (storyDay as StoryDay).date);
+  // Phase 6: the story caption is written before the shot exists — drop every sentence naming an
+  // animal / food / object / wardrobe state the FINAL reel frame prompt does not contain.
+  const reelGrounding = groundCaption(
+    sanitizedCaption.text,
+    reelGroundingText(bySlot("reel_start_frame")?.higgsfield_prompt, bySlot("reel_video")?.higgsfield_prompt)
+  );
+  if (reelGrounding.dropped.length > 0) {
+    result.warnings.push(
+      `reel caption: dropped ${reelGrounding.dropped.length} ungrounded sentence(s) (${[...new Set(reelGrounding.dropped.flatMap((d) => d.terms))].join(", ")})`
+    );
+  }
+  const reelCaptionFromStory: string = ensureReelShareCta(reelGrounding.text, (storyDay as StoryDay).date);
+  const reelYtDescription: string = reelGrounding.text
+    ? appendSendLine(reelGrounding.text, (storyDay as StoryDay).day_number)
+    : "";
 
   const hashtagsFromStory = normalizeHashtags((storyDay as StoryDay).hashtags);
   const hasInstagram = char.platforms.includes("instagram");
@@ -204,7 +220,7 @@ async function processCharacter(
             ig_caption: platform === "instagram" ? reelCaptionFromStory : null,
             hashtags: platform === "instagram" ? hashtagsFromStory : null,
             yt_title: platform === "youtube" ? `${char.name} — ${date}` : null,
-            yt_description: platform === "youtube" ? (captionFromStory ?? "") : null,
+            yt_description: platform === "youtube" ? reelYtDescription : null,
             story_day_id: (storyDay as StoryDay).id,
             source: "batch",
           })

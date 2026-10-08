@@ -6,6 +6,8 @@ import { AudioPublishError, isTrendingAudioEnabled, publishReelWithAudio, type P
 import { loadCharacterAudioFlag, loadRecentAudioIds, saveAudioOnPost } from "@/lib/igAudioStore";
 import { probeVideoDuration } from "@/lib/recovery/videoDuration";
 import { errMessage } from "@/lib/fbToken";
+import { groundCaption } from "@/lib/captionGrounding";
+import { loadReelGroundingText } from "@/lib/reelGroundingLoader";
 
 export const runtime = "nodejs";
 // 60 -> 300: the legacy path polls a video container every 30 s (up to 10x) and the audio path may spend up
@@ -180,9 +182,20 @@ export async function POST(req: Request) {
       // publishing, regardless of what an older chs_posts row contains. See lib/captionTemplate.ts.
       // Phase 5: an IG video is always a REEL -> the caption must end with one share/send line.
       // Idempotent for captions from-batch already finished; fixes rows queued before this change.
+      // Phase 6: defense in depth for reels — the start frame can be regenerated (promptOverride) after
+      // from-batch queued the post, so re-ground the caption against the final frame prompt right
+      // before publishing. No grounding text -> caption unchanged. See lib/captionGrounding.ts.
+      let igCaptionText: string | null = post.ig_caption;
+      if (media.type === "video") {
+        const grounded = groundCaption(post.ig_caption, await loadReelGroundingText(post.media_id as string | null));
+        if (grounded.dropped.length > 0) {
+          console.warn(`[post-now] reel caption: dropped ${grounded.dropped.length} ungrounded sentence(s): ${grounded.dropped.map((d) => d.terms.join("+")).join(", ")}`);
+          igCaptionText = grounded.text;
+        }
+      }
       const caption =
         media.type === "video"
-          ? formatReelCaption(post.ig_caption, post.hashtags, dateKeyInZone(post.scheduled_at ?? new Date()), String(post_id))
+          ? formatReelCaption(igCaptionText, post.hashtags, dateKeyInZone(post.scheduled_at ?? new Date()), String(post_id))
           : formatIgCaption(post.ig_caption, post.hashtags);
 
       // Hybrid reel publish (flag `ig_trending_audio` / env IG_TRENDING_AUDIO_ENABLED, default OFF):
