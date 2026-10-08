@@ -153,6 +153,31 @@ function parseStoryJson(rawText: string): Record<string, unknown> {
   }
 }
 
+// Phase 6 (batch reliability) — the daily story cron runs this BEFORE the chs_story_days insert,
+// inside one Vercel function (maxDuration 300 on Hobby). Up to SITUATION_MAX_ATTEMPTS sequential
+// Sonnet calls (+ claudeWithRetry back-off, + the arc planner's own Sonnet call before us) can blow
+// the 300 s budget, and the platform then kills the run before anything is persisted — no story day,
+// and nothing retries until a human runs generate-forward. With a deadline the loop stops retrying
+// early and falls through to the existing graceful "validation_exhausted" path, so the day is saved.
+export const STORY_ATTEMPT_RESERVE_MS = 75_000;
+
+/** true when another (Sonnet, ~30-70 s) attempt still fits before deadlineAt. No deadline -> always true. */
+export function hasTimeForAnotherAttempt(nowMs: number, deadlineAt: number | undefined, reserveMs: number = STORY_ATTEMPT_RESERVE_MS): boolean {
+  if (deadlineAt === undefined || !Number.isFinite(deadlineAt)) return true;
+  return nowMs + reserveMs <= deadlineAt;
+}
+
+/** Non-throwing variant: a truncated / non-JSON reply becomes a retryable attempt instead of a 500. */
+export function tryParseStoryJson(rawText: string): { ok: true; story: Record<string, unknown> } | { ok: false; error: string } {
+  try {
+    const story = parseStoryJson(rawText);
+    if (!story || typeof story !== "object" || Array.isArray(story)) return { ok: false, error: "Story JSON is not an object" };
+    return { ok: true, story };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export interface ClaudeMessageLike {
   content: Array<{ type: string; text: string }>;
 }
@@ -175,6 +200,10 @@ export interface GenerateStoryDayArgs {
   // that skips the bias-weighted pickTier() draw. Omitted (the default, every existing call
   // site) reproduces pickTier()'s normal probabilistic selection unchanged.
   forceTier?: StoryTier;
+  // Phase 6: epoch-ms deadline for the LLM attempt loop (see hasTimeForAnotherAttempt). Omitted =
+  // unchanged behaviour (no time limit). `now` is injectable for tests.
+  deadlineAt?: number;
+  now?: () => number;
 }
 
 export interface GenerateStoryDayResult {
@@ -197,6 +226,7 @@ const defaultClaudeCall: ClaudeCallFn = (params) => claudeWithRetry(params) as u
 export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promise<GenerateStoryDayResult> {
   const { character, dayNumber, targetDate, historyRows, arcContext } = args;
   const claudeCall = args.claudeCall ?? defaultClaudeCall;
+  const nowMs = args.now ?? Date.now;
   const flags = (character as { feature_flags?: unknown }).feature_flags;
   const arcOn = arcContext !== undefined;
   // serial_captions_v1 — own flag on top of arc_planner_v1 (house rule: each layer's behavior
@@ -377,9 +407,20 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
 
   let story: Record<string, unknown> = {};
   let lastErrors: string[] = [];
-  const maxAttempts = situationMode ? SITUATION_MAX_ATTEMPTS : 1;
+  // Phase 6: a non-situation day gets ONE retry, used only when the reply was not parseable JSON
+  // (previously a single truncated reply threw -> 500 -> no story day for the whole day).
+  const maxAttempts = situationMode ? SITUATION_MAX_ATTEMPTS : 2;
+  let parsedAny = false;
+  let lastParseError: string | null = null;
+  let attemptsMade = 0;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0 && !hasTimeForAnotherAttempt(nowMs(), args.deadlineAt)) {
+      console.warn(`[story-generation] time budget reached after ${attempt} attempt(s) — not retrying`);
+      lastErrors = [...lastErrors, "time budget reached (deadline) — no further attempts"];
+      break;
+    }
+    attemptsMade = attempt + 1;
     const system = buildSystemPrompt({
       character,
       tier,
@@ -412,7 +453,15 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
     });
 
     const rawText = msg.content[0]?.text ?? "";
-    story = parseStoryJson(rawText);
+    const parsed = tryParseStoryJson(rawText);
+    if (!parsed.ok) {
+      lastParseError = parsed.error;
+      console.error(`[story-generation] attempt ${attempt + 1}/${maxAttempts}: ${parsed.error.slice(0, 200)}`);
+      lastErrors = ["previous reply was not one complete valid JSON object (likely truncated) — return ONLY the JSON object and keep every text field short"];
+      continue;
+    }
+    story = parsed.story;
+    parsedAny = true;
 
     if (!situationMode) {
       return { story, tier, driftSeeds, family, magnetism, lifeOn, strategyInput };
@@ -443,23 +492,28 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
     lastErrors = result.errors;
   }
 
+  // Phase 6: never parsed a single reply -> nothing to save; surface the parse error (old behaviour).
+  if (!parsedAny) {
+    throw new Error(lastParseError ?? "Story generation produced no parseable reply");
+  }
+
   // Exhausted all attempts: strip the unvalidated situation to a safe null for downstream
   // consumers (translateSituationForSlotPrompt / sceneBrief / fanvueUnlock all treat a null
   // situation as a no-op, same as a flag-off day) — but KEEP situation_planner_meta so the
   // failure is measurable, not silent. The story day itself is never blocked.
-  console.error(`[story-generation] situation validation exhausted after ${maxAttempts} attempts: ${lastErrors.join("; ")}`);
+  console.error(`[story-generation] situation validation exhausted after ${attemptsMade} attempts: ${lastErrors.join("; ")}`);
   story.scene = {
     ...(story.scene as Record<string, unknown> | undefined),
     situation: null,
     situation_planner_meta: {
       status: "validation_exhausted",
-      attempts: maxAttempts,
+      attempts: attemptsMade,
       blocking_errors: lastErrors,
       warnings: [],
     },
   };
 
-  return { story, tier, driftSeeds, family, magnetism, lifeOn, situationValidated: false, situationRetries: maxAttempts, strategyInput };
+  return { story, tier, driftSeeds, family, magnetism, lifeOn, situationValidated: false, situationRetries: attemptsMade, strategyInput };
 }
 
 function appendRetryNote(spec: string, errors?: string[]): string {

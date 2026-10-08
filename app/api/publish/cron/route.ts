@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { requireCron } from "@/lib/apiAuth";
+import { maybeTriggerStoryCatchUp, type StoryCatchUpResult } from "@/lib/storyCatchUp";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,6 +31,16 @@ export async function POST(req: Request) {
       console.warn("[publish-cron] from-batch sweep failed:", e instanceof Error ? e.message : String(e));
     }
 
+    // Phase 6: heal a missing story day (the 06:00 UTC Vercel cron is the only creator and is never
+    // retried). Bounded window + every 2nd tick; never blocks publishing. See lib/storyCatchUp.ts.
+    let storyCatchUp: StoryCatchUpResult | { triggered: false; reason: string } = { triggered: false, reason: "not run" };
+    try {
+      storyCatchUp = await maybeTriggerStoryCatchUp(origin);
+    } catch (e) {
+      storyCatchUp = { triggered: false, reason: `error: ${e instanceof Error ? e.message : String(e)}`.slice(0, 200) };
+      console.warn("[publish-cron] story catch-up check failed:", storyCatchUp.reason);
+    }
+
     const { data: duePosts, error } = await supabase
       .from("chs_posts")
       .select("id, platform, post_type, media_ids, character_id, ig_caption, hashtags")
@@ -38,7 +49,7 @@ export async function POST(req: Request) {
 
     if (error) throw error;
     if (!duePosts || duePosts.length === 0) {
-      return NextResponse.json({ success: true, processed: 0, swept: true });
+      return NextResponse.json({ success: true, processed: 0, swept: true, storyCatchUp });
     }
 
     type DuePost = {
@@ -88,7 +99,7 @@ export async function POST(req: Request) {
       r.status === "fulfilled" ? r.value : { error: String(r.reason) }
     );
 
-    return NextResponse.json({ success: true, processed: duePosts.length, results: summary });
+    return NextResponse.json({ success: true, processed: duePosts.length, results: summary, storyCatchUp });
   } catch (error) {
     console.error("[publish-cron]", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
