@@ -204,3 +204,129 @@ describe("isTrendingAudioEnabled", () => {
     expect(await isTrendingAudioEnabled(async () => { throw new Error("db down"); }, {})).toBe(false);
   });
 });
+
+describe("publishReelWithAudio — phase 7 trending mode", () => {
+  const TENV = { ...ENV, IG_AUDIO_MODE: "trending", IG_AUDIO_TRENDING_UNTIL: "2026-10-17", IG_AUDIO_SEARCH_QUERY: "lofi" };
+  const inWin = () => new Date("2026-10-12T10:00:00Z");
+  const trendingList = () => j({ audio: [{ audio_id: "TR1", title: "Hit", display_artist: "Star", duration_in_ms: 90000, is_ads_eligible: false }] });
+  const libraryList = () => j({ audio: [{ audio_id: "LIB1", title: "Lib", display_artist: "Kolektivo", duration_in_ms: 90000, is_ads_eligible: true }] });
+  const audioByMode = (trending: Handler = trendingList, library: Handler = libraryList): Handler => (url, init) =>
+    url.includes("search_query=") ? library(url, init) : trending(url, init);
+  const tdeps = (f: ReturnType<typeof mkFetch>, extra: Partial<AudioPublishDeps> = {}) => baseDeps(f, { env: TENV, now: inWin, ...extra });
+  const containerAudio = (f: ReturnType<typeof mkFetch>) =>
+    f.calls.filter((c) => c.url.endsWith("/IGID/media")).map((c) => JSON.parse(c.body!.get("audio_configuration")!).audio_id);
+
+  it("calls ig_audio WITHOUT search_query (audio_type=music) and publishes the trending track", async () => {
+    const f = mkFetch({ audio: audioByMode() });
+    const r = await publishReelWithAudio(input, tdeps(f));
+    const audioCall = f.calls.find((c) => c.url.includes("/ig_audio?"))!;
+    expect(audioCall.url).toContain("audio_type=music");
+    expect(audioCall.url).not.toContain("search_query");
+    expect(r).toMatchObject({ mediaId: "MEDIA1", mode: "trending", requestedMode: "trending", modeReason: "env_trending", fallbacks: [] });
+    expect(r.audio).toMatchObject({ id: "TR1", title: "Hit", artist: "Star", adsEligible: false });
+    expect(f.calls.some((c) => c.url.includes("fields=copyright_check_status"))).toBe(true);
+  });
+
+  it("ignores IG_AUDIO_REQUIRE_ADS_ELIGIBLE in trending mode", async () => {
+    const f = mkFetch({ audio: audioByMode() });
+    const r = await publishReelWithAudio(input, tdeps(f, { env: { ...TENV, IG_AUDIO_REQUIRE_ADS_ELIGIBLE: "true" } }));
+    expect(r.audio.id).toBe("TR1");
+  });
+
+  it("respects the 14-day no-repeat window", async () => {
+    const f = mkFetch({ audio: audioByMode(() => j({ audio: [{ audio_id: "TR1", duration_in_ms: 90000 }, { audio_id: "TR2", duration_in_ms: 90000 }] })) });
+    const r = await publishReelWithAudio(input, tdeps(f, { loadRecentAudioIds: async () => ["TR1"] }));
+    expect(r.audio.id).toBe("TR2");
+  });
+
+  it("trending list error -> one library retry (with search_query)", async () => {
+    const f = mkFetch({ audio: audioByMode(() => j({ error: { code: 10, message: "denied" } }, 400)) });
+    const r = await publishReelWithAudio(input, tdeps(f));
+    expect(r).toMatchObject({ mode: "library", requestedMode: "trending", audio: { id: "LIB1" } });
+    expect(r.fallbacks).toEqual([expect.objectContaining({ mode: "trending", stage: "audio_list" })]);
+    expect(f.calls.filter((c) => c.url.includes("/ig_audio?"))[1].url).toContain("search_query=lofi");
+  });
+
+  it("empty trending list -> library retry", async () => {
+    const f = mkFetch({ audio: audioByMode(() => j({ audio: [] })) });
+    const r = await publishReelWithAudio(input, tdeps(f));
+    expect(r.mode).toBe("library");
+    expect(r.fallbacks[0].stage).toBe("no_audio");
+  });
+
+  it("container rejects the trending audio_id -> library retry, failed id excluded", async () => {
+    const f = mkFetch({
+      audio: audioByMode(trendingList, () => j({ audio: [{ audio_id: "TR1", duration_in_ms: 90000 }, { audio_id: "LIB1", duration_in_ms: 90000 }] })),
+      container: (_u, init) => {
+        const id = JSON.parse((init!.body as URLSearchParams).get("audio_configuration")!).audio_id;
+        return id === "TR1" ? j({ error: { code: 100, message: "invalid audio" } }, 400) : j({ id: "CONT1" });
+      },
+    });
+    const r = await publishReelWithAudio(input, tdeps(f));
+    expect(containerAudio(f)).toEqual(["TR1", "LIB1"]);
+    expect(r.fallbacks[0]).toMatchObject({ stage: "container", audioId: "TR1" });
+  });
+
+  it("Meta clearly rejects media_publish for trending -> library retry", async () => {
+    let n = 0;
+    const f = mkFetch({ audio: audioByMode(), publish: () => (++n === 1 ? j({ error: { code: 2207026, message: "audio unavailable" } }, 400) : j({ id: "MEDIA2" })) });
+    const r = await publishReelWithAudio(input, tdeps(f));
+    expect(r).toMatchObject({ mediaId: "MEDIA2", mode: "library" });
+    expect(r.fallbacks[0].stage).toBe("publish");
+  });
+
+  it("container copyright match -> abort before publish and retry with library", async () => {
+    let cc = 0;
+    const f = mkFetch({
+      audio: audioByMode(),
+      status: (url) => (url.includes("copyright_check_status") ? (cc++, j({ copyright_check_status: { status: "completed", matches_found: true } })) : j({ status_code: "FINISHED" })),
+    });
+    const r = await publishReelWithAudio(input, tdeps(f));
+    expect(cc).toBe(1); // library attempt does not run the pre-check
+    expect(r).toMatchObject({ mode: "library", fallbacks: [expect.objectContaining({ stage: "copyright", audioId: "TR1" })] });
+    expect(f.calls.filter((c) => c.url.endsWith("/media_publish"))).toHaveLength(1);
+  });
+
+  it("unknown/unsupported container copyright field never blocks", async () => {
+    const f = mkFetch({ audio: audioByMode(), status: (url) => (url.includes("copyright_check_status") ? j({ error: { message: "nonexisting field" } }, 400) : j({ status_code: "FINISHED" })) });
+    const r = await publishReelWithAudio(input, tdeps(f));
+    expect(r).toMatchObject({ mode: "trending", containerCopyright: null });
+  });
+
+  it("ambiguous media_publish outcome is NOT retried (double-post guard)", async () => {
+    const f = mkFetch({ audio: audioByMode(), publish: () => new Response("<html>504</html>", { status: 504 }) });
+    await expect(publishReelWithAudio(input, tdeps(f))).rejects.toMatchObject({ stage: "publish", ambiguous: true });
+    expect(f.calls.filter((c) => c.url.endsWith("/media_publish"))).toHaveLength(1);
+  });
+
+  it("both attempts fail -> error carries both attempts (caller falls back to no-audio IG Login)", async () => {
+    const f = mkFetch({ audio: audioByMode(() => j({ audio: [] }), () => j({ error: { message: "down" } }, 500)) });
+    const err = await publishReelWithAudio(input, tdeps(f)).catch((e) => e);
+    expect(err).toBeInstanceOf(AudioPublishError);
+    expect(err.ambiguous).toBe(false);
+    expect(err.attempts.map((a: { mode: string; stage: string }) => `${a.mode}:${a.stage}`)).toEqual(["trending:no_audio", "library:audio_list"]);
+  });
+
+  it("muted lock -> library, lock read only when trending is requested", async () => {
+    const f = mkFetch({ audio: audioByMode() });
+    const r = await publishReelWithAudio(input, tdeps(f, { loadTrendingLock: async () => true }));
+    expect(r).toMatchObject({ mode: "library", requestedMode: "library", modeReason: "muted_lock", audio: { id: "LIB1" } });
+    let read = 0;
+    const f2 = mkFetch({ audio: audioByMode() });
+    await publishReelWithAudio(input, baseDeps(f2, { env: { ...ENV, IG_AUDIO_SEARCH_QUERY: "lofi" }, loadTrendingLock: async () => (read++, true) }));
+    expect(read).toBe(0);
+  });
+
+  it("lock read failure is tolerated (assume not locked)", async () => {
+    const f = mkFetch({ audio: audioByMode() });
+    const r = await publishReelWithAudio(input, tdeps(f, { loadTrendingLock: async () => { throw new Error("db down"); } }));
+    expect(r.mode).toBe("trending");
+  });
+
+  it("after IG_AUDIO_TRENDING_UNTIL it is library again with no deploy", async () => {
+    const f = mkFetch({ audio: audioByMode() });
+    const r = await publishReelWithAudio(input, tdeps(f, { now: () => new Date("2026-10-17T22:00:00Z") }));
+    expect(r).toMatchObject({ mode: "library", modeReason: "trending_window_ended", audio: { id: "LIB1" } });
+    expect(f.calls.some((c) => c.url.includes("copyright_check_status"))).toBe(false);
+  });
+});

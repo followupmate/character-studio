@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { requireCron } from "@/lib/apiAuth";
 import { maybeTriggerStoryCatchUp, type StoryCatchUpResult } from "@/lib/storyCatchUp";
+import { runAudioCopyrightSweep, type SweepResult } from "@/lib/audioCopyrightSweep";
+import { loadCopyrightCandidates, mergeAudioMeta, setTrendingLock } from "@/lib/igAudioStore";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -41,6 +43,19 @@ export async function POST(req: Request) {
       console.warn("[publish-cron] story catch-up check failed:", storyCatchUp.reason);
     }
 
+    // Phase 7: post-publish copyright/mute check for FB-path reels with audio (max 3 per tick).
+    let audioCopyright: SweepResult | { skipped: string } = { skipped: "not run" };
+    try {
+      audioCopyright = await runAudioCopyrightSweep({
+        loadCandidates: (now) => loadCopyrightCandidates(now),
+        saveResult: (postId, patch) => mergeAudioMeta(postId, patch),
+        lockTrending: (characterId, info) => setTrendingLock(characterId, info),
+      });
+    } catch (e) {
+      audioCopyright = { skipped: `error: ${e instanceof Error ? e.message : String(e)}`.slice(0, 200) };
+      console.warn("[publish-cron] audio copyright sweep failed:", audioCopyright.skipped);
+    }
+
     const { data: duePosts, error } = await supabase
       .from("chs_posts")
       .select("id, platform, post_type, media_ids, character_id, ig_caption, hashtags")
@@ -49,7 +64,7 @@ export async function POST(req: Request) {
 
     if (error) throw error;
     if (!duePosts || duePosts.length === 0) {
-      return NextResponse.json({ success: true, processed: 0, swept: true, storyCatchUp });
+      return NextResponse.json({ success: true, processed: 0, swept: true, storyCatchUp, audioCopyright });
     }
 
     type DuePost = {
@@ -99,7 +114,7 @@ export async function POST(req: Request) {
       r.status === "fulfilled" ? r.value : { error: String(r.reason) }
     );
 
-    return NextResponse.json({ success: true, processed: duePosts.length, results: summary, storyCatchUp });
+    return NextResponse.json({ success: true, processed: duePosts.length, results: summary, storyCatchUp, audioCopyright });
   } catch (error) {
     console.error("[publish-cron]", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });

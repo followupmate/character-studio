@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { getIgAccessToken } from "@/lib/igToken";
 import { dateKeyInZone, formatIgCaption, formatReelCaption } from "@/lib/captionTemplate";
 import { AudioPublishError, isTrendingAudioEnabled, publishReelWithAudio, type PublishedAudio } from "@/lib/igReelAudioPublish";
-import { loadCharacterAudioFlag, loadRecentAudioIds, saveAudioOnPost } from "@/lib/igAudioStore";
+import { loadCharacterAudioFlag, loadRecentAudioIds, loadTrendingLock, mergeAudioMeta, saveAudioOnPost } from "@/lib/igAudioStore";
 import { probeVideoDuration } from "@/lib/recovery/videoDuration";
 import { errMessage } from "@/lib/fbToken";
 import { groundCaption } from "@/lib/captionGrounding";
@@ -176,6 +176,8 @@ export async function POST(req: Request) {
 
     let platformPostId = "";
     let publishedAudio: PublishedAudio | null = null;
+    // Phase 7: audio bookkeeping -> chs_posts.engagement.audio_meta (mode, fallbacks, reasons).
+    let audioMetaPatch: Record<string, unknown> | null = null;
 
     if (post.platform === "instagram") {
       // Defense in depth: banned (funnel) lines are dropped and hashtags capped at 5 right before
@@ -208,6 +210,7 @@ export async function POST(req: Request) {
             { videoUrl: mediaUrl, caption },
             {
               loadRecentAudioIds: () => loadRecentAudioIds(),
+              loadTrendingLock: () => loadTrendingLock(post.character_id as string | null),
               probeDurationMs: async (u) => {
                 const p = await probeVideoDuration(u);
                 return p.durationSec ? Math.round(p.durationSec * 1000) : null;
@@ -216,13 +219,33 @@ export async function POST(req: Request) {
           );
           platformPostId = r.mediaId;
           publishedAudio = r.audio;
-          console.log(`[post-now] reel ${post_id} published with audio ${r.audio.id} (${r.audio.tier})`);
+          audioMetaPatch = {
+            mode: r.mode,
+            requested_mode: r.requestedMode,
+            mode_reason: r.modeReason,
+            tier: r.audio.tier,
+            fallbacks: r.fallbacks,
+            container_copyright: r.containerCopyright,
+            published_at: new Date().toISOString(),
+          };
+          console.log(
+            `[post-now] reel ${post_id} published with ${r.mode} audio ${r.audio.id} (${r.audio.tier})` +
+              (r.fallbacks.length ? ` after fallback: ${r.fallbacks.map((f) => `${f.mode}@${f.stage}: ${f.reason}`).join("; ")}` : "")
+          );
         } catch (e) {
           // media_publish outcome unknown -> falling back could double-post. Surface the error instead.
           if (e instanceof AudioPublishError && e.ambiguous) {
             throw new Error(`AUDIO_PUBLISH_AMBIGUOUS: check the Instagram profile before retrying — ${e.message}`);
           }
           const stage = e instanceof AudioPublishError ? e.stage : "unknown";
+          const attempts = e instanceof AudioPublishError ? e.attempts : [];
+          audioMetaPatch = {
+            mode: "none",
+            requested_mode: attempts.some((a) => a.mode === "trending") ? "trending" : "library",
+            reason: `${stage}: ${errMessage(e)}`.slice(0, 300),
+            fallbacks: attempts,
+            published_at: new Date().toISOString(),
+          };
           console.warn(`[post-now] audio publish failed at stage=${stage} (${errMessage(e)}); falling back to Instagram-Login publish without audio`);
         }
       }
@@ -254,6 +277,7 @@ export async function POST(req: Request) {
       .eq("id", post_id);
 
     if (publishedAudio) await saveAudioOnPost(post_id, publishedAudio);
+    if (audioMetaPatch) await mergeAudioMeta(post_id, audioMetaPatch);
 
     return NextResponse.json({ success: true, platform_post_id: platformPostId, ...(publishedAudio ? { audio_id: publishedAudio.id } : {}) });
   } catch (error) {

@@ -217,3 +217,36 @@ describe("post-now — phase 5 reel share CTA", () => {
     expect(captionSent()).toBe("terrace.\nhere most days if this is your kind of quiet.");
   });
 });
+
+describe("post-now — phase 7 audio mode bookkeeping (engagement.audio_meta)", () => {
+  const metaUpdate = () => postUpdates().find((u) => "engagement" in u)?.engagement as Record<string, Record<string, unknown>> | undefined;
+  beforeEach(() => {
+    state.characterFlags = { ig_trending_audio: true };
+    process.env.IG_AUDIO_MODE = "trending";
+    process.env.IG_AUDIO_TRENDING_UNTIL = "2999-12-31";
+  });
+
+  it("trending publish stores audio columns + audio_meta.mode=trending", async () => {
+    const body = await (await POST(req())).json();
+    expect(body.platform_post_id).toBe("FB_MEDIA");
+    expect(fbCalls().find((c) => c.url.includes("/ig_audio?"))!.url).not.toContain("search_query");
+    expect(postUpdates().find((u) => "audio_id" in u)).toMatchObject({ audio_id: "A1", audio_ads_eligible: false });
+    expect(metaUpdate()?.audio_meta).toMatchObject({ mode: "trending", requested_mode: "trending", mode_reason: "env_trending", fallbacks: [] });
+  });
+
+  it("muted lock in feature_flags -> library, recorded as muted_lock", async () => {
+    state.characterFlags = { ig_trending_audio: true, ig_audio_trending_muted: true };
+    await POST(req());
+    expect(metaUpdate()?.audio_meta).toMatchObject({ mode: "library", mode_reason: "muted_lock" });
+  });
+
+  it("trending + library both fail -> no-audio IG Login, audio_meta.mode=none with both attempts", async () => {
+    fb.audio = () => j({ audio: [] });
+    const body = await (await POST(req())).json();
+    expect(body.platform_post_id).toBe("LEGACY_MEDIA");
+    const meta = metaUpdate()?.audio_meta;
+    expect(meta).toMatchObject({ mode: "none", requested_mode: "trending" });
+    expect((meta!.fallbacks as unknown as unknown[]).length).toBe(2);
+    expect(postUpdates().some((u) => "audio_id" in u)).toBe(false);
+  });
+});

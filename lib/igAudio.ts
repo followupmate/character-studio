@@ -75,6 +75,14 @@ export interface PickAudioOptions {
   /** 0..1 — picks randomly among the first `topN` of the best non-empty tier. */
   rng?: () => number;
   topN?: number;
+  /**
+   * Phase 7 trending mode: false = keep Meta's TRENDING order and do not rank ads-eligible
+   * (library-style, commercial-safe) tracks first — tiers become [long enough] > [any].
+   * Default (undefined/true) = the original ordering, unchanged.
+   */
+  preferAdsEligible?: boolean;
+  /** Ids that must never be picked in this call (e.g. a track whose publish just failed). */
+  excludeIds?: Iterable<string>;
 }
 
 export interface PickedAudio {
@@ -94,7 +102,7 @@ export interface PickedAudio {
  *      consecutive days differ.
  */
 export function pickAudio(o: PickAudioOptions): PickedAudio | null {
-  const recent = new Set(o.recentIds ?? []);
+  const recent = new Set([...(o.recentIds ?? []), ...(o.excludeIds ?? [])]);
   const seen = new Set<string>();
   let pool = o.candidates.filter((c) => {
     if (!c?.audio_id || seen.has(c.audio_id) || recent.has(c.audio_id)) return false;
@@ -108,12 +116,18 @@ export function pickAudio(o: PickAudioOptions): PickedAudio | null {
   const longEnough = (c: IgAudioItem) => (c.duration_in_ms ?? 0) >= need && (need === 0 || c.duration_in_ms !== undefined);
   const eligible = (c: IgAudioItem) => c.is_ads_eligible === true;
 
-  const tiers: Array<[PickedAudio["tier"], IgAudioItem[]]> = [
-    ["eligible_long_enough", pool.filter((c) => eligible(c) && longEnough(c))],
-    ["long_enough", pool.filter(longEnough)],
-    ["eligible_short", pool.filter(eligible)],
-    ["any", pool],
-  ];
+  const tiers: Array<[PickedAudio["tier"], IgAudioItem[]]> =
+    o.preferAdsEligible === false
+      ? [
+          ["long_enough", pool.filter(longEnough)],
+          ["any", pool],
+        ]
+      : [
+          ["eligible_long_enough", pool.filter((c) => eligible(c) && longEnough(c))],
+          ["long_enough", pool.filter(longEnough)],
+          ["eligible_short", pool.filter(eligible)],
+          ["any", pool],
+        ];
   for (const [tier, list] of tiers) {
     if (list.length === 0) continue;
     const n = Math.min(o.topN ?? 5, list.length);

@@ -96,3 +96,23 @@ describe("fetchIgAudio", () => {
     expect(err.message).not.toContain("EAAB1234567890");
   });
 });
+
+describe("pickAudio — phase 7 trending options", () => {
+  const items = [
+    { audio_id: "T1", duration_in_ms: 90000, is_ads_eligible: false },
+    { audio_id: "T2", duration_in_ms: 90000, is_ads_eligible: true },
+    { audio_id: "T3", duration_in_ms: 5000, is_ads_eligible: false },
+  ];
+  it("preferAdsEligible:false keeps Meta's trending order (no commercial-safe re-ranking)", () => {
+    const p = pickAudio({ candidates: items, videoDurationMs: 12000, preferAdsEligible: false, topN: 1, rng: () => 0 });
+    expect(p).toEqual({ item: items[0], tier: "long_enough" });
+  });
+  it("default still prefers ads-eligible", () => {
+    expect(pickAudio({ candidates: items, videoDurationMs: 12000, topN: 1, rng: () => 0 })?.item.audio_id).toBe("T2");
+  });
+  it("excludeIds is merged with the 14-day recent set", () => {
+    const p = pickAudio({ candidates: items, videoDurationMs: 12000, preferAdsEligible: false, recentIds: ["T1"], excludeIds: ["T2"], rng: () => 0 });
+    expect(p).toEqual({ item: items[2], tier: "any" });
+    expect(pickAudio({ candidates: items, recentIds: ["T1"], excludeIds: ["T2", "T3"] })).toBeNull();
+  });
+});

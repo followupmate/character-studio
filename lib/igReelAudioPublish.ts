@@ -15,11 +15,12 @@
  */
 import { FB_GRAPH, errMessage, redactSecrets, resolveFbPageToken } from "./fbToken";
 import { buildAudioConfiguration, fetchIgAudio, pickAudio, type IgAudioItem } from "./igAudio";
+import { resolveAudioMode, trendingRequested, trendingTopN, type AudioMode, type AudioModeReason } from "./igAudioMode";
 
 type Env = Record<string, string | undefined>;
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
-export type AudioPublishStage = "config" | "token" | "audio_list" | "no_audio" | "container" | "processing" | "publish";
+export type AudioPublishStage = "config" | "token" | "audio_list" | "no_audio" | "container" | "processing" | "copyright" | "publish";
 
 export class AudioPublishError extends Error {
   constructor(
@@ -30,6 +31,15 @@ export class AudioPublishError extends Error {
     super(redactSecrets(message));
     this.name = "AudioPublishError";
   }
+  /** Phase 7: every audio attempt that failed before this error (e.g. the trending try before a library retry). */
+  attempts: AudioAttemptFailure[] = [];
+}
+
+export interface AudioAttemptFailure {
+  mode: AudioMode;
+  stage: AudioPublishStage;
+  reason: string;
+  audioId?: string;
 }
 
 /* ── Flag resolution ────────────────────────────────────────────────────────── */
@@ -67,6 +77,13 @@ export interface PublishedAudio {
 export interface AudioPublishResult {
   mediaId: string;
   audio: PublishedAudio;
+  /** Phase 7: the mode the published track came from, what was requested, and failed attempts before it. */
+  mode: AudioMode;
+  requestedMode: AudioMode;
+  modeReason: AudioModeReason;
+  fallbacks: AudioAttemptFailure[];
+  /** Best-effort pre-publish container copyright check (trending only); null = not checked/unknown. */
+  containerCopyright: { status: string | null; matchesFound: boolean | null } | null;
 }
 
 export interface AudioPublishDeps {
@@ -78,6 +95,9 @@ export interface AudioPublishDeps {
   /** video length in ms or null when unknown. */
   probeDurationMs?: (videoUrl: string) => Promise<number | null>;
   rng?: () => number;
+  /** Phase 7: per-character "trending got muted" lock (feature_flags.ig_audio_trending_muted). Failure -> false. */
+  loadTrendingLock?: () => Promise<boolean>;
+  now?: () => Date;
   /** polling cadence / budget — container processing normally takes 10-60 s. */
   pollIntervalMs?: number;
   maxWaitMs?: number;
@@ -121,14 +141,21 @@ export async function publishReelWithAudio(
   if (!page) throw new AudioPublishError("token", "no FB page token (FB_PAGE_ACCESS_TOKEN / FB_LONG_LIVED_USER_TOKEN)");
   const token = page.token;
 
-  // 2. audio
-  const searchQuery = env.IG_AUDIO_SEARCH_QUERY?.trim() || undefined;
-  let candidates: IgAudioItem[];
-  try {
-    candidates = await fetchIgAudio({ igUserId, token, audioType: "music", searchQuery, fetchImpl: doFetch });
-  } catch (e) {
-    throw new AudioPublishError("audio_list", errMessage(e));
+  // 2. mode (phase 7). Default = library = the unchanged pre-phase-7 path.
+  const now = (deps.now ?? (() => new Date()))();
+  let locked = false;
+  if (trendingRequested(env, now) && deps.loadTrendingLock) {
+    try {
+      locked = await deps.loadTrendingLock();
+    } catch (e) {
+      console.warn(`[ig-audio] trending lock unavailable (${errMessage(e)}); assuming not locked`);
+    }
   }
+  const decision = resolveAudioMode(env, now, { trendingLocked: locked });
+  if (decision.reason !== "default_library" && decision.reason !== "env_library" && decision.reason !== "env_trending") {
+    console.warn(`[ig-audio] trending requested but using library: ${decision.reason}`);
+  }
+
   let recentIds: string[] = [];
   try {
     recentIds = (await deps.loadRecentAudioIds?.()) ?? [];
@@ -141,14 +168,84 @@ export async function publishReelWithAudio(
   } catch {
     videoDurationMs = null;
   }
+
+  const ctx: AttemptCtx = { env, doFetch, sleep, pollIntervalMs, maxWaitMs, igUserId, token, input, recentIds, videoDurationMs, rng: deps.rng };
+
+  if (decision.mode === "trending") {
+    let failure: AudioAttemptFailure;
+    try {
+      const r = await publishAttempt(ctx, "trending", []);
+      return { ...r, mode: "trending", requestedMode: "trending", modeReason: decision.reason, fallbacks: [] };
+    } catch (e) {
+      if (e instanceof AudioPublishError && e.ambiguous) throw e; // may already be live — never retry
+      failure = {
+        mode: "trending",
+        stage: e instanceof AudioPublishError ? e.stage : "container",
+        reason: errMessage(e).slice(0, 300),
+        audioId: (e as { audioId?: string }).audioId,
+      };
+      console.warn(`[ig-audio] trending attempt failed at ${failure.stage}: ${failure.reason} — retrying once with a library track`);
+    }
+    try {
+      const r = await publishAttempt(ctx, "library", failure.audioId ? [failure.audioId] : []);
+      return { ...r, mode: "library", requestedMode: "trending", modeReason: decision.reason, fallbacks: [failure] };
+    } catch (e) {
+      const err = e instanceof AudioPublishError ? e : new AudioPublishError("container", errMessage(e));
+      err.attempts = [failure, { mode: "library", stage: err.stage, reason: err.message.slice(0, 300) }];
+      throw err;
+    }
+  }
+
+  const r = await publishAttempt(ctx, "library", []);
+  return { ...r, mode: "library", requestedMode: "library", modeReason: decision.reason, fallbacks: [] };
+}
+
+interface AttemptCtx {
+  env: Env;
+  doFetch: FetchLike;
+  sleep: (ms: number) => Promise<void>;
+  pollIntervalMs: number;
+  maxWaitMs: number;
+  igUserId: string;
+  token: string;
+  input: { videoUrl: string; caption: string };
+  recentIds: string[];
+  videoDurationMs: number | null;
+  rng?: () => number;
+}
+
+type AttemptResult = Pick<AudioPublishResult, "mediaId" | "audio" | "containerCopyright">;
+
+function withAudioId<T extends AudioPublishError>(e: T, audioId: string): T {
+  (e as unknown as { audioId?: string }).audioId = audioId;
+  return e;
+}
+
+async function publishAttempt(ctx: AttemptCtx, mode: AudioMode, excludeIds: string[]): Promise<AttemptResult> {
+  const { env, doFetch, sleep, pollIntervalMs, maxWaitMs, igUserId, token, input } = ctx;
+
+  // audio list: library = IG_AUDIO_SEARCH_QUERY sound collection (pre-phase-7 behaviour);
+  // trending = no search_query -> Meta's trending music list for this IG user.
+  const searchQuery = mode === "library" ? env.IG_AUDIO_SEARCH_QUERY?.trim() || undefined : undefined;
+  let candidates: IgAudioItem[];
+  try {
+    candidates = await fetchIgAudio({ igUserId, token, audioType: "music", searchQuery, fetchImpl: doFetch });
+  } catch (e) {
+    throw new AudioPublishError("audio_list", errMessage(e));
+  }
   const picked = pickAudio({
     candidates,
-    videoDurationMs,
-    recentIds,
-    requireAdsEligible: env.IG_AUDIO_REQUIRE_ADS_ELIGIBLE?.trim().toLowerCase() === "true",
-    rng: deps.rng,
+    videoDurationMs: ctx.videoDurationMs,
+    recentIds: ctx.recentIds,
+    excludeIds,
+    // trending: keep Meta's trending order, never rank commercial-safe tracks first, and ignore
+    // IG_AUDIO_REQUIRE_ADS_ELIGIBLE (trending commercial music is is_ads_eligible=false by nature).
+    requireAdsEligible: mode === "library" && env.IG_AUDIO_REQUIRE_ADS_ELIGIBLE?.trim().toLowerCase() === "true",
+    preferAdsEligible: mode === "trending" ? false : undefined,
+    topN: mode === "trending" ? trendingTopN(env) : undefined,
+    rng: ctx.rng,
   });
-  if (!picked) throw new AudioPublishError("no_audio", `no usable audio (candidates=${candidates.length}, recent=${recentIds.length})`);
+  if (!picked) throw new AudioPublishError("no_audio", `no usable ${mode} audio (candidates=${candidates.length}, recent=${ctx.recentIds.length})`);
   const audio: PublishedAudio = {
     id: picked.item.audio_id,
     title: picked.item.title ?? null,
@@ -176,7 +273,7 @@ export async function publishReelWithAudio(
     if (!j || typeof j.id !== "string") throw new Error(apiErrorText(j));
     containerId = j.id;
   } catch (e) {
-    throw new AudioPublishError("container", errMessage(e));
+    throw withAudioId(new AudioPublishError("container", errMessage(e)), audio.id);
   }
 
   // 4. processing
@@ -190,7 +287,7 @@ export async function publishReelWithAudio(
       const res = await doFetch(`${FB_GRAPH}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`);
       j = await readJson(res);
     } catch (e) {
-      throw new AudioPublishError("processing", errMessage(e));
+      throw withAudioId(new AudioPublishError("processing", errMessage(e)), audio.id);
     }
     const code = j?.status_code;
     if (code === "FINISHED") {
@@ -198,11 +295,34 @@ export async function publishReelWithAudio(
       break;
     }
     if (code === "ERROR" || code === "EXPIRED") {
-      throw new AudioPublishError("processing", `container ${String(code)}: ${redactSecrets(String(j?.status ?? "no detail"))}`);
+      throw withAudioId(new AudioPublishError("processing", `container ${String(code)}: ${redactSecrets(String(j?.status ?? "no detail"))}`), audio.id);
     }
     // IN_PROGRESS / PUBLISHED(unexpected) / transient API error -> keep polling
   }
-  if (!finished) throw new AudioPublishError("processing", `container not FINISHED after ${Math.round(maxWaitMs / 1000)}s`);
+  if (!finished) throw withAudioId(new AudioPublishError("processing", `container not FINISHED after ${Math.round(maxWaitMs / 1000)}s`), audio.id);
+
+  // 4b. trending only: best-effort container copyright pre-check (IG Container field
+  // copyright_check_status). A confirmed match aborts BEFORE publishing (nothing is live yet) so the
+  // caller can retry with a library track. Unknown / in_progress / unsupported never blocks.
+  let containerCopyright: AttemptResult["containerCopyright"] = null;
+  if (mode === "trending") {
+    try {
+      const res = await doFetch(`${FB_GRAPH}/${containerId}?fields=copyright_check_status&access_token=${encodeURIComponent(token)}`);
+      const j = await readJson(res);
+      const c = j?.copyright_check_status as { status?: unknown; matches_found?: unknown } | undefined;
+      if (c && typeof c === "object") {
+        containerCopyright = {
+          status: typeof c.status === "string" ? c.status : null,
+          matchesFound: typeof c.matches_found === "boolean" ? c.matches_found : null,
+        };
+      }
+    } catch {
+      containerCopyright = null;
+    }
+    if (containerCopyright?.matchesFound === true) {
+      throw withAudioId(new AudioPublishError("copyright", `container copyright_check_status matches_found=true (status=${containerCopyright.status ?? "?"})`), audio.id);
+    }
+  }
 
   // 5. publish — the only step where a failure can leave a published reel behind
   let res: Response;
@@ -218,7 +338,7 @@ export async function publishReelWithAudio(
   if (!pj) throw new AudioPublishError("publish", `non-JSON media_publish response (HTTP ${res.status})`, true);
   if (typeof pj.id !== "string") {
     // A JSON error object without an id = Meta rejected the publish; nothing was posted.
-    throw new AudioPublishError("publish", apiErrorText(pj), false);
+    throw withAudioId(new AudioPublishError("publish", apiErrorText(pj), false), audio.id);
   }
-  return { mediaId: pj.id, audio };
+  return { mediaId: pj.id, audio, containerCopyright };
 }
