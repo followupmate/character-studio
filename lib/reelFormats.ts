@@ -15,11 +15,11 @@
 import type { ActionClass } from "@/lib/sceneSemantics";
 import {
   REEL_RECIPE_LIST,
-  CLASSIC_RECIPE_IDS,
   MOMENT_RECIPE_IDS,
   getReelRecipe,
   momentRecipesEnabled,
   recipeIdForDay,
+  ROTATION_CLASSIC_IDS,
   recipeSupportsActionClass,
 } from "@/lib/recovery/reelRecipes";
 
@@ -150,7 +150,7 @@ export function pickReelFormatForScene(
   const moments = momentRecipesEnabled(env) ? [...MOMENT_RECIPE_IDS] : [];
   const start = moments.indexOf(preferred.id as (typeof MOMENT_RECIPE_IDS)[number]);
   const rotated = start >= 0 ? [...moments.slice(start + 1), ...moments.slice(0, start)] : moments;
-  const order = [...rotated, ...CLASSIC_RECIPE_IDS].filter((id) => id !== preferred.id);
+  const order = [...rotated, ...ROTATION_CLASSIC_IDS].filter((id) => id !== preferred.id);
   const byId = (id: string) => REEL_FORMATS.find((f) => f.id === id)!;
   return (
     order.map(byId).find((f) => f.id !== yesterday && fits(f)) ??

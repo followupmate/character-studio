@@ -32,6 +32,13 @@ import {
 export const CLASSIC_RECIPE_IDS = ["ootd_stop", "grwm_loading"] as const;
 export const MOMENT_RECIPE_IDS = ["reveal_object", "outfit_reveal", "surprise_reaction", "playful_camera"] as const;
 export const REEL_RECIPE_IDS = [...CLASSIC_RECIPE_IDS, ...MOMENT_RECIPE_IDS] as const;
+/**
+ * Classic recipes that the daily rotation / scene fallback may pick. grwm_loading is deliberately
+ * NOT here: it became the fallback on almost every stationary day (ootd_stop needs locomotion) and
+ * burned "grwm, almost ready" onto reel after reel. The recipe stays defined only so old
+ * chs_media rows / the chs_shot_archetypes FK still resolve; it is never chosen for a new day.
+ */
+export const ROTATION_CLASSIC_IDS = ["ootd_stop"] as const;
 export type ReelRecipeId = (typeof REEL_RECIPE_IDS)[number];
 
 /**
@@ -313,15 +320,15 @@ export const REEL_RECIPES: Record<ReelRecipeId, ReelRecipe> = {
     openingState: "mid get-ready, one hand already raised toward her hair, looking toward the mirror just off camera",
     hookBeat: "Within the first second she glances to the lens as if to say it is still loading.",
     action: "she finishes one small get-ready touch and her shoulders drop into a satisfied half-smile",
-    closingBeat: "She holds the look, almost ready, and the last frame matches the first so it loops.",
+    closingBeat: "She holds the look, finished, and the last frame matches the first so it loops.",
     negativePrompt: [...DEFAULT_REEL_NEGATIVES, "no outfit change", "no fast movement"].join(", "),
+    // No "grwm" / "almost ready" lines (user feedback 13.10: it was on every reel). Retired recipe.
     hookTextPool: [
-      "grwm loading…",
-      "grwm, almost ready",
       "getting ready, slowly",
       "one more touch and done",
-      "grwm, slow edition",
-      "almost ready, almost",
+      "the last little detail",
+      "hair first, then coffee",
+      "slow morning routine",
     ],
     archetypeAction: "she finishes one small get-ready touch and her shoulders drop into a satisfied half-smile",
     archetypeGuidance:
@@ -330,7 +337,7 @@ export const REEL_RECIPES: Record<ReelRecipeId, ReelRecipe> = {
       "Unfinished, in-process get-ready moment — hand raised to hair or collar, face visible, relaxed and real. Clean negative space in the top third for the overlay.",
     videoDirective:
       "One finishing touch, a glance to the lens, a satisfied half-smile — like a progress bar completing. 2 beats, loops on the half-smile.",
-    overlayStyle: "Short lowercase GRWM line — 'grwm loading…'. Top third.",
+    overlayStyle: "Short lowercase get-ready line — 'one more touch and done'. Top third.",
   },
   reveal_object: momentRecipe("reveal_object", "Reveal object", STATIONARY_PLUS, REVEAL_VARIANTS, {
     archetypeAction: "she faces the lens with one hand hidden behind her back, about to reveal something, a mischievous half-smile",
@@ -383,15 +390,38 @@ export function reelRecipesEnabled(flagOn: boolean, env: Record<string, string |
   return e === "true" || flagOn;
 }
 
-/** Deterministic hook text: pool index advances once per full rotation of recipes. */
+/** Normalised for comparison (case, curly quotes, trailing ellipsis/punctuation). */
+export function normalizeHookText(t: string): string {
+  return t.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[.…!?,\s]+$/g, "").replace(/\s+/g, " ").trim();
+}
+
+/** Lines never burned into a reel any more (they ran on every reel before 13.10). */
+export const BANNED_HOOK_PATTERNS: ReadonlyArray<RegExp> = [/\bgrwm\b/i, /almost ready/i];
+
+export function isBannedHookText(t: string): boolean {
+  return BANNED_HOOK_PATTERNS.some((re) => re.test(t));
+}
+
+/**
+ * Deterministic hook text that advances EVERY day (pool[day % len]), skips banned lines, and skips
+ * any line in `avoid` (the last few reels' burned-in texts) so the same phrase never runs on
+ * consecutive days. If everything is excluded it falls back to the plain day pick of the allowed pool.
+ */
 export function pickHookText(
   recipe: ReelRecipe,
   dayNumber: number | null | undefined,
-  pool: ReadonlyArray<string> = recipe.hookTextPool
+  pool: ReadonlyArray<string> = recipe.hookTextPool,
+  avoid: ReadonlyArray<string | null | undefined> = []
 ): string {
-  const n = Number.isFinite(dayNumber) ? Math.trunc(dayNumber as number) : 0;
-  const step = Math.floor(Math.abs(n) / REEL_RECIPE_IDS.length);
-  return pool[step % pool.length];
+  const n = Number.isFinite(dayNumber) ? Math.abs(Math.trunc(dayNumber as number)) : 0;
+  const allowed = pool.filter((t) => !isBannedHookText(t));
+  const base = allowed.length > 0 ? allowed : pool;
+  const avoidSet = new Set(avoid.filter((a): a is string => typeof a === "string" && !!a.trim()).map(normalizeHookText));
+  for (let i = 0; i < base.length; i++) {
+    const t = base[(n + i) % base.length];
+    if (!avoidSet.has(normalizeHookText(t))) return t;
+  }
+  return base[n % base.length];
 }
 
 /* ── Phase 8 rotation ──────────────────────────────────────────────────────────────────────────
@@ -413,7 +443,7 @@ export function momentRecipesEnabled(env: Record<string, string | undefined> = p
 export function recipeIdForDay(seed: number, env: Record<string, string | undefined> = process.env): ReelRecipeId {
   const s = Number.isFinite(seed) ? Math.trunc(seed) : 0;
   if (!momentRecipesEnabled(env)) {
-    return CLASSIC_RECIPE_IDS[((s % CLASSIC_RECIPE_IDS.length) + CLASSIC_RECIPE_IDS.length) % CLASSIC_RECIPE_IDS.length];
+    return ROTATION_CLASSIC_IDS[((s % ROTATION_CLASSIC_IDS.length) + ROTATION_CLASSIC_IDS.length) % ROTATION_CLASSIC_IDS.length];
   }
   const L = ROTATION_PATTERN.length;
   const cycle = Math.floor(s / L);
@@ -424,7 +454,7 @@ export function recipeIdForDay(seed: number, env: Record<string, string | undefi
     return MOMENT_RECIPE_IDS[((k % MOMENT_RECIPE_IDS.length) + MOMENT_RECIPE_IDS.length) % MOMENT_RECIPE_IDS.length];
   }
   const k = cycle * C_PER_CYCLE + before.filter((x) => x === "C").length;
-  return CLASSIC_RECIPE_IDS[((k % CLASSIC_RECIPE_IDS.length) + CLASSIC_RECIPE_IDS.length) % CLASSIC_RECIPE_IDS.length];
+  return ROTATION_CLASSIC_IDS[((k % ROTATION_CLASSIC_IDS.length) + ROTATION_CLASSIC_IDS.length) % ROTATION_CLASSIC_IDS.length];
 }
 
 /** Variants of `recipe` that the scene can carry (always >= 1 for variant recipes). */
@@ -484,6 +514,8 @@ export interface RecipeReelInput {
   sceneLocation?: string | null;
   activityHint?: string | null;
   dayNumber?: number | null;
+  /** Hook texts burned into the most recent reels — never repeated (consecutive-day guard). */
+  avoidHookTexts?: ReadonlyArray<string | null | undefined>;
 }
 
 export interface CompiledRecipeReel extends SimpleReelPrompt {
@@ -524,7 +556,7 @@ export function compileRecipeReel(recipe: ReelRecipe, input: RecipeReelInput): C
       `Semantic validation failed for reel_video (${recipe.id}): ${compiled.validation.errors.map((e) => `[${e.rule}] ${e.detail}`).join(" | ")}`
     );
   }
-  const hookText = pickHookText(recipe, input.dayNumber, variant?.hookTextPool ?? recipe.hookTextPool);
+  const hookText = pickHookText(recipe, input.dayNumber, variant?.hookTextPool ?? recipe.hookTextPool, input.avoidHookTexts ?? []);
   return {
     ...compiled,
     recipe,

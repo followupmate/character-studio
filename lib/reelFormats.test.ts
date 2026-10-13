@@ -14,7 +14,7 @@ describe("pickReelFormat", () => {
   it("rotates deterministically by seed (phase 8: 10-day M/C pattern)", () => {
     expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => pickReelFormat(d, {}).id)).toEqual([
       "reveal_object", "outfit_reveal", "ootd_stop", "surprise_reaction", "playful_camera",
-      "reveal_object", "grwm_loading", "outfit_reveal", "surprise_reaction", "ootd_stop", "playful_camera",
+      "reveal_object", "ootd_stop", "outfit_reveal", "surprise_reaction", "ootd_stop", "playful_camera",
     ]);
   });
 
@@ -24,7 +24,9 @@ describe("pickReelFormat", () => {
 
   it("cycles through every format within 20 consecutive days", () => {
     const seen = new Set(Array.from({ length: 20 }, (_, d) => pickReelFormat(d, {}).id));
-    expect(seen.size).toBe(REEL_FORMATS.length);
+    // every format except the retired grwm_loading
+    expect(seen.size).toBe(REEL_FORMATS.length - 1);
+    expect(seen.has("grwm_loading")).toBe(false);
   });
 
   it("handles negative/garbage seeds without crashing", () => {
@@ -41,10 +43,10 @@ describe("pickReelFormat", () => {
 });
 
 describe("Phase 2 default rotation = the two reel recipes", () => {
-  it("REEL_FORMATS = all six recipes; with REEL_MOMENT_RECIPES=false the classic pair alternates by day", () => {
+  it("REEL_FORMATS = all six recipes; with REEL_MOMENT_RECIPES=false only ootd_stop runs", () => {
     expect(REEL_FORMATS.map((f) => f.id)).toEqual(["ootd_stop", "grwm_loading", "reveal_object", "outfit_reveal", "surprise_reaction", "playful_camera"]);
     expect(pickReelFormat(0, CLASSIC).id).toBe("ootd_stop");
-    expect(pickReelFormat(1, CLASSIC).id).toBe("grwm_loading");
+    expect(pickReelFormat(1, CLASSIC).id).toBe("ootd_stop");
     expect(pickReelFormat(2, CLASSIC).id).toBe("ootd_stop");
   });
 
@@ -67,8 +69,9 @@ describe("Phase 2 default rotation = the two reel recipes", () => {
 describe("pickReelFormatForScene", () => {
   it("classic mode keeps the old behaviour", () => {
     expect(pickReelFormatForScene(0, "locomotion", CLASSIC)?.id).toBe("ootd_stop");
-    expect(pickReelFormatForScene(1, "grooming", CLASSIC)?.id).toBe("grwm_loading");
-    expect(pickReelFormatForScene(0, "grooming", CLASSIC)?.id).toBe("grwm_loading");
+    // grwm_loading retired: a grooming scene no longer falls back to it -> old flow (undefined)
+    expect(pickReelFormatForScene(1, "grooming", CLASSIC)?.id).toBeUndefined();
+    expect(pickReelFormatForScene(0, "grooming", CLASSIC)?.id).toBeUndefined();
     expect(pickReelFormatForScene(1, "locomotion", CLASSIC)?.id).toBe("ootd_stop");
     for (const c of ["swimming", "exercise", "reclining", "eating_drinking", "other"] as const) {
       expect(pickReelFormatForScene(0, c, CLASSIC), c).toBeUndefined();

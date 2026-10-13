@@ -120,6 +120,25 @@ export async function recomputeBatchStatus(batchId: string): Promise<"ready" | "
   return status;
 }
 
+/** Last few reel_video hook texts for this character, excluding today's story day. Never throws. */
+export async function recentReelHookTexts(characterId: string, storyDayId: string, limit = 3): Promise<string[]> {
+  try {
+    const { data } = await supabase
+      .from("chs_media")
+      .select("hook_text, chs_daily_plans!inner(character_id, story_day_id)")
+      .eq("slot", "reel_video")
+      .eq("chs_daily_plans.character_id", characterId)
+      .neq("chs_daily_plans.story_day_id", storyDayId)
+      .not("hook_text", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return ((data ?? []) as Array<{ hook_text: string | null }>).map((r) => r.hook_text).filter((t): t is string => !!t);
+  } catch (err) {
+    console.warn("[dailyBatch] recent hook texts unavailable:", err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
 interface SlotGenerationResult {
   prompt: string;
   visualSignature: { palette: string; lens: string; movement: string } | null;
@@ -544,6 +563,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     if (picked && (await archetypeRowExists(picked.id))) reelRecipe = picked;
     else if (picked) console.warn(`[dailyBatch] reel recipe ${picked.id} skipped: chs_shot_archetypes row missing (run the Phase 2 SQL)`);
   }
+  // Overlay no-repeat guard: the hook texts burned into this character's last few reels.
+  const recentHookTexts = reelRecipe ? await recentReelHookTexts(characterId, storyDayId) : [];
   const slotsToGenerate = await determineSlotsNeeded(batchId, forceRegenerate, discoveryMode, reelFormat, storyDay.tier ?? undefined);
 
   if (slotsToGenerate.length === 0) {
@@ -669,6 +690,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           promptDirectorOn,
           reelVideoArchetypeId: archetypeMap["reel_video"],
           reelRecipe: useRecipeForReel ? reelRecipe : undefined,
+          recentHookTexts,
           tier: storyDay.tier ?? null,
           dayNumber: Number(storyDay.day_number) || null,
           visualTone: character.visual_tone ?? null,
@@ -731,6 +753,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           promptDirectorOn,
           reelVideoArchetypeId: archetypeMap["reel_video"],
           reelRecipe: useRecipeForReel ? reelRecipe : undefined,
+          recentHookTexts,
           tier: storyDay.tier ?? null,
           dayNumber: Number(storyDay.day_number) || null,
           visualTone: character.visual_tone ?? null,
@@ -949,6 +972,8 @@ interface RunSlotArgs {
   // Phase 2 — when set (and this is the reel_video slot with archetypeId === recipe.id) the prompt
   // is compiled by the recipe instead of the slot-prompt / Prompt Director path.
   reelRecipe?: ReelRecipe;
+  // Hook texts of the most recent reels (other days) — the recipe never repeats them.
+  recentHookTexts?: string[];
   // RECOVERY phase 3 — scene context for the semantic validator.
   sceneLocation?: string | null;
   activityHint?: string | null;
@@ -988,6 +1013,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
             sceneLocation: args.sceneLocation,
             activityHint: args.activityHint,
             dayNumber: args.dayNumber,
+            avoidHookTexts: args.recentHookTexts ?? [],
           })
         : null;
     const result: SlotGenerationResult = recipeReel

@@ -150,12 +150,13 @@ describe("rotation", () => {
       prev = id;
     }
     expect(moments / 1000).toBeCloseTo(0.7, 5);
-    for (const id of [...MOMENT_RECIPE_IDS, ...CLASSIC_RECIPE_IDS]) expect(seen[id]).toBeGreaterThan(100);
+    for (const id of [...MOMENT_RECIPE_IDS, "ootd_stop"]) expect(seen[id]).toBeGreaterThan(100);
+    expect(seen["grwm_loading"]).toBeUndefined(); // retired from the rotation 13.10
   });
 
-  it("kill switch REEL_MOMENT_RECIPES=false -> classic alternation", () => {
+  it("kill switch REEL_MOMENT_RECIPES=false -> ootd_stop only (grwm_loading retired)", () => {
     const env = { REEL_MOMENT_RECIPES: "false" };
-    expect([0, 1, 2, 3].map((d) => recipeIdForDay(d, env))).toEqual(["ootd_stop", "grwm_loading", "ootd_stop", "grwm_loading"]);
+    expect([0, 1, 2, 3].map((d) => recipeIdForDay(d, env))).toEqual(["ootd_stop", "ootd_stop", "ootd_stop", "ootd_stop"]);
     expect(pickReelFormat(0, env).id).toBe("ootd_stop");
   });
 
