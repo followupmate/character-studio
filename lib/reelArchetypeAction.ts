@@ -14,6 +14,11 @@ export const REEL_ARCHETYPE_ACTION: Record<string, string> = {
   // strings stay identical to the recipes'.
   ootd_stop: "she comes to a stop, one hand smoothing the front of her outfit as her eyes find the lens",
   grwm_loading: "she finishes one small get-ready touch and her shoulders drop into a satisfied half-smile",
+  // Phase 8 moment recipes (start-frame pose = the state BEFORE the moment).
+  reveal_object: "she faces the lens with one hand hidden behind her back, about to reveal something, a mischievous half-smile",
+  outfit_reveal: "she faces the lens with both hands raised to her hair or collar, about to change one thing about her look",
+  surprise_reaction: "she sits composed close to the lens, a moment before something off camera catches her attention",
+  playful_camera: "she leans close to the lens with a playful look, one hand starting to reach toward the camera",
 };
 
 export function plannedActionForReelArchetype(archetypeId: string | undefined): string | undefined {

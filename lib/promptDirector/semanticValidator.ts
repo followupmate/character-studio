@@ -86,6 +86,23 @@ export const FORMAT_REQUIRED_ACTIONS: Record<string, { actions: ReadonlyArray<st
     actions: ["grooming", "gesture", "seated_still", "standing_still"],
     why: "GRWM loading needs an in-place get-ready touch (hair, collar, jewellery)",
   },
+  // Phase 8 moment recipes (same static-copy rule).
+  reveal_object: {
+    actions: ["gesture", "seated_still", "standing_still", "eating_drinking", "other"],
+    why: "a reveal needs her in place with a free hand to bring an object out from behind her back or a sleeve",
+  },
+  outfit_reveal: {
+    actions: ["gesture", "seated_still", "standing_still", "locomotion", "grooming", "other"],
+    why: "an accessory/layer reveal needs her upright with both hands free",
+  },
+  surprise_reaction: {
+    actions: ["gesture", "seated_still", "standing_still", "reclining", "grooming", "eating_drinking", "other"],
+    why: "an off-camera surprise reaction needs her settled in place, face to the lens",
+  },
+  playful_camera: {
+    actions: ["gesture", "seated_still", "standing_still", "reclining", "eating_drinking", "other"],
+    why: "a gesture to the lens needs her close to the camera and in place",
+  },
   // POV, wait_for_it, romanticize and relatable_confession impose no action requirement — they are
   // framing/expression shapes that work over any action class.
 };

@@ -43,10 +43,10 @@ const SCENES: Record<string, { brief: SceneBriefJson; location: string; cls: Act
 };
 
 describe("recipe definitions", () => {
-  it("has exactly ootd_stop and grwm_loading, id === key === archetype id", () => {
-    expect([...REEL_RECIPE_IDS]).toEqual(["ootd_stop", "grwm_loading"]);
+  it("has the 2 classic + 4 moment recipes, id === key === archetype id", () => {
+    expect([...REEL_RECIPE_IDS]).toEqual(["ootd_stop", "grwm_loading", "reveal_object", "outfit_reveal", "surprise_reaction", "playful_camera"]);
     for (const id of REEL_RECIPE_IDS) expect(REEL_RECIPES[id].id).toBe(id);
-    expect(REEL_RECIPE_LIST).toHaveLength(2);
+    expect(REEL_RECIPE_LIST).toHaveLength(6);
     expect(getReelRecipe("ootd_stop")?.label).toBe("OOTD stop");
     expect(getReelRecipe("walking_motion")).toBeUndefined();
     expect(isReelRecipeId("grwm_loading")).toBe(true);
@@ -63,7 +63,8 @@ describe("recipe definitions", () => {
   it("every hook text passes the full hook validator (spelling, glyphs, allowlist, layout, ban list)", async () => {
     for (const r of REEL_RECIPE_LIST) {
       expect(r.hookTextPool.length).toBeGreaterThanOrEqual(5);
-      for (const t of r.hookTextPool) {
+      const all = new Set([...r.hookTextPool, ...(r.variants ?? []).flatMap((x) => x.hookTextPool)]);
+      for (const t of all) {
         const v = await validateHookText(t);
         expect(v.issues, `"${t}" (${r.id})`).toEqual([]);
         expect(v.ok).toBe(true);
@@ -84,10 +85,12 @@ describe("recipe definitions", () => {
   it("pickHookText is deterministic and walks the whole pool across a recipe's own days", () => {
     for (const r of REEL_RECIPE_LIST) {
       expect(pickHookText(r, 10)).toBe(pickHookText(r, 10));
-      // a recipe runs on every 2nd day (rotation of 2) -> its days are all even or all odd
-      const parity = REEL_RECIPE_IDS.indexOf(r.id);
       const seen = new Set<string>();
-      for (let k = 0; k < r.hookTextPool.length; k++) seen.add(pickHookText(r, parity + 2 * k));
+      for (let d = 0; d < 400; d++) {
+        const t = pickHookText(r, d);
+        expect(r.hookTextPool).toContain(t);
+        seen.add(t);
+      }
       expect(seen.size).toBe(r.hookTextPool.length);
     }
     expect(pickHookText(REEL_RECIPES.ootd_stop, NaN)).toBe(REEL_RECIPES.ootd_stop.hookTextPool[0]);
@@ -188,6 +191,7 @@ describe("flags and marker", () => {
 
 describe("Phase 2 SQL migration", () => {
   const sql = readFileSync(new URL("../../supabase/migrations/20261004_reel_recipes.sql", import.meta.url), "utf8");
+  const CLASSIC = REEL_RECIPE_LIST.filter((r) => r.kind !== "moment");
 
   it("is idempotent (ON CONFLICT) and has no destructive statement outside comments", () => {
     expect(sql).toMatch(/ON CONFLICT \(id\) DO UPDATE/);
@@ -197,7 +201,8 @@ describe("Phase 2 SQL migration", () => {
   });
 
   it("inserts both recipe ids as motion family with guidance identical to the recipe", () => {
-    for (const r of REEL_RECIPE_LIST) {
+    expect(CLASSIC.map((r) => r.id)).toEqual(["ootd_stop", "grwm_loading"]);
+    for (const r of CLASSIC) {
       const m = sql.match(new RegExp(`\\('${r.id}',\\s*'motion',\\s*'((?:[^']|'')*)'\\)`));
       expect(m, r.id).toBeTruthy();
       expect(m![1].replace(/''/g, "'")).toBe(r.archetypeGuidance);

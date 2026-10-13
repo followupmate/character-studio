@@ -13,7 +13,15 @@
 // story_days.hook_text (e.g. "she finally went"), applied on top in post.
 
 import type { ActionClass } from "@/lib/sceneSemantics";
-import { REEL_RECIPE_LIST, getReelRecipe, recipeSupportsActionClass } from "@/lib/recovery/reelRecipes";
+import {
+  REEL_RECIPE_LIST,
+  CLASSIC_RECIPE_IDS,
+  MOMENT_RECIPE_IDS,
+  getReelRecipe,
+  momentRecipesEnabled,
+  recipeIdForDay,
+  recipeSupportsActionClass,
+} from "@/lib/recovery/reelRecipes";
 
 export interface ReelFormat {
   id: string;
@@ -104,6 +112,11 @@ export function activeReelFormats(env: Record<string, string | undefined> = proc
 // Deterministic rotation by a per-day seed (day_number), so formats cycle evenly
 // rather than repeating or clustering.
 export function pickReelFormat(seed: number, env: Record<string, string | undefined> = process.env): ReelFormat {
+  // Phase 8: recipe rotation (70% moment recipes, never the same recipe two days running).
+  if (!legacyReelFormatsEnabled(env)) {
+    const id = recipeIdForDay(seed, env);
+    return REEL_FORMATS.find((f) => f.id === id)!;
+  }
   const formats = activeReelFormats(env);
   const s = Number.isFinite(seed) ? Math.trunc(seed) : 0;
   const i = ((s % formats.length) + formats.length) % formats.length;
@@ -131,5 +144,16 @@ export function pickReelFormatForScene(
     return !!r && recipeSupportsActionClass(r, actionClass);
   };
   if (fits(preferred)) return preferred;
-  return REEL_FORMATS.find((f) => f.id !== preferred.id && fits(f));
+  // Fallback order: the other moment recipes (starting after the preferred one), then the classics;
+  // yesterday's rotation pick is skipped so a fallback does not repeat yesterday when avoidable.
+  const yesterday = pickReelFormat(seed - 1, env).id;
+  const moments = momentRecipesEnabled(env) ? [...MOMENT_RECIPE_IDS] : [];
+  const start = moments.indexOf(preferred.id as (typeof MOMENT_RECIPE_IDS)[number]);
+  const rotated = start >= 0 ? [...moments.slice(start + 1), ...moments.slice(0, start)] : moments;
+  const order = [...rotated, ...CLASSIC_RECIPE_IDS].filter((id) => id !== preferred.id);
+  const byId = (id: string) => REEL_FORMATS.find((f) => f.id === id)!;
+  return (
+    order.map(byId).find((f) => f.id !== yesterday && fits(f)) ??
+    order.map(byId).find((f) => fits(f))
+  );
 }
