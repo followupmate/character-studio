@@ -490,6 +490,8 @@ export interface ReelRecipeMarker {
   /** Set by video-async: "applied" | "render_failed" | "needs_review" | "skipped". */
   overlay_status?: string;
   overlay_detail?: string;
+  /** Experiment tag (reel_hook_overrides), e.g. "controversy_v1". */
+  experiment?: string;
 }
 
 export function readReelRecipeMarker(signature: unknown): ReelRecipeMarker | null {
@@ -506,6 +508,7 @@ export function readReelRecipeMarker(signature: unknown): ReelRecipeMarker | nul
     ...(typeof r.variant === "string" && r.variant ? { variant: r.variant } : {}),
     ...(r.overlay_status ? { overlay_status: r.overlay_status } : {}),
     ...(r.overlay_detail ? { overlay_detail: r.overlay_detail } : {}),
+    ...(typeof r.experiment === "string" && r.experiment ? { experiment: r.experiment } : {}),
   };
 }
 

@@ -1,3 +1,4 @@
+import { reelHookOverrideFor } from "@/lib/reelHookOverrides";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getIgAccessToken } from "@/lib/igToken";
@@ -188,7 +189,15 @@ export async function POST(req: Request) {
       // from-batch queued the post, so re-ground the caption against the final frame prompt right
       // before publishing. No grounding text -> caption unchanged. See lib/captionGrounding.ts.
       let igCaptionText: string | null = post.ig_caption;
-      if (media.type === "video") {
+      // reel_hook_overrides (controversy test): keep the override caption verbatim (ends on its own
+      // question) — no grounding, no share line appended.
+      let overrideReelCaption = false;
+      if (media.type === "video" && post.ig_caption && post.character_id) {
+        const { data: ch } = await supabase.from("chs_characters").select("feature_flags").eq("id", post.character_id).maybeSingle();
+        const o = reelHookOverrideFor((ch as { feature_flags?: unknown } | null)?.feature_flags, dateKeyInZone(post.scheduled_at ?? new Date()));
+        overrideReelCaption = !!o?.caption && String(post.ig_caption).trim() === o.caption.trim();
+      }
+      if (media.type === "video" && !overrideReelCaption) {
         const grounded = groundCaption(post.ig_caption, await loadReelGroundingText(post.media_id as string | null));
         if (grounded.dropped.length > 0) {
           console.warn(`[post-now] reel caption: dropped ${grounded.dropped.length} ungrounded sentence(s): ${grounded.dropped.map((d) => d.terms.join("+")).join(", ")}`);
@@ -196,7 +205,9 @@ export async function POST(req: Request) {
         }
       }
       const caption =
-        media.type === "video"
+        media.type === "video" && overrideReelCaption
+          ? formatIgCaption(post.ig_caption, post.hashtags)
+          : media.type === "video"
           ? formatReelCaption(igCaptionText, post.hashtags, dateKeyInZone(post.scheduled_at ?? new Date()), String(post_id))
           : formatIgCaption(post.ig_caption, post.hashtags);
 

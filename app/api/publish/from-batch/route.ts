@@ -1,3 +1,4 @@
+import { reelHookOverrideFor } from "@/lib/reelHookOverrides";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { scheduleFor, localDateIn, isMissingScheduleColumn, type PostingSchedule } from "@/lib/publishTime";
@@ -25,6 +26,7 @@ interface Character {
   posting_schedule?: PostingSchedule | null;
   platforms: string[];
   fanvue_link: string | null;
+  feature_flags?: unknown;
 }
 
 interface StoryDay {
@@ -137,7 +139,11 @@ async function processCharacter(
       `reel caption: dropped ${reelGrounding.dropped.length} ungrounded sentence(s) (${[...new Set(reelGrounding.dropped.flatMap((d) => d.terms))].join(", ")})`
     );
   }
-  const reelCaptionFromStory: string = ensureReelShareCta(reelGrounding.text, (storyDay as StoryDay).date);
+  // reel_hook_overrides (controversy test): a per-date caption replaces the story caption and ends on
+  // its own question — no share line appended, so the comment ask stays last.
+  const reelOverride = reelHookOverrideFor(char.feature_flags, (storyDay as StoryDay).date);
+  const overrideCaption = reelOverride?.caption ? sanitizeCaption(reelOverride.caption).text : "";
+  const reelCaptionFromStory: string = overrideCaption || ensureReelShareCta(reelGrounding.text, (storyDay as StoryDay).date);
   const reelYtDescription: string = reelGrounding.text
     ? appendSendLine(reelGrounding.text, (storyDay as StoryDay).day_number)
     : "";
@@ -288,7 +294,7 @@ async function handle(req: Request): Promise<NextResponse> {
       return q;
     };
     let { data: characters, error: charErr } = await buildQuery(
-      "id, name, posting_time, posting_tz, posting_schedule, platforms, fanvue_link"
+      "id, name, posting_time, posting_tz, posting_schedule, platforms, fanvue_link, feature_flags"
     );
     if (isMissingScheduleColumn(charErr)) {
       // Migration 20260929_posting_schedule.sql not applied yet -> legacy behaviour.

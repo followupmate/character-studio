@@ -1,3 +1,4 @@
+import { reelHookOverrideFor, type ReelHookOverride } from "@/lib/reelHookOverrides";
 import { supabase } from "@/lib/supabase";
 import {
   DAILY_SLOTS,
@@ -565,6 +566,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   }
   // Overlay no-repeat guard: the hook texts burned into this character's last few reels.
   const recentHookTexts = reelRecipe ? await recentReelHookTexts(characterId, storyDayId) : [];
+  const reelHookOverride = reelHookOverrideFor(character.feature_flags, storyDay.date);
   const slotsToGenerate = await determineSlotsNeeded(batchId, forceRegenerate, discoveryMode, reelFormat, storyDay.tier ?? undefined);
 
   if (slotsToGenerate.length === 0) {
@@ -691,6 +693,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           reelVideoArchetypeId: archetypeMap["reel_video"],
           reelRecipe: useRecipeForReel ? reelRecipe : undefined,
           recentHookTexts,
+          reelHookOverride,
           tier: storyDay.tier ?? null,
           dayNumber: Number(storyDay.day_number) || null,
           visualTone: character.visual_tone ?? null,
@@ -754,6 +757,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
           reelVideoArchetypeId: archetypeMap["reel_video"],
           reelRecipe: useRecipeForReel ? reelRecipe : undefined,
           recentHookTexts,
+          reelHookOverride,
           tier: storyDay.tier ?? null,
           dayNumber: Number(storyDay.day_number) || null,
           visualTone: character.visual_tone ?? null,
@@ -993,6 +997,8 @@ interface RunSlotArgs {
   visualTone?: string | null;
   stylingNote?: string | null;
   dayHookText?: string | null;
+  /** Per-date overlay override (feature_flags.reel_hook_overrides); still obeys the no-repeat guard. */
+  reelHookOverride?: ReelHookOverride | null;
 }
 
 async function runSlot(args: RunSlotArgs): Promise<void> {
@@ -1016,6 +1022,17 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
             avoidHookTexts: args.recentHookTexts ?? [],
           })
         : null;
+    if (recipeReel && args.reelHookOverride) {
+      const o = args.reelHookOverride;
+      const norm = (t: string) => t.trim().toLowerCase().replace(/\s+/g, " ");
+      const repeats = (args.recentHookTexts ?? []).some((t) => !!t && norm(t) === norm(o.hook_text));
+      if (!repeats) {
+        recipeReel.hookText = o.hook_text;
+        recipeReel.marker = { ...recipeReel.marker, hook_text: o.hook_text, ...(o.tag ? { experiment: o.tag } : {}) };
+      } else {
+        console.warn(`[dailyBatch] reel_hook_override skipped (repeats a recent reel): ${o.hook_text}`);
+      }
+    }
     const result: SlotGenerationResult = recipeReel
       ? { prompt: recipeReel.prompt, visualSignature: null, hookText: recipeReel.hookText, reelRecipeMarker: recipeReel.marker }
       : args.promptDirectorOn
