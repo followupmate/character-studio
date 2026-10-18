@@ -19,6 +19,8 @@ export const REEL_ARCHETYPE_ACTION: Record<string, string> = {
   outfit_reveal: "she faces the lens with both hands raised to her hair or collar, about to change one thing about her look",
   surprise_reaction: "she sits composed close to the lens, a moment before something off camera catches her attention",
   playful_camera: "she leans close to the lens with a playful look, one hand starting to reach toward the camera",
+  // Series recipe (forced per date by reel_hook_overrides, never in the rotation).
+  tries_episode: "she is mid-attempt at a new activity, concentrating, body in motion, face visible and close to the lens",
 };
 
 export function plannedActionForReelArchetype(archetypeId: string | undefined): string | undefined {

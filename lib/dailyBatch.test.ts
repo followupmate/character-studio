@@ -90,7 +90,7 @@ describe("reel recipe wiring (source pins)", () => {
     expect(src).toMatch(/archetypeRowExists\(picked\.id\)/);
   });
   it("recipe archetypes are excluded from the random motion pool", () => {
-    expect(src).toMatch(/excludeArchetypeIds: REEL_RECIPE_IDS/);
+    expect(src).toMatch(/excludeArchetypeIds: ALL_REEL_RECIPE_IDS/);
   });
   it("the recipe prompt only replaces the generator for the reel_video slot whose archetype IS the recipe", () => {
     expect(src).toMatch(/args\.slot\.slot === "reel_video" && args\.archetypeId === args\.reelRecipe\.id/);

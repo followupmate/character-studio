@@ -39,7 +39,13 @@ export const REEL_RECIPE_IDS = [...CLASSIC_RECIPE_IDS, ...MOMENT_RECIPE_IDS] as 
  * chs_media rows / the chs_shot_archetypes FK still resolve; it is never chosen for a new day.
  */
 export const ROTATION_CLASSIC_IDS = ["ootd_stop"] as const;
-export type ReelRecipeId = (typeof REEL_RECIPE_IDS)[number];
+/**
+ * Series recipes: never in the daily rotation / scene fallback / REEL_RECIPE_LIST — only forced for a
+ * date by feature_flags.reel_hook_overrides[date].recipe (e.g. the "tries everything once" test).
+ */
+export const SERIES_RECIPE_IDS = ["tries_episode"] as const;
+export const ALL_REEL_RECIPE_IDS = [...REEL_RECIPE_IDS, ...SERIES_RECIPE_IDS] as const;
+export type ReelRecipeId = (typeof ALL_REEL_RECIPE_IDS)[number];
 
 /**
  * One concrete way to play a recipe. `when` gates it on the scene (entityText = allowed_props +
@@ -371,12 +377,35 @@ export const REEL_RECIPES: Record<ReelRecipeId, ReelRecipe> = {
     videoDirective: "She interacts with the lens inside the first second (offer, cover, tap), then a grin straight into the lens and a still end pose.",
     overlayStyle: "Short lowercase direct-address line — 'this one’s yours', 'okay, now look'. Top third.",
   }),
+  // "Vivienne tries everything once" — first attempt at a new activity: real motion, a wobble/laugh
+  // as the event, payoff = close face + eye contact. Runs on ANY action class (horse riding, pole,
+  // boxing, surfing...). The overlay comes from the date override; the pool is only a fallback.
+  tries_episode: {
+    id: "tries_episode",
+    label: "Tries everything once — episode",
+    kind: "moment",
+    requiredActionClasses: ["locomotion", "seated_still", "standing_still", "reclining", "gesture", "grooming", "eating_drinking", "exercise", "swimming", "other"],
+    framing: "close_medium",
+    durationSec: 8,
+    openingState: "mid-attempt at something she has never done before, concentrating hard, her body already in motion",
+    hookBeat: "Within the first second the attempt wobbles and she breaks into a surprised, genuine laugh.",
+    action: "she steadies herself and tries the same movement once more, this time with more confidence",
+    closingBeat: "She turns her face close to the lens, slightly breathless and proud, holds eye contact with a small smile, and the clip ends on a clean still frame.",
+    negativePrompt: [...DEFAULT_REEL_NEGATIVES, "no scene change", "no extra hands", "no extra fingers", "no object morphing", "no camera roll", "no second person's face", "no social media interface"].join(", "),
+    hookTextPool: ["first time, be nice", "never done this before", "okay, harder than it looks", "day one, no idea"],
+    archetypeAction: "she is mid-attempt at a new activity, concentrating, body in motion, face visible and close to the lens",
+    archetypeGuidance:
+      "Tries everything once — close-medium, face clearly visible. She is mid-attempt at an activity she has never done (the scene names it); within the first second a small wobble or misstep makes her laugh; she tries once more with more confidence; payoff: she turns close to the lens, breathless and proud, eye contact. Elegant styling in contrast with the setting. One take, no cuts.",
+    coverCue: "Close-medium, mid-movement in the new activity, face visible, concentration about to break into a laugh. Clean space in the top third for the overlay.",
+    videoDirective: "Mid-attempt -> wobble and a real laugh inside the first second -> one more confident try -> close to the lens, eye contact, still end pose. One take.",
+    overlayStyle: "Numbered series line — 'day 1: horse riding. never done this'. Top third.",
+  },
 };
 
 export const REEL_RECIPE_LIST: ReelRecipe[] = REEL_RECIPE_IDS.map((id) => REEL_RECIPES[id]);
 
 export function getReelRecipe(id: string | null | undefined): ReelRecipe | undefined {
-  return id && (REEL_RECIPE_IDS as readonly string[]).includes(id) ? REEL_RECIPES[id as ReelRecipeId] : undefined;
+  return id && (ALL_REEL_RECIPE_IDS as readonly string[]).includes(id) ? REEL_RECIPES[id as ReelRecipeId] : undefined;
 }
 
 export function isReelRecipeId(id: string | null | undefined): id is ReelRecipeId {

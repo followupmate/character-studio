@@ -6,6 +6,7 @@ import { Character, StoryDay } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
 import { maybeCreateLifeEvent } from "@/lib/lifeState";
 import { generateStoryDayContent } from "@/lib/storyGeneration";
+import { reelHookOverrideFor, episodeContextBlock } from "@/lib/reelHookOverrides";
 import { maybeAutoPlanArc, getActiveArc, getArcDayContext, arcContextBlock } from "@/lib/arcPlanner";
 
 export const runtime = "nodejs";
@@ -105,12 +106,17 @@ export async function GET() {
           }
         }
 
+        // Series / per-date override (feature_flags.reel_hook_overrides[today]) — optional.
+        const dayOverride = reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, today);
+        const episodeContext = episodeContextBlock(dayOverride);
         const { story, tier, driftSeeds, family, magnetism, strategyInput } = await generateStoryDayContent({
           character: char,
           dayNumber,
           targetDate: today,
           historyRows: (history as StoryDay[]) ?? [],
           arcContext: arcContextText,
+          ...(episodeContext ? { episodeContext } : {}),
+          ...(episodeContext && dayOverride?.tier ? { forceTier: dayOverride.tier as StoryTier } : {}),
           deadlineAt: startedAt + STORY_LLM_BUDGET_MS,
         });
 
@@ -134,6 +140,13 @@ export async function GET() {
             created: false,
           });
           continue;
+        }
+
+        if (episodeContext && dayOverride) {
+          if (dayOverride.location) (story as Record<string, unknown>).location = dayOverride.location;
+          if (dayOverride.hook_text) (story as Record<string, unknown>).hook_text = dayOverride.hook_text;
+          if (dayOverride.caption) (story as Record<string, unknown>).ig_caption = dayOverride.caption;
+          episodeLabel = dayOverride.hook_text ?? episodeLabel;
         }
 
         // Prepare life_state with arc city override if needed

@@ -172,7 +172,7 @@ export async function POST(req: Request) {
         // Hook overlay (Phase 2, default off). raw -> source_url, overlay -> media_url.
         const marker = readReelRecipeMarker(media.visual_signature);
         if (marker && (await overlayEnabledFor(media.batch_id))) {
-          const outcome = await applyHookOverlayToBuffer({ video: buf, hookText: marker.hook_text });
+          const outcome = await applyHookOverlayToBuffer({ video: buf, hookText: marker.hook_text, relaxed: !!marker.experiment });
           const sigWith = (status: string, detail?: string) => ({
             ...((media.visual_signature as Record<string, unknown> | null) ?? {}),
             reel_recipe: { ...marker, overlay_status: status, ...(detail ? { overlay_detail: detail.slice(0, 300) } : {}) } satisfies ReelRecipeMarker,

@@ -35,11 +35,13 @@ export async function applyHookOverlayToBuffer(opts: {
   /** Seconds into the overlay clip to take the cover frame from (hook fully faded in). */
   coverAtSec?: number;
   makeCover?: boolean;
+  /** Operator-approved override text (marker.experiment set) — relaxed word/char limits. */
+  relaxed?: boolean;
 }): Promise<OverlayOutcome> {
   const t0 = Date.now();
   let validation;
   try {
-    validation = await validateHookText(opts.hookText);
+    validation = await validateHookText(opts.hookText, { relaxed: opts.relaxed === true });
   } catch (e) {
     // dictionary / font could not even be loaded: infrastructure, not the text.
     return { kind: "render_failed", error: `validator unavailable: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300) };
@@ -54,7 +56,7 @@ export async function applyHookOverlayToBuffer(opts: {
     const input = path.join(dir, "in.mp4");
     const output = path.join(dir, "out.mp4");
     await fs.writeFile(input, opts.video);
-    await applyHookOverlay({ inputVideo: input, output, text: validation.text, ffmpegPath: bin, timeoutMs: opts.timeoutMs ?? 70_000 });
+    await applyHookOverlay({ inputVideo: input, output, text: validation.text, relaxed: opts.relaxed === true, ffmpegPath: bin, timeoutMs: opts.timeoutMs ?? 70_000 });
     const video = await fs.readFile(output);
     if (video.length < 10_000) throw new Error(`overlay output suspiciously small (${video.length} bytes)`);
 

@@ -25,6 +25,9 @@ const BASE_IMAGE_NEGATIVES = [
 // elements. SceneBriefJson has no field for "this scene explicitly needs visible text" today — if
 // one is ever added, gate this on its absence rather than always including it.
 const TEXT_RENDERING_NEGATIVES = ["no text", "no captions", "no typography", "no labels", "no UI elements", "no watermark"];
+// 18.10 incident: a Soul 2 reel_start_frame came back framed as an Instagram screenshot (username
+// header bar + avatar + button burned into the top of the image) and Kling carried it into the reel.
+const APP_UI_NEGATIVES = ["no social media app interface", "no username header bar", "no profile avatar icon", "not a phone screenshot"];
 
 const BASE_VIDEO_NEGATIVES = [
   "face morphing",
@@ -64,7 +67,7 @@ export function buildNegatives(input: PromptDirectorInput, luxuryWorldEnabled?: 
   if (input.outputType === "image") {
     // F1 — add luxury negatives when luxury_world_v1 is enabled
     const luxNegatives = luxuryWorldEnabled ? LUXURY_NEGATIVES : [];
-    return cleanList([...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES, ...contextualImageNegatives(input), ...luxNegatives]);
+    return cleanList([...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES, ...APP_UI_NEGATIVES, ...contextualImageNegatives(input), ...luxNegatives]);
   }
 
   const negatives = [...BASE_VIDEO_NEGATIVES];
@@ -83,5 +86,5 @@ export function buildNegatives(input: PromptDirectorInput, luxuryWorldEnabled?: 
 // premium-environment negatives at the API call site.
 export function getBaseImageNegatives(luxuryWorldEnabled?: boolean): string {
   const lux = luxuryWorldEnabled ? LUXURY_NEGATIVES : [];
-  return [...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES, ...lux].join(", ");
+  return [...BASE_IMAGE_NEGATIVES, ...TEXT_RENDERING_NEGATIVES, ...APP_UI_NEGATIVES, ...lux].join(", ");
 }

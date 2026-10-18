@@ -23,6 +23,7 @@ import {
   recipeSupportsActionClass,
   reelRecipesEnabled,
   REEL_RECIPE_IDS,
+  ALL_REEL_RECIPE_IDS,
   type ReelRecipe,
   type ReelRecipeMarker,
 } from "@/lib/recovery/reelRecipes";
@@ -552,13 +553,16 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     sceneLocation: storyDay.location ?? null,
     activityHint: situation?.activity ?? storyDay.narrative ?? null,
   });
-  const reelFormat = discoveryMode ? pickReelFormatForScene(dayNo, sceneActionClass) : undefined;
+  const reelHookOverride = reelHookOverrideFor(character.feature_flags, storyDay.date);
+  // Series day (reel_hook_overrides[date].recipe): that recipe replaces the rotation for the reel.
+  const forcedRecipe = reelHookOverride?.recipe ? getReelRecipe(reelHookOverride.recipe) : undefined;
+  const reelFormat = discoveryMode ? (forcedRecipe ?? pickReelFormatForScene(dayNo, sceneActionClass)) : undefined;
   // Phase 2 — reel recipe (ootd_stop / grwm_loading) for today's reel_video. Off unless the
   // character has reel_recipes_v1 or REEL_RECIPES_ENABLED=true; requires the scene to be able to
   // carry it (pickReelFormatForScene filters by action class).
   let reelRecipe: ReelRecipe | undefined;
   if (reelRecipesEnabled(isFlagOn(character.feature_flags, "reel_recipes_v1"))) {
-    const picked = getReelRecipe(pickReelFormatForScene(dayNo, sceneActionClass)?.id);
+    const picked = forcedRecipe ?? getReelRecipe(pickReelFormatForScene(dayNo, sceneActionClass)?.id);
     // The recipe's archetype row must exist (Phase 2 SQL) — otherwise logArchetypeUsage would hit
     // the chs_archetype_usage FK AFTER the prompt was saved. Missing row -> no recipe, old flow.
     if (picked && (await archetypeRowExists(picked.id))) reelRecipe = picked;
@@ -566,7 +570,6 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   }
   // Overlay no-repeat guard: the hook texts burned into this character's last few reels.
   const recentHookTexts = reelRecipe ? await recentReelHookTexts(characterId, storyDayId) : [];
-  const reelHookOverride = reelHookOverrideFor(character.feature_flags, storyDay.date);
   const slotsToGenerate = await determineSlotsNeeded(batchId, forceRegenerate, discoveryMode, reelFormat, storyDay.tier ?? undefined);
 
   if (slotsToGenerate.length === 0) {
@@ -628,7 +631,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     slots: slotsToGenerate,
     preferredShotStyle: ciStrategyInput?.preferredShotStyle,
     // Recipe archetypes are never drawn from the random motion pool — only assigned below.
-    excludeArchetypeIds: REEL_RECIPE_IDS,
+    excludeArchetypeIds: ALL_REEL_RECIPE_IDS,
   });
 
   if (archetypeMap["reel_video"]) {
@@ -928,6 +931,12 @@ function mergeVisualSignature(
 
 // Phase 2 — additive, same pattern as situation_tags / prompt_director: chs_media.visual_signature is
 // a generic jsonb column, so the reel-recipe marker needs no migration.
+/** reel_hook_overrides tag -> visual_signature.experiment on every slot of the day (measurement). */
+function withExperimentTag<T>(sig: T, tag: string | null): T {
+  if (!tag) return sig;
+  return { ...((sig as Record<string, unknown> | null) ?? {}), experiment: tag } as T;
+}
+
 function withReelRecipeMarker(
   sig: Record<string, unknown> | null,
   marker?: ReelRecipeMarker
@@ -1022,8 +1031,8 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
             avoidHookTexts: args.recentHookTexts ?? [],
           })
         : null;
-    if (recipeReel && args.reelHookOverride) {
-      const o = args.reelHookOverride;
+    if (recipeReel && args.reelHookOverride?.hook_text) {
+      const o = args.reelHookOverride as { hook_text: string; tag?: string | null };
       const norm = (t: string) => t.trim().toLowerCase().replace(/\s+/g, " ");
       const repeats = (args.recentHookTexts ?? []).some((t) => !!t && norm(t) === norm(o.hook_text));
       if (!repeats) {
@@ -1071,9 +1080,12 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
       .update({
         higgsfield_prompt: finalPrompt,
         shot_archetype: args.archetypeId,
-        visual_signature: withReelRecipeMarker(
-          mergeVisualSignature(result.visualSignature, args.situationTags, result.promptPackage),
-          result.reelRecipeMarker
+        visual_signature: withExperimentTag(
+          withReelRecipeMarker(
+            mergeVisualSignature(result.visualSignature, args.situationTags, result.promptPackage),
+            result.reelRecipeMarker
+          ),
+          args.reelHookOverride?.tag ?? null
         ),
         // Slot-level hook (carousel overlay / extractHookText) wins when the doctrine path produced
         // one; otherwise the day's own hook_text. The Prompt Director path never produces a
@@ -1152,7 +1164,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
 
     const { data: storyDay } = await supabase
       .from("chs_story_days")
-      .select("arc_position, drift_seeds, day_number, tier, hook_text, location")
+      .select("arc_position, drift_seeds, day_number, tier, hook_text, location, date")
       .eq("id", row.chs_daily_plans.story_day_id)
       .single();
 
@@ -1194,6 +1206,11 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
             sceneLocation: (storyDay as { location?: string | null }).location ?? null,
             dayNumber: rcDayNo,
           });
+          const rcOverride = reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, (storyDay as { date?: string }).date);
+          if (recipeReel && rcOverride?.hook_text) {
+            recipeReel.hookText = rcOverride.hook_text;
+            recipeReel.marker = { ...recipeReel.marker, hook_text: rcOverride.hook_text, ...(rcOverride.tag ? { experiment: rcOverride.tag } : {}) };
+          }
         } catch (recipeErr) {
           console.warn(`[dailyBatch] reconcile: recipe ${recipe.id} not usable, falling back:`, recipeErr instanceof Error ? recipeErr.message : recipeErr);
         }
@@ -1206,7 +1223,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
             .update({
               higgsfield_prompt: recipeReel.prompt,
               shot_archetype: recipe.id,
-              visual_signature: { reel_recipe: recipeReel.marker },
+              visual_signature: { reel_recipe: recipeReel.marker, ...(recipeReel.marker.experiment ? { experiment: recipeReel.marker.experiment } : {}) },
               hook_text: recipeReel.hookText,
               visual_tone_used: (char as { visual_tone?: string | null }).visual_tone ?? null,
               styling_note_used: (char as { styling_note?: string | null }).styling_note ?? null,

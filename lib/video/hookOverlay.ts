@@ -44,8 +44,8 @@ export function buildHookSvg(text: string, font: FontLike = loadHookFont()): str
 }
 
 /** Render the overlay PNG (RGBA, 1080x1920). Throws if the text does not validate. */
-export async function renderHookPng(rawText: string, font: FontLike = loadHookFont()): Promise<Buffer> {
-  const v = await validateHookText(rawText, { font });
+export async function renderHookPng(rawText: string, font: FontLike = loadHookFont(), relaxed = false): Promise<Buffer> {
+  const v = await validateHookText(rawText, { font, relaxed });
   if (!v.ok) throw new Error(`invalid hook text: ${v.issues.map((i) => `${i.code}${i.detail ? `(${i.detail})` : ""}`).join(", ")}`);
   const svg = buildHookSvg(v.text, font);
   const png = new Resvg(svg, { fitTo: { mode: "width", value: HOOK_SPEC.canvas.w } }).render().asPng();
@@ -122,6 +122,8 @@ export async function applyHookOverlay(opts: {
   inputVideo: string;
   output: string;
   text: string;
+  /** reel_hook_overrides text (see hookTextValidator relaxed). */
+  relaxed?: boolean;
   startSec?: number;
   ffmpegPath?: string;
   /** Also keep the overlay PNG here (debug/QA). */
@@ -131,7 +133,7 @@ export async function applyHookOverlay(opts: {
 }): Promise<{ ffmpegPath: string }> {
   const bin = opts.ffmpegPath ?? (await resolveFfmpegPath());
   if (!bin) throw new Error("ffmpeg binary not found (ffmpeg-static / FFMPEG_PATH)");
-  const png = await renderHookPng(opts.text);
+  const png = await renderHookPng(opts.text, undefined, opts.relaxed === true);
   const pngPath = opts.keepPngAt ?? path.join(os.tmpdir(), `hook-${process.pid}-${Date.now()}.png`);
   await fs.writeFile(pngPath, png);
   try {

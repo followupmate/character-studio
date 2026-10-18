@@ -52,6 +52,7 @@ export const HOOK_ALLOWED_CHARS = /^[A-Za-z0-9 .,!?:’—–\-%&…]*$/;
 
 /** Slang/brand tokens that a normal en_US dictionary rejects but we accept. */
 export const HOOK_WORD_ALLOWLIST: ReadonlySet<string> = new Set([
+  "i’m", "i’ve", "i’ll", "i’d",
   "grwm", "ootd", "pov", "ai", "ok", "okay", "yeah", "yep", "nope", "hmm",
   "tbh", "idk", "vibes", "vibe", "hey", "hi", "wanna", "gonna", "gotta",
   "lowkey", "highkey", "rn", "fr", "tn", "gm", "xx",
@@ -114,7 +115,13 @@ export type ValidateOptions = {
   font?: FontLike;
   spell?: Spell;
   extraWords?: Iterable<string>;
+  /** Operator-approved per-date override (reel_hook_overrides): <= 9 words / 44 chars and "=" allowed.
+   *  The real gates — 2-line layout, IG safe zone, glyphs, spelling, banned terms — stay unchanged. */
+  relaxed?: boolean;
 };
+
+export const RELAXED_HOOK_LIMITS = { maxWords: 9, maxChars: 44 } as const;
+const RELAXED_ALLOWED_CHARS = /^[A-Za-z0-9 .,!?:’—–\-%&…=]*$/;
 
 export async function validateHookText(raw: string, opts: ValidateOptions = {}): Promise<HookValidation> {
   const text = normalizeHookText(raw);
@@ -125,11 +132,14 @@ export async function validateHookText(raw: string, opts: ValidateOptions = {}):
     return { ok: false, text, issues: [{ code: "empty" }], layout: null };
   }
 
-  if (text.length > HOOK_SPEC.limits.maxChars) add("too_long", `${text.length}>${HOOK_SPEC.limits.maxChars}`);
-  if (wordCount(text) > HOOK_SPEC.limits.maxWords) add("too_many_words", `${wordCount(text)}>${HOOK_SPEC.limits.maxWords}`);
+  const maxChars = opts.relaxed ? RELAXED_HOOK_LIMITS.maxChars : HOOK_SPEC.limits.maxChars;
+  const maxWords = opts.relaxed ? RELAXED_HOOK_LIMITS.maxWords : HOOK_SPEC.limits.maxWords;
+  const allowed = opts.relaxed ? RELAXED_ALLOWED_CHARS : HOOK_ALLOWED_CHARS;
+  if (text.length > maxChars) add("too_long", `${text.length}>${maxChars}`);
+  if (wordCount(text) > maxWords) add("too_many_words", `${wordCount(text)}>${maxWords}`);
 
-  if (!HOOK_ALLOWED_CHARS.test(text)) {
-    const bad = [...new Set([...text].filter((c) => !HOOK_ALLOWED_CHARS.test(c)))];
+  if (!allowed.test(text)) {
+    const bad = [...new Set([...text].filter((c) => !allowed.test(c)))];
     add("disallowed_char", bad.join(" "));
   }
 
