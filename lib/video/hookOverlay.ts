@@ -17,6 +17,7 @@ import { Resvg } from "@resvg/resvg-js";
 import {
   HOOK_SPEC,
   layoutHook,
+  type HookPosition,
   linePathData,
   loadHookFont,
   type FontLike,
@@ -24,14 +25,27 @@ import {
 import { validateHookText } from "./hookTextValidator";
 
 /** Transparent-background SVG: soft top scrim + ivory outlined text. */
-export function buildHookSvg(text: string, font: FontLike = loadHookFont()): string {
-  const layout = layoutHook(font, text);
+export function buildHookSvg(text: string, font: FontLike = loadHookFont(), position: HookPosition = "top"): string {
+  const layout = layoutHook(font, text, position);
   if (!layout.ok) throw new Error(`hook layout failed: ${layout.reason}`);
   const { w, h } = HOOK_SPEC.canvas;
   const { scrim, color } = HOOK_SPEC;
   const paths = layout.lines
     .map((l) => `<path d="${linePathData(font, l)}" fill="${color}"/>`)
     .join("");
+  if (position === "lower") {
+    const top = HOOK_SPEC.lowerScrim.top;
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+      `<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1">` +
+      `<stop offset="0" stop-color="#000" stop-opacity="0"/>` +
+      `<stop offset="0.75" stop-color="#000" stop-opacity="${HOOK_SPEC.lowerScrim.opacityBottom}"/>` +
+      `<stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient></defs>` +
+      `<rect x="0" y="${top}" width="${w}" height="${h - top}" fill="url(#s)"/>` +
+      paths +
+      `</svg>`
+    );
+  }
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
     `<defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1">` +
@@ -44,10 +58,10 @@ export function buildHookSvg(text: string, font: FontLike = loadHookFont()): str
 }
 
 /** Render the overlay PNG (RGBA, 1080x1920). Throws if the text does not validate. */
-export async function renderHookPng(rawText: string, font: FontLike = loadHookFont(), relaxed = false): Promise<Buffer> {
-  const v = await validateHookText(rawText, { font, relaxed });
+export async function renderHookPng(rawText: string, font: FontLike = loadHookFont(), relaxed = false, position: HookPosition = "top"): Promise<Buffer> {
+  const v = await validateHookText(rawText, { font, relaxed, position });
   if (!v.ok) throw new Error(`invalid hook text: ${v.issues.map((i) => `${i.code}${i.detail ? `(${i.detail})` : ""}`).join(", ")}`);
-  const svg = buildHookSvg(v.text, font);
+  const svg = buildHookSvg(v.text, font, position);
   const png = new Resvg(svg, { fitTo: { mode: "width", value: HOOK_SPEC.canvas.w } }).render().asPng();
   return Buffer.from(png);
 }
@@ -124,6 +138,8 @@ export async function applyHookOverlay(opts: {
   text: string;
   /** reel_hook_overrides text (see hookTextValidator relaxed). */
   relaxed?: boolean;
+  /** Overlay placement; default top third. */
+  position?: HookPosition;
   startSec?: number;
   ffmpegPath?: string;
   /** Also keep the overlay PNG here (debug/QA). */
@@ -133,7 +149,7 @@ export async function applyHookOverlay(opts: {
 }): Promise<{ ffmpegPath: string }> {
   const bin = opts.ffmpegPath ?? (await resolveFfmpegPath());
   if (!bin) throw new Error("ffmpeg binary not found (ffmpeg-static / FFMPEG_PATH)");
-  const png = await renderHookPng(opts.text, undefined, opts.relaxed === true);
+  const png = await renderHookPng(opts.text, undefined, opts.relaxed === true, opts.position ?? "top");
   const pngPath = opts.keepPngAt ?? path.join(os.tmpdir(), `hook-${process.pid}-${Date.now()}.png`);
   await fs.writeFile(pngPath, png);
   try {

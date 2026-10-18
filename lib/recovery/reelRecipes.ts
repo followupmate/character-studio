@@ -92,6 +92,8 @@ export interface ReelRecipe {
   kind?: "classic" | "moment";
   /** Phase 8: scene-gated variants; when present the top-level beats/pool are the default variant's. */
   variants?: ReadonlyArray<ReelRecipeVariant>;
+  /** Where the burned hook goes. Default top third; "lower" = just above the IG caption zone. */
+  overlayPosition?: "top" | "lower";
 }
 
 // ── Phase 8 moment recipes ─────────────────────────────────────────────────────────────────────
@@ -396,9 +398,10 @@ export const REEL_RECIPES: Record<ReelRecipeId, ReelRecipe> = {
     archetypeAction: "she is mid-attempt at a new activity, concentrating, body in motion, face visible and close to the lens",
     archetypeGuidance:
       "Tries everything once — close-medium, face clearly visible. She is mid-attempt at an activity she has never done (the scene names it); within the first second a small wobble or misstep makes her laugh; she tries once more with more confidence; payoff: she turns close to the lens, breathless and proud, eye contact. Elegant styling in contrast with the setting. One take, no cuts.",
-    coverCue: "Close-medium, mid-movement in the new activity, face visible, concentration about to break into a laugh. Clean space in the top third for the overlay.",
+    coverCue: "Close-medium, mid-movement in the new activity, face visible, concentration about to break into a laugh. Her face sits in the upper-middle of the frame with a little headroom above her head; keep the lower third uncluttered for the overlay.",
     videoDirective: "Mid-attempt -> wobble and a real laugh inside the first second -> one more confident try -> close to the lens, eye contact, still end pose. One take.",
-    overlayStyle: "Numbered series line — 'day 1: horse riding. never done this'. Top third.",
+    overlayStyle: "Numbered series line — 'day 1: horse riding. never done this'. Lower third, above the caption zone.",
+    overlayPosition: "lower",
   },
 };
 
@@ -521,6 +524,8 @@ export interface ReelRecipeMarker {
   overlay_detail?: string;
   /** Experiment tag (reel_hook_overrides), e.g. "controversy_v1". */
   experiment?: string;
+  /** Burned overlay placement (recipe overlayPosition). Absent = top third. */
+  overlay_position?: "top" | "lower";
 }
 
 export function readReelRecipeMarker(signature: unknown): ReelRecipeMarker | null {
@@ -538,6 +543,7 @@ export function readReelRecipeMarker(signature: unknown): ReelRecipeMarker | nul
     ...(r.overlay_status ? { overlay_status: r.overlay_status } : {}),
     ...(r.overlay_detail ? { overlay_detail: r.overlay_detail } : {}),
     ...(typeof r.experiment === "string" && r.experiment ? { experiment: r.experiment } : {}),
+    ...(r.overlay_position === "lower" || r.overlay_position === "top" ? { overlay_position: r.overlay_position } : {}),
   };
 }
 
@@ -548,6 +554,9 @@ export interface RecipeReelInput {
   dayNumber?: number | null;
   /** Hook texts burned into the most recent reels — never repeated (consecutive-day guard). */
   avoidHookTexts?: ReadonlyArray<string | null | undefined>;
+  /** Series day (reel_hook_overrides[date].action): the concrete activity, gerund phrase
+   *  ("riding a calm chestnut horse at a walk"). Only the tries_episode recipe uses it. */
+  activity?: string | null;
 }
 
 export interface CompiledRecipeReel extends SimpleReelPrompt {
@@ -564,7 +573,15 @@ export function compileRecipeReel(recipe: ReelRecipe, input: RecipeReelInput): C
     const sem = resolveSceneSemantics(input.sceneBrief, { sceneLocation: input.sceneLocation, activityHint: input.activityHint });
     variant = pickVariant(recipe, sem.entityText, input.dayNumber);
   }
-  const beats = variant ?? recipe;
+  const act = recipe.id === "tries_episode" ? input.activity?.trim().replace(/[.\s]+$/, "") : undefined;
+  const beats = act
+    ? {
+        openingState: `mid-attempt at ${act} for the very first time, concentrating hard, her body already in motion`,
+        hookBeat: recipe.hookBeat,
+        action: `she steadies herself and keeps ${act}, this time with more confidence`,
+        closingBeat: recipe.closingBeat,
+      }
+    : variant ?? recipe;
   const compiled = compileSimpleReel({
     sceneBrief: input.sceneBrief,
     sceneLocation: input.sceneLocation,
@@ -600,6 +617,7 @@ export function compileRecipeReel(recipe: ReelRecipe, input: RecipeReelInput): C
       negative_prompt: compiled.negativePrompt,
       target_duration_sec: recipe.durationSec,
       ...(variant ? { variant: variant.id } : {}),
+      ...(recipe.overlayPosition ? { overlay_position: recipe.overlayPosition } : {}),
     },
   };
 }

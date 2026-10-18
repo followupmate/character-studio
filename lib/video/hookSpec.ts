@@ -37,6 +37,10 @@ export const HOOK_SPEC = {
   firstBaselineY: 440,
   color: "#F5F0E6",
   scrim: { height: 620, opacityTop: 0.42 },
+  /** "lower" placement (series reels whose face sits in the upper/middle frame): the LAST baseline
+   *  sits here, so 1–2 lines end just above the IG caption zone (safe.bottom 1248). */
+  lowerLastBaselineY: 1196,
+  lowerScrim: { top: 860, opacityBottom: 0.42 },
   timing: { fadeIn: 0.25, fadeOutStart: 2.85, fadeOut: 0.35, total: 3.2 },
   limits: { maxWords: 6, maxChars: 38, maxLines: 2 },
 } as const;
@@ -115,18 +119,24 @@ export function wrapHook(
   return best ? best.lines : "too_many_lines";
 }
 
-export function layoutHook(font: FontLike, text: string): HookLayout {
+export type HookPosition = "top" | "lower";
+
+export function layoutHook(font: FontLike, text: string, position: HookPosition = "top"): HookLayout {
   const wrapped = wrapHook(font, text);
   if (typeof wrapped === "string") return { ok: false, reason: wrapped };
   const size = HOOK_SPEC.fontSizePx;
   const cx = HOOK_SPEC.canvas.w / 2;
+  const firstBaselineY =
+    position === "lower"
+      ? HOOK_SPEC.lowerLastBaselineY - (wrapped.length - 1) * size * HOOK_SPEC.lineHeight
+      : HOOK_SPEC.firstBaselineY;
   const lines: LayoutLine[] = wrapped.map((t, i) => {
     const width = measureText(font, t);
     return {
       text: t,
       width,
       x: cx - width / 2,
-      baselineY: HOOK_SPEC.firstBaselineY + i * size * HOOK_SPEC.lineHeight,
+      baselineY: firstBaselineY + i * size * HOOK_SPEC.lineHeight,
     };
   });
   const left = Math.min(...lines.map((l) => l.x));

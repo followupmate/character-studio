@@ -1029,6 +1029,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
             activityHint: args.activityHint,
             dayNumber: args.dayNumber,
             avoidHookTexts: args.recentHookTexts ?? [],
+            activity: args.reelHookOverride?.action ?? null,
           })
         : null;
     if (recipeReel && args.reelHookOverride?.hook_text) {
@@ -1205,6 +1206,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
             sceneBrief: row.chs_daily_plans.scene_brief,
             sceneLocation: (storyDay as { location?: string | null }).location ?? null,
             dayNumber: rcDayNo,
+            activity: reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, (storyDay as { date?: string }).date)?.action ?? null,
           });
           const rcOverride = reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, (storyDay as { date?: string }).date);
           if (recipeReel && rcOverride?.hook_text) {

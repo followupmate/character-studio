@@ -49,3 +49,26 @@ describe("reel_hook_overrides", () => {
     expect((await validateHookText("day 1: horse riding. never done this")).ok).toBe(false);
   });
 });
+
+describe("tries_episode fixes (18.10 preview)", () => {
+  const ACTS = ["riding a calm chestnut horse at a walk", "spinning slowly around the pole", "trying a cartwheel on the floor mat", "shaping wet clay on the pottery wheel", "throwing punches at a heavy bag", "carrying a wooden plank across the site", "standing up on a surfboard in small waves", "drawing a bow and aiming at the target"];
+  it("the reel prompt names the day's activity and the marker asks for the lower overlay", () => {
+    for (const a of ACTS) {
+      const out = compileRecipeReel(REEL_RECIPES.tries_episode, { sceneBrief: brief(`She is ${a}, her first time.`), sceneLocation: "studio", dayNumber: 141, activity: a });
+      expect(out.prompt).toContain(a);
+      expect(out.marker.overlay_position).toBe("lower");
+    }
+  });
+  it("other recipes keep the top overlay and ignore activity", () => {
+    const out = compileRecipeReel(REEL_RECIPES.surprise_reaction, { sceneBrief: brief("She sits at the café table by the window."), sceneLocation: "cafe", dayNumber: 3, activity: "riding a horse" });
+    expect(out.prompt).not.toContain("riding a horse");
+    expect(out.marker.overlay_position).toBeUndefined();
+  });
+  it("lower placement stays inside the IG safe zone for every series overlay", async () => {
+    for (const t of ["day 1: horse riding. never done this", "day 6: construction site. never done this", "day 4: you picked ceramics"]) {
+      const v = await validateHookText(t, { relaxed: true, position: "lower" });
+      expect(v.issues).toEqual([]);
+      if (v.layout?.ok) expect(v.layout.bbox.top).toBeGreaterThan(1000);
+    }
+  });
+});

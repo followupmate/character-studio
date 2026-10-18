@@ -118,6 +118,8 @@ export type ValidateOptions = {
   /** Operator-approved per-date override (reel_hook_overrides): <= 9 words / 44 chars and "=" allowed.
    *  The real gates — 2-line layout, IG safe zone, glyphs, spelling, banned terms — stay unchanged. */
   relaxed?: boolean;
+  /** Overlay placement (recipe overlayPosition); the safe-zone check runs on the real placement. */
+  position?: import("./hookSpec").HookPosition;
 };
 
 export const RELAXED_HOOK_LIMITS = { maxWords: 9, maxChars: 44 } as const;
@@ -166,7 +168,7 @@ export async function validateHookText(raw: string, opts: ValidateOptions = {}):
   let layout: HookLayout | null = null;
   // Layout only if glyphs exist (otherwise measuring would use .notdef widths).
   if (!missing.length) {
-    layout = layoutHook(font, text);
+    layout = layoutHook(font, text, opts.position ?? "top");
     if (!layout.ok) {
       add(layout.reason === "empty" ? "empty" : layout.reason);
     } else if (!bboxInSafeZone(layout.bbox)) {

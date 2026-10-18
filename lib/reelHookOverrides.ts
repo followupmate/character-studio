@@ -22,6 +22,8 @@ export interface ReelHookOverride {
   tier?: string | null;
   location?: string | null;
   episode_guidance?: string | null;
+  /** Gerund phrase for the reel prompt ("throwing punches at a heavy bag"). */
+  action?: string | null;
 }
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -43,6 +45,7 @@ export function reelHookOverrideFor(flags: unknown, date: string | null | undefi
     tier: str(r.tier),
     location: str(r.location),
     episode_guidance: str(r.episode_guidance),
+    action: str(r.action),
   };
   if (!out.hook_text && !out.caption && !out.tag && !out.episode_guidance) return null;
   return out;
@@ -54,6 +57,8 @@ export function episodeContextBlock(o: ReelHookOverride | null): string | undefi
   return `SERIES EPISODE TODAY (overrides the tier's usual location/activity choice for THIS day only — voice doctrine, sacred details and SFW rules still apply):
 ${o.episode_guidance}
 ${o.location ? `- location MUST be exactly this place (you may add one concrete material/light detail): ${o.location}\n` : ""}- the scene shows her ACTIVELY doing the activity (mid-movement, real effort), face clearly visible and close to the lens, ending with eye contact into the camera.
+${o.action ? `- the action on camera: ${o.action}.\n` : ""}- hair: her usual long loose dark waves, unless the wardrobe line above says it is tied for the activity.
+- framing: her face in the upper-middle of the frame with a little headroom; keep the lower third clean.
 - elegant, feminine and quietly sexy styling that CONTRASTS with the setting — never explicit, never a costume.
 - no other identifiable person in frame (an instructor may exist only off camera or as an out-of-focus hand/shoulder).
 ${o.hook_text ? `- hook_text: ${o.hook_text}\n` : ""}${o.caption ? `- ig_caption: ${o.caption.replace(/\n/g, " / ")}\n` : ""}`;
