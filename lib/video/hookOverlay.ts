@@ -72,7 +72,18 @@ export type OverlayArgsInput = {
   output: string;
   /** Overlay start offset (s). Default 0. */
   startSec?: number;
+  /** Optional end card: second PNG shown from endStartSec to the end of the clip. */
+  endPng?: string;
+  endStartSec?: number;
 };
+
+/** End-card timing (s): visible for the last END_CARD_SEC of the clip, short alpha fade-in. */
+export const END_CARD = { durationSec: 1.5, fadeIn: 0.2 } as const;
+
+/** Strip emoji / pictographs (+ ZWJ, variation selectors) the bundled font cannot render. */
+export function stripEmoji(s: string): string {
+  return s.replace(/[\p{Extended_Pictographic}\u200D\uFE0F\uFE0E]/gu, "").replace(/\s+/g, " ").trim();
+}
 
 /** ffmpeg argv (pure). Output: H.264 yuv420p, closed GOP, faststart, audio copied. */
 export function buildOverlayFfmpegArgs(i: OverlayArgsInput): string[] {
@@ -83,11 +94,16 @@ export function buildOverlayFfmpegArgs(i: OverlayArgsInput): string[] {
     `fade=t=in:st=0:d=${t.fadeIn}:alpha=1,` +
     `fade=t=out:st=${(t.fadeOutStart - 0).toFixed(2)}:d=${t.fadeOut}:alpha=1,` +
     `setpts=PTS+${start}/TB[ov];` +
-    `[0:v][ov]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[v]`;
+    (i.endPng && i.endStartSec != null
+      ? `[0:v][ov]overlay=0:0:eof_action=pass:format=auto[m];` +
+        `[2:v]format=rgba,fade=t=in:st=0:d=${END_CARD.fadeIn}:alpha=1,setpts=PTS+${Math.max(0, i.endStartSec).toFixed(2)}/TB[ec];` +
+        `[m][ec]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[v]`
+      : `[0:v][ov]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[v]`);
   return [
     "-y", "-hide_banner", "-loglevel", "error",
     "-i", i.inputVideo,
     "-loop", "1", "-t", String(t.total), "-i", i.overlayPng,
+    ...(i.endPng && i.endStartSec != null ? ["-loop", "1", "-t", String(END_CARD.durationSec + 0.5), "-i", i.endPng] : []),
     "-filter_complex", filter,
     "-map", "[v]", "-map", "0:a?",
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
@@ -108,6 +124,22 @@ export async function resolveFfmpegPath(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** Clip duration (s) parsed from `ffmpeg -i` stderr; null if unknown. */
+export function probeDurationSec(bin: string, input: string, timeoutMs = 20_000): Promise<number | null> {
+  return new Promise((resolve) => {
+    const p = spawn(bin, ["-hide_banner", "-i", input], { stdio: ["ignore", "ignore", "pipe"] });
+    let err = "";
+    p.stderr.on("data", (d) => (err += String(d)));
+    const timer = setTimeout(() => (p.kill("SIGKILL"), resolve(null)), timeoutMs);
+    p.on("error", () => (clearTimeout(timer), resolve(null)));
+    p.on("close", () => {
+      clearTimeout(timer);
+      const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(err);
+      resolve(m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null);
+    });
+  });
 }
 
 export function runFfmpeg(bin: string, args: string[], timeoutMs = 120_000): Promise<void> {
@@ -146,20 +178,34 @@ export async function applyHookOverlay(opts: {
   keepPngAt?: string;
   /** Hard ffmpeg timeout (ms). Default 120 s. */
   timeoutMs?: number;
-}): Promise<{ ffmpegPath: string }> {
+  /** Optional end-card line (already validated) over the last END_CARD.durationSec, lower third. */
+  endText?: string;
+}): Promise<{ ffmpegPath: string; endCard: boolean }> {
   const bin = opts.ffmpegPath ?? (await resolveFfmpegPath());
   if (!bin) throw new Error("ffmpeg binary not found (ffmpeg-static / FFMPEG_PATH)");
   const png = await renderHookPng(opts.text, undefined, opts.relaxed === true, opts.position ?? "top");
   const pngPath = opts.keepPngAt ?? path.join(os.tmpdir(), `hook-${process.pid}-${Date.now()}.png`);
   await fs.writeFile(pngPath, png);
+  let endPath: string | null = null;
+  let endStartSec: number | undefined;
+  if (opts.endText) {
+    const dur = await probeDurationSec(bin, opts.inputVideo);
+    // End card must not collide with the main hook (fades out at timing.total).
+    if (dur && dur - END_CARD.durationSec >= HOOK_SPEC.timing.total) {
+      endPath = path.join(os.tmpdir(), `hook-end-${process.pid}-${Date.now()}.png`);
+      await fs.writeFile(endPath, await renderHookPng(opts.endText, undefined, true, "lower"));
+      endStartSec = dur - END_CARD.durationSec;
+    }
+  }
   try {
     await runFfmpeg(
       bin,
-      buildOverlayFfmpegArgs({ inputVideo: opts.inputVideo, overlayPng: pngPath, output: opts.output, startSec: opts.startSec }),
+      buildOverlayFfmpegArgs({ inputVideo: opts.inputVideo, overlayPng: pngPath, output: opts.output, startSec: opts.startSec, ...(endPath ? { endPng: endPath, endStartSec } : {}) }),
       opts.timeoutMs,
     );
   } finally {
     if (!opts.keepPngAt) await fs.rm(pngPath, { force: true });
+    if (endPath) await fs.rm(endPath, { force: true });
   }
-  return { ffmpegPath: bin };
+  return { ffmpegPath: bin, endCard: !!endPath };
 }

@@ -11,6 +11,7 @@
 //   caption          IG reel caption, verbatim (no share line appended)
 //   tag              experiment tag -> chs_media.visual_signature.experiment (+ reel_recipe.experiment)
 //   recipe           "tries_episode" forces the series reel recipe for the day
+//   end_text         optional end-card line over the last ~1.5 s (lower third, emoji stripped)
 //   tier/location/episode_guidance  steer the story day (story route) — all optional
 import { isBannedHookText } from "@/lib/recovery/reelRecipes";
 
@@ -24,6 +25,8 @@ export interface ReelHookOverride {
   episode_guidance?: string | null;
   /** Gerund phrase for the reel prompt ("throwing punches at a heavy bag"). */
   action?: string | null;
+  /** End-card line burned over the last ~1.5 s (same lower-third style); absent = no end card. */
+  end_text?: string | null;
 }
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -46,6 +49,7 @@ export function reelHookOverrideFor(flags: unknown, date: string | null | undefi
     location: str(r.location),
     episode_guidance: str(r.episode_guidance),
     action: str(r.action),
+    end_text: str(r.end_text),
   };
   if (!out.hook_text && !out.caption && !out.tag && !out.episode_guidance) return null;
   return out;

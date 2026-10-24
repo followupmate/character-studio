@@ -12,7 +12,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { applyHookOverlay, resolveFfmpegPath, runFfmpeg } from "./hookOverlay";
+import { applyHookOverlay, resolveFfmpegPath, runFfmpeg, stripEmoji } from "./hookOverlay";
 import { validateHookText, type HookIssue } from "./hookTextValidator";
 
 /** HOOK_OVERLAY_ENABLED=false is a kill switch, =true forces on, otherwise the character flag decides. */
@@ -23,7 +23,7 @@ export function hookOverlayEnabled(flagOn: boolean, env: Record<string, string |
 }
 
 export type OverlayOutcome =
-  | { kind: "applied"; video: Buffer; cover: Buffer | null; hookText: string; ms: number }
+  | { kind: "applied"; video: Buffer; cover: Buffer | null; hookText: string; ms: number; endCard?: "applied" | "skipped"; endDetail?: string }
   | { kind: "needs_review"; issues: HookIssue[]; hookText: string }
   | { kind: "render_failed"; error: string };
 
@@ -39,6 +39,8 @@ export async function applyHookOverlayToBuffer(opts: {
   relaxed?: boolean;
   /** Recipe overlayPosition (marker.overlay_position); default top third. */
   position?: "top" | "lower";
+  /** Optional end card (reel_hook_overrides.end_text). Invalid/unfit -> skipped, main overlay unaffected. */
+  endText?: string;
 }): Promise<OverlayOutcome> {
   const t0 = Date.now();
   let validation;
@@ -50,6 +52,20 @@ export async function applyHookOverlayToBuffer(opts: {
   }
   if (!validation.ok) return { kind: "needs_review", issues: validation.issues, hookText: opts.hookText };
 
+  // End card: emoji stripped (font has none), relaxed validation, lower third. Never blocks the reel.
+  let endText: string | undefined;
+  let endDetail: string | undefined;
+  if (opts.endText) {
+    const cleaned = stripEmoji(opts.endText);
+    try {
+      const ev = cleaned ? await validateHookText(cleaned, { relaxed: true, position: "lower" }) : null;
+      if (ev?.ok) endText = ev.text;
+      else endDetail = ev ? ev.issues.map((i) => `${i.code}${i.detail ? `(${i.detail})` : ""}`).join(", ") : "empty after emoji strip";
+    } catch (e) {
+      endDetail = `end validator: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+
   let dir: string | null = null;
   try {
     const bin = opts.ffmpegPath ?? (await resolveFfmpegPath());
@@ -58,7 +74,8 @@ export async function applyHookOverlayToBuffer(opts: {
     const input = path.join(dir, "in.mp4");
     const output = path.join(dir, "out.mp4");
     await fs.writeFile(input, opts.video);
-    await applyHookOverlay({ inputVideo: input, output, text: validation.text, relaxed: opts.relaxed === true, position: opts.position ?? "top", ffmpegPath: bin, timeoutMs: opts.timeoutMs ?? 70_000 });
+    const res = await applyHookOverlay({ inputVideo: input, output, text: validation.text, relaxed: opts.relaxed === true, position: opts.position ?? "top", ffmpegPath: bin, timeoutMs: opts.timeoutMs ?? 70_000, ...(endText ? { endText } : {}) });
+    if (endText && !res.endCard) endDetail = "clip too short for end card";
     const video = await fs.readFile(output);
     if (video.length < 10_000) throw new Error(`overlay output suspiciously small (${video.length} bytes)`);
 
@@ -77,7 +94,9 @@ export async function applyHookOverlayToBuffer(opts: {
         console.warn("[hook-overlay] cover frame failed:", e instanceof Error ? e.message : e);
       }
     }
-    return { kind: "applied", video, cover, hookText: validation.text, ms: Date.now() - t0 };
+    const endCard = opts.endText ? { endCard: (res.endCard ? "applied" : "skipped") as "applied" | "skipped", ...(endDetail ? { endDetail } : {}) } : {};
+    if (opts.endText && !res.endCard) console.warn(`[hook-overlay] end card skipped: ${endDetail ?? "unknown"}`);
+    return { kind: "applied", video, cover, hookText: validation.text, ms: Date.now() - t0, ...endCard };
   } catch (e) {
     return { kind: "render_failed", error: (e instanceof Error ? e.message : String(e)).slice(0, 400) };
   } finally {

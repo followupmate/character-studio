@@ -1033,12 +1033,12 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
           })
         : null;
     if (recipeReel && args.reelHookOverride?.hook_text) {
-      const o = args.reelHookOverride as { hook_text: string; tag?: string | null };
+      const o = args.reelHookOverride as { hook_text: string; tag?: string | null; end_text?: string | null };
       const norm = (t: string) => t.trim().toLowerCase().replace(/\s+/g, " ");
       const repeats = (args.recentHookTexts ?? []).some((t) => !!t && norm(t) === norm(o.hook_text));
       if (!repeats) {
         recipeReel.hookText = o.hook_text;
-        recipeReel.marker = { ...recipeReel.marker, hook_text: o.hook_text, ...(o.tag ? { experiment: o.tag } : {}) };
+        recipeReel.marker = { ...recipeReel.marker, hook_text: o.hook_text, ...(o.tag ? { experiment: o.tag } : {}), ...(o.end_text ? { end_text: o.end_text } : {}) };
       } else {
         console.warn(`[dailyBatch] reel_hook_override skipped (repeats a recent reel): ${o.hook_text}`);
       }
@@ -1211,7 +1211,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
           const rcOverride = reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, (storyDay as { date?: string }).date);
           if (recipeReel && rcOverride?.hook_text) {
             recipeReel.hookText = rcOverride.hook_text;
-            recipeReel.marker = { ...recipeReel.marker, hook_text: rcOverride.hook_text, ...(rcOverride.tag ? { experiment: rcOverride.tag } : {}) };
+            recipeReel.marker = { ...recipeReel.marker, hook_text: rcOverride.hook_text, ...(rcOverride.tag ? { experiment: rcOverride.tag } : {}), ...(rcOverride.end_text ? { end_text: rcOverride.end_text } : {}) };
           }
         } catch (recipeErr) {
           console.warn(`[dailyBatch] reconcile: recipe ${recipe.id} not usable, falling back:`, recipeErr instanceof Error ? recipeErr.message : recipeErr);

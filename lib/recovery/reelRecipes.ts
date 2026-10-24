@@ -526,6 +526,8 @@ export interface ReelRecipeMarker {
   experiment?: string;
   /** Burned overlay placement (recipe overlayPosition). Absent = top third. */
   overlay_position?: "top" | "lower";
+  /** End-card line (reel_hook_overrides.end_text) over the last ~1.5 s. */
+  end_text?: string;
 }
 
 export function readReelRecipeMarker(signature: unknown): ReelRecipeMarker | null {
@@ -544,6 +546,7 @@ export function readReelRecipeMarker(signature: unknown): ReelRecipeMarker | nul
     ...(r.overlay_detail ? { overlay_detail: r.overlay_detail } : {}),
     ...(typeof r.experiment === "string" && r.experiment ? { experiment: r.experiment } : {}),
     ...(r.overlay_position === "lower" || r.overlay_position === "top" ? { overlay_position: r.overlay_position } : {}),
+    ...(typeof r.end_text === "string" && r.end_text.trim() ? { end_text: r.end_text.trim() } : {}),
   };
 }
 
