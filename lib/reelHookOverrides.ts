@@ -58,12 +58,13 @@ export function reelHookOverrideFor(flags: unknown, date: string | null | undefi
 /** Story-prompt block for a series episode day (empty when the override carries no guidance). */
 export function episodeContextBlock(o: ReelHookOverride | null): string | undefined {
   if (!o?.episode_guidance) return undefined;
+  const bindi = o.tag === "bindi_v1";
   return `SERIES EPISODE TODAY (overrides the tier's usual location/activity choice for THIS day only — voice doctrine, sacred details and SFW rules still apply):
 ${o.episode_guidance}
-${o.location ? `- location MUST be exactly this place (you may add one concrete material/light detail): ${o.location}\n` : ""}- the scene shows her ACTIVELY doing the activity (mid-movement, real effort), face clearly visible and close to the lens, ending with eye contact into the camera.
+${o.location ? `- location MUST be exactly this place (you may add one concrete material/light detail): ${o.location}\n` : ""}${bindi ? "- a styled costume/wardrobe look exactly as the scene prompt describes (a deliberate costume is allowed today); slow, posed, sensual movement; face clearly visible and close to the lens, ending with eye contact into the camera." : "- the scene shows her ACTIVELY doing the activity (mid-movement, real effort), face clearly visible and close to the lens, ending with eye contact into the camera."}
 ${o.action ? `- the action on camera: ${o.action}.\n` : ""}- hair: her usual long loose dark waves, unless the wardrobe line above says it is tied for the activity.
 - framing: her face in the upper-middle of the frame with a little headroom; keep the lower third clean.
-- elegant, feminine and quietly sexy styling that CONTRASTS with the setting — never explicit, never a costume.
+${bindi ? "- sheer/translucent fabric is allowed, but nipples and genitals stay fully covered (opaque panels, folds, shadow or nude-tone underwear) - never explicit." : "- elegant, feminine and quietly sexy styling that CONTRASTS with the setting — never explicit, never a costume."}
 - no other identifiable person in frame (an instructor may exist only off camera or as an out-of-focus hand/shoulder).
 ${o.hook_text ? `- hook_text: ${o.hook_text}\n` : ""}${o.caption ? `- ig_caption: ${o.caption.replace(/\n/g, " / ")}\n` : ""}`;
 }
