@@ -1,3 +1,4 @@
+import { checkIdentityMatch, checkStartFrameFace, extractFrames, faceGuardEnabled } from "@/lib/faceGuard";
 import { NextResponse } from "next/server";
 import { stripPromptHeader } from "@/lib/promptClean";
 import { fal } from "@fal-ai/client";
@@ -55,6 +56,23 @@ async function overlayEnabledFor(batchId: string | null): Promise<boolean> {
   } catch (e) {
     console.warn("[video-async] overlay flag lookup failed, overlay off:", e instanceof Error ? e.message : e);
     return false; // a flag lookup problem must never block publishing the raw reel
+  }
+}
+
+// Face guard (flag reel_face_guard_v1, env REEL_FACE_GUARD wins). Returns the identity reference
+// (character_sheet_url) when the guard is on for this batch, else null.
+async function faceGuardFor(batchId: string | null): Promise<{ on: boolean; referenceUrl: string | null }> {
+  const env = process.env.REEL_FACE_GUARD;
+  if (env === "false" || !batchId) return { on: false, referenceUrl: null };
+  try {
+    const { data: plan } = await supabase.from("chs_daily_plans").select("character_id").eq("id", batchId).maybeSingle();
+    if (!plan?.character_id) return { on: false, referenceUrl: null };
+    const { data: ch } = await supabase.from("chs_characters").select("feature_flags, character_sheet_url").eq("id", plan.character_id).maybeSingle();
+    const on = faceGuardEnabled(isFlagOn(ch?.feature_flags, "reel_face_guard_v1"));
+    return { on, referenceUrl: (ch as { character_sheet_url?: string | null } | null)?.character_sheet_url ?? null };
+  } catch (e) {
+    console.warn("[video-async] face guard flag lookup failed, guard off:", e instanceof Error ? e.message : e);
+    return { on: false, referenceUrl: null };
   }
 }
 
@@ -169,6 +187,34 @@ export async function POST(req: Request) {
         if (!vid.ok) throw new Error(`download failed ${vid.status}`);
         const buf = Buffer.from(await vid.arrayBuffer());
 
+        // Face guard (c): identity check at 4 s and 7.5 s vs the character reference. A mismatch is
+        // HELD (never published): raw clip -> source_url, media_url empty, retry ceiling, flagged.
+        const fg = await faceGuardFor(media.batch_id);
+        if (fg.on && fg.referenceUrl) {
+          try {
+            const frames = await extractFrames(buf, [4, 7.5]);
+            const id = await checkIdentityMatch(fg.referenceUrl, frames);
+            const sigBase = (media.visual_signature as Record<string, unknown> | null) ?? {};
+            const faceGuardSig = { ...((sigBase.face_guard as Record<string, unknown> | undefined) ?? {}), identity: { ok: id.ok, scores: id.scores, reason: id.reason.slice(0, 300), at: new Date().toISOString() } };
+            if (!id.ok) {
+              console.error(`[video-async] FACE GUARD identity mismatch media=${mediaId} scores=${JSON.stringify(id.scores)}: ${id.reason}`);
+              const rawUrl = await uploadPublic(`videos/${mediaId}-raw.mp4`, buf, "video/mp4");
+              await supabase.from("chs_media").update({
+                media_url: null, source_url: rawUrl, generation_status: "failed", retry_count: 3, status: "pending",
+                higgsfield_job_id: null,
+                last_error: `face_guard_hold: identity mismatch at 4s/7.5s (scores ${id.scores.join("/")}) — ${id.reason}`.slice(0, 500),
+                visual_signature: { ...sigBase, face_guard: faceGuardSig },
+              }).eq("id", mediaId);
+              await recomputeBatchStatus(media.batch_id);
+              return NextResponse.json({ status: "error", error: "face_guard_hold: identity mismatch", sourceUrl: rawUrl, scores: id.scores }, { status: 422 });
+            }
+            (media as { visual_signature: unknown }).visual_signature = { ...sigBase, face_guard: faceGuardSig };
+          } catch (fgErr) {
+            // Vision/ffmpeg infrastructure problem: do not block the reel, but leave a trace.
+            console.warn(`[video-async] face guard identity check errored (not blocking) media=${mediaId}:`, fgErr instanceof Error ? fgErr.message : fgErr);
+          }
+        }
+
         // Hook overlay (Phase 2, default off). raw -> source_url, overlay -> media_url.
         const marker = readReelRecipeMarker(media.visual_signature);
         if (marker && (await overlayEnabledFor(media.batch_id))) {
@@ -276,11 +322,39 @@ export async function POST(req: Request) {
     let startFrameUrl: string | null = null;
     const { data: sf } = await supabase
       .from("chs_media")
-      .select("media_url")
+      .select("id, media_url")
       .eq("batch_id", media.batch_id)
       .eq("slot", "reel_start_frame")
       .single();
     if (sf?.media_url) startFrameUrl = sf.media_url;
+
+    // Face guard (b): the start frame is the identity anchor for i2v. No visible face -> send the
+    // start frame back for exactly ONE regeneration via reconcile (retry_count 2 of 3) and park this
+    // video for one more reconcile pass; a second failure blocks both rows at the ceiling + flags.
+    if (startFrameUrl && sf?.id) {
+      const fg = await faceGuardFor(media.batch_id);
+      if (fg.on) {
+        try {
+          const chk = await checkStartFrameFace(startFrameUrl);
+          if (!chk.ok) {
+            const sigBase = (media.visual_signature as Record<string, unknown> | null) ?? {};
+            const prev = ((sigBase.face_guard as { start_fails?: number } | undefined)?.start_fails ?? 0) + 1;
+            const final = prev >= 2;
+            const why = `face_guard_${final ? "block" : "regen"}: start frame has no clearly visible face (${chk.reason})`.slice(0, 500);
+            console.error(`[video-async] FACE GUARD start frame failed media=${mediaId} start=${sf.id} attempt=${prev}: ${chk.reason}`);
+            await supabase.from("chs_media").update({ generation_status: "failed", retry_count: final ? 3 : 2, last_error: why }).eq("id", sf.id);
+            await supabase.from("chs_media").update({
+              generation_status: "failed", retry_count: final ? 3 : 2, higgsfield_job_id: null, last_error: why,
+              visual_signature: { ...sigBase, face_guard: { ...((sigBase.face_guard as Record<string, unknown> | undefined) ?? {}), start_fails: prev, start_check: chk } },
+            }).eq("id", mediaId);
+            await recomputeBatchStatus(media.batch_id);
+            return NextResponse.json({ status: "error", error: why }, { status: 422 });
+          }
+        } catch (fgErr) {
+          console.warn(`[video-async] face guard start check errored (not blocking) media=${mediaId}:`, fgErr instanceof Error ? fgErr.message : fgErr);
+        }
+      }
+    }
 
     // Persist an edited prompt (regenerate flow) so it's used + kept for future runs.
     if (promptOverride?.trim() && promptOverride.trim() !== media.higgsfield_prompt) {

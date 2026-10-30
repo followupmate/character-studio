@@ -1,3 +1,4 @@
+import { REEL_START_FACE_CLAUSE, REEL_START_FACE_NEGATIVES } from "@/lib/faceGuard";
 import { NextResponse } from "next/server";
 import { probeVideoDuration, evaluateDurationGate } from "@/lib/recovery/videoDuration";
 import { REEL_DURATION_GATE } from "@/lib/recovery/reelDuration";
@@ -804,6 +805,11 @@ export async function POST(req: Request) {
         effectivePrompt = g.prompt;
         if (g.removed.length) console.log(`[generate-media] ${media.slot}: orientation guard removed ${JSON.stringify(g.removed)}`);
       }
+      // Face guard (a) — 2026-10-30: a neck-down reel start frame made Kling invent a new face.
+      // The reel start frame is the identity anchor, so it ALWAYS asks for a visible face.
+      const faceGuardedStart = media.slot === "reel_start_frame";
+      if (faceGuardedStart && effectivePrompt?.trim()) effectivePrompt = `${effectivePrompt.trim()}\n\n${REEL_START_FACE_CLAUSE}`;
+      const withFaceNegatives = (n: string) => (faceGuardedStart ? `${n}, ${REEL_START_FACE_NEGATIVES}` : n);
       if (promptOverride?.trim() && promptOverride.trim() !== media.higgsfield_prompt) {
         await supabase
           .from("chs_media")
@@ -1110,7 +1116,7 @@ export async function POST(req: Request) {
                   prompt: effectivePrompt,
                   negativePrompt: (() => {
                     const n = getBaseImageNegatives(isFlagOn((char as { feature_flags?: unknown }).feature_flags, "luxury_world_v1"));
-                    return orientationGuarded ? withOrientationNegatives(n) : n;
+                    return withFaceNegatives(orientationGuarded ? withOrientationNegatives(n) : n);
                   })(),
                   soulId,
                   aspect: soulAspect,
@@ -1144,7 +1150,7 @@ export async function POST(req: Request) {
             prompt: effectivePrompt,
             negativePrompt: (() => {
               const n = recoveryNegatives ? `${baseNegatives}, ${recoveryNegatives}` : baseNegatives;
-              return orientationGuarded ? withOrientationNegatives(n) : n;
+              return withFaceNegatives(orientationGuarded ? withOrientationNegatives(n) : n);
             })(),
             soulId,
             aspect: soulAspect,

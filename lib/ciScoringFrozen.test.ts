@@ -114,8 +114,11 @@ describe("CI_SCORING_FROZEN", () => {
         frozen: true,
       });
       expect(picked.carousel_3).not.toBe("emotional_close");
-      // and no archetype is used twice inside one batch
-      const ids = Object.values(picked);
+      // face guard: the reel start frame is never a body-only / face-away archetype
+      expect(["over_shoulder", "walking_solitude"]).not.toContain(picked.reel_start_frame);
+      // and no archetype is used twice inside one batch (the reel start frame may re-use one
+      // rather than break its face exclusion)
+      const ids = Object.entries(picked).filter(([k]) => k !== "reel_start_frame").map(([, v]) => v);
       expect(new Set(ids).size).toBe(ids.length);
     }
   });

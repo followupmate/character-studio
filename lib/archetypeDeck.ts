@@ -86,6 +86,8 @@ export const DAILY_SLOTS: SlotSpec[] = [
     type: "photo",
     sequence_index: null,
     family: "subject",
+    // Face guard (2026-10-30 incident): body-only / face-away archetypes made Kling invent a new face.
+    excluded_archetypes: ["over_shoulder", "walking_solitude"],
     framing: "First frame of the 9:16 vertical reel — fed to image-to-video (Kling / Seedance). Same scene, light, wardrobe as carousel. Subject anchored in the pose the motion continues from — caught mid-action, mid-pose. CRITICAL: her FACE MUST be clearly visible and turned toward camera (at least head-and-shoulders in frame, eyes visible) — this frame is the identity anchor the video animates from; a cropped, headless, profile or face-away frame forces the video model to invent a different face (loses Vivienne). Leave room for the reel_video motion. Vertical 9:16.",
   },
   {
@@ -268,11 +270,14 @@ export function selectArchetypesForSlots({
     }
 
     if (pool.length === 0) {
-      pool = familyMatches.filter((a) => !usedThisBatch.has(a.id));
+      pool = familyMatches.filter((a) => !usedThisBatch.has(a.id) && !slot.excluded_archetypes?.includes(a.id));
     }
 
     if (pool.length === 0) {
-      pool = familyMatches;
+      // Exclusions are hard craft constraints (e.g. reel_start_frame must show the face):
+      // re-using an archetype already picked this batch beats breaking an exclusion.
+      const notExcluded = familyMatches.filter((a) => !slot.excluded_archetypes?.includes(a.id));
+      pool = notExcluded.length > 0 ? notExcluded : familyMatches;
     }
 
     // Soft weight bonus for the CI-preferred shot style, applied only WITHIN this already
