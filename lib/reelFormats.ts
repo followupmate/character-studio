@@ -16,6 +16,7 @@ import type { ActionClass } from "@/lib/sceneSemantics";
 import {
   REEL_RECIPE_LIST,
   MOMENT_RECIPE_IDS,
+  ROTATION_MOMENT_IDS,
   getReelRecipe,
   momentRecipesEnabled,
   recipeIdForDay,
@@ -147,8 +148,8 @@ export function pickReelFormatForScene(
   // Fallback order: the other moment recipes (starting after the preferred one), then the classics;
   // yesterday's rotation pick is skipped so a fallback does not repeat yesterday when avoidable.
   const yesterday = pickReelFormat(seed - 1, env).id;
-  const moments = momentRecipesEnabled(env) ? [...MOMENT_RECIPE_IDS] : [];
-  const start = moments.indexOf(preferred.id as (typeof MOMENT_RECIPE_IDS)[number]);
+  const moments: string[] = momentRecipesEnabled(env) ? [...ROTATION_MOMENT_IDS] : [];
+  const start = moments.indexOf(preferred.id);
   const rotated = start >= 0 ? [...moments.slice(start + 1), ...moments.slice(0, start)] : moments;
   const order = [...rotated, ...ROTATION_CLASSIC_IDS].filter((id) => id !== preferred.id);
   const byId = (id: string) => REEL_FORMATS.find((f) => f.id === id)!;

@@ -24,7 +24,7 @@ const BASE_IMAGE_NEGATIVES = [
 // benefits from an explicit negative, so image generation never defaults to rendering UI/caption
 // elements. SceneBriefJson has no field for "this scene explicitly needs visible text" today — if
 // one is ever added, gate this on its absence rather than always including it.
-const TEXT_RENDERING_NEGATIVES = ["no text", "no captions", "no typography", "no labels", "no UI elements", "no watermark"];
+const TEXT_RENDERING_NEGATIVES = ["no text", "no letters", "no signage", "no captions", "no typography", "no labels", "no UI elements", "no watermark"];
 // 18.10 incident: a Soul 2 reel_start_frame came back framed as an Instagram screenshot (username
 // header bar + avatar + button burned into the top of the image) and Kling carried it into the reel.
 const APP_UI_NEGATIVES = ["no social media app interface", "no username header bar", "no profile avatar icon", "not a phone screenshot"];

@@ -59,7 +59,7 @@ export function reelHookOverrideFor(flags: unknown, date: string | null | undefi
 export function episodeContextBlock(o: ReelHookOverride | null): string | undefined {
   if (!o?.episode_guidance) return undefined;
   const bindi = o.tag === "bindi_v1";
-  return `SERIES EPISODE TODAY (overrides the tier's usual location/activity choice for THIS day only — voice doctrine, sacred details and SFW rules still apply):
+  return `SERIES EPISODE TODAY — ABSOLUTE PRIORITY (this scene's location, wardrobe, pose, props and light override the tier, any travel arc/trip/city, life state and every other block for THIS day; other context may only colour the mood, never change the place, outfit or props; voice doctrine, sacred details and SFW rules still apply):
 ${o.episode_guidance}
 ${o.location ? `- location MUST be exactly this place (you may add one concrete material/light detail): ${o.location}\n` : ""}${bindi ? "- a styled costume/wardrobe look exactly as the scene prompt describes (a deliberate costume is allowed today); slow, posed, sensual movement; face clearly visible and close to the lens, ending with eye contact into the camera." : "- the scene shows her ACTIVELY doing the activity (mid-movement, real effort), face clearly visible and close to the lens, ending with eye contact into the camera."}
 ${o.action ? `- the action on camera: ${o.action}.\n` : ""}- hair: her usual long loose dark waves, unless the wardrobe line above says it is tied for the activity.

@@ -109,6 +109,13 @@ export async function GET() {
         // Series / per-date override (feature_flags.reel_hook_overrides[today]) — optional.
         const dayOverride = reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, today);
         const episodeContext = episodeContextBlock(dayOverride);
+        // Series scene has ABSOLUTE priority over the travel arc: on a scene day (location/guidance set)
+        // the arc may not inject its city, location or props. Arc id/label kept only for bookkeeping.
+        if (episodeContext && (dayOverride?.location || dayOverride?.episode_guidance)) {
+          if (arcContextText) console.log(`[story] ${char.slug}: series scene overrides arc for ${today} (arc context + city dropped)`);
+          arcContextText = undefined;
+          arcCityOverride = undefined;
+        }
         const { story, tier, driftSeeds, family, magnetism, strategyInput } = await generateStoryDayContent({
           character: char,
           dayNumber,

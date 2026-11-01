@@ -13,8 +13,8 @@ const CLASSIC = { REEL_MOMENT_RECIPES: "false" } as never;
 describe("pickReelFormat", () => {
   it("rotates deterministically by seed (phase 8: 10-day M/C pattern)", () => {
     expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => pickReelFormat(d, {}).id)).toEqual([
-      "reveal_object", "outfit_reveal", "ootd_stop", "surprise_reaction", "playful_camera",
-      "reveal_object", "ootd_stop", "outfit_reveal", "surprise_reaction", "ootd_stop", "playful_camera",
+      "outfit_reveal", "surprise_reaction", "ootd_stop", "playful_camera", "outfit_reveal",
+      "surprise_reaction", "ootd_stop", "playful_camera", "outfit_reveal", "ootd_stop", "surprise_reaction",
     ]);
   });
 
@@ -24,8 +24,9 @@ describe("pickReelFormat", () => {
 
   it("cycles through every format within 20 consecutive days", () => {
     const seen = new Set(Array.from({ length: 20 }, (_, d) => pickReelFormat(d, {}).id));
-    // every format except the retired grwm_loading
-    expect(seen.size).toBe(REEL_FORMATS.length - 1);
+    // every format except the retired grwm_loading and the disabled reveal_object (2026-11-01)
+    expect(seen.size).toBe(REEL_FORMATS.length - 2);
+    expect(seen.has("reveal_object")).toBe(false);
     expect(seen.has("grwm_loading")).toBe(false);
   });
 
@@ -79,7 +80,7 @@ describe("pickReelFormatForScene", () => {
   });
 
   it("keeps the calendar pick when the scene can carry it", () => {
-    expect(pickReelFormatForScene(0, "seated_still", {})?.id).toBe("reveal_object");
+    expect(pickReelFormatForScene(0, "seated_still", {})?.id).toBe("outfit_reveal");
     expect(pickReelFormatForScene(2, "locomotion", {})?.id).toBe("ootd_stop");
   });
 
@@ -97,7 +98,7 @@ describe("pickReelFormatForScene", () => {
   });
 
   it("unknown scene class falls back to the calendar pick", () => {
-    expect(pickReelFormatForScene(1, undefined, {})?.id).toBe("outfit_reveal");
+    expect(pickReelFormatForScene(1, undefined, {})?.id).toBe("surprise_reaction");
   });
 
   it("legacy mode ignores the scene filter (pre-Phase-2 behaviour)", () => {

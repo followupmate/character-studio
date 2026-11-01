@@ -102,7 +102,7 @@ describe("negative prompt override", () => {
     const out = compileSimpleReel({ sceneBrief: SCENES.seated.brief, sceneLocation: "office", dayNumber: 3 });
     expect(out.negativePrompt).toBe(DEFAULT_REEL_NEGATIVES.join(", "));
     expect(out.negativePrompt).toBe(
-      "no speech, no text, no captions, no watermark, no camera movement, no zoom, no cuts, no second person in frame, no face morphing"
+      "no speech, no text, no letters, no signage, no captions, no objects pulled from sleeve, nothing in hands unless the scene requires it, no watermark, no camera movement, no zoom, no cuts, no second person in frame, no face morphing"
     );
   });
 

@@ -32,6 +32,10 @@ import {
 export const CLASSIC_RECIPE_IDS = ["ootd_stop", "grwm_loading"] as const;
 export const MOMENT_RECIPE_IDS = ["reveal_object", "outfit_reveal", "surprise_reaction", "playful_camera"] as const;
 export const REEL_RECIPE_IDS = [...CLASSIC_RECIPE_IDS, ...MOMENT_RECIPE_IDS] as const;
+/** Moment recipes the rotation / fallback may pick. reveal_object (letter/object pulled from a sleeve or from
+ * behind the back) is DISABLED globally (operator rule 2026-11-01: nothing is ever pulled from a sleeve);
+ * it stays defined only so old chs_media rows / the archetype FK still resolve. */
+export const ROTATION_MOMENT_IDS = ["outfit_reveal", "surprise_reaction", "playful_camera"] as const;
 /**
  * Classic recipes that the daily rotation / scene fallback may pick. grwm_loading is deliberately
  * NOT here: it became the fallback on almost every stationary day (ootd_stop needs locomotion) and
@@ -483,7 +487,7 @@ export function recipeIdForDay(seed: number, env: Record<string, string | undefi
   const before = ROTATION_PATTERN.slice(0, pos);
   if (ROTATION_PATTERN[pos] === "M") {
     const k = cycle * M_PER_CYCLE + before.filter((x) => x === "M").length;
-    return MOMENT_RECIPE_IDS[((k % MOMENT_RECIPE_IDS.length) + MOMENT_RECIPE_IDS.length) % MOMENT_RECIPE_IDS.length];
+    return ROTATION_MOMENT_IDS[((k % ROTATION_MOMENT_IDS.length) + ROTATION_MOMENT_IDS.length) % ROTATION_MOMENT_IDS.length];
   }
   const k = cycle * C_PER_CYCLE + before.filter((x) => x === "C").length;
   return ROTATION_CLASSIC_IDS[((k % ROTATION_CLASSIC_IDS.length) + ROTATION_CLASSIC_IDS.length) % ROTATION_CLASSIC_IDS.length];

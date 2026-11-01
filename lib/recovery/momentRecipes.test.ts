@@ -150,7 +150,8 @@ describe("rotation", () => {
       prev = id;
     }
     expect(moments / 1000).toBeCloseTo(0.7, 5);
-    for (const id of [...MOMENT_RECIPE_IDS, "ootd_stop"]) expect(seen[id]).toBeGreaterThan(100);
+    for (const id of [...MOMENT_RECIPE_IDS.filter((x) => x !== "reveal_object"), "ootd_stop"]) expect(seen[id]).toBeGreaterThan(100);
+    expect(seen["reveal_object"]).toBeUndefined(); // disabled 2026-11-01
     expect(seen["grwm_loading"]).toBeUndefined(); // retired from the rotation 13.10
   });
 

@@ -163,7 +163,11 @@ export const DEFAULT_CLOSING_BEATS = [
 export const DEFAULT_REEL_NEGATIVES = [
   "no speech",
   "no text",
+  "no letters",
+  "no signage",
   "no captions",
+  "no objects pulled from sleeve",
+  "nothing in hands unless the scene requires it",
   "no watermark",
   "no camera movement",
   "no zoom",
