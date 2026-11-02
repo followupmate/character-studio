@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { recomputeBatchStatus } from "@/lib/dailyBatch";
 import { isFlagOn } from "@/lib/featureFlags";
 import { readReelRecipeMarker, type ReelRecipeMarker } from "@/lib/recovery/reelRecipes";
-import { applyHookOverlayToBuffer, hookOverlayEnabled } from "@/lib/video/hookOverlayPipeline";
+import { applyHookOverlayToBuffer, hookOverlayEnabled, hookOverlayExplicitlyOff } from "@/lib/video/hookOverlayPipeline";
 
 export const runtime = "nodejs";
 // 60 -> 120 (Phase 2): the final poll tick now may also run the hook overlay (ffmpeg re-encode of an
@@ -46,12 +46,14 @@ function clean(p: string): string {
 async function overlayEnabledFor(batchId: string | null): Promise<boolean> {
   const env = process.env.HOOK_OVERLAY_ENABLED;
   if (env === "false") return false;
-  if (env === "true") return true;
-  if (!batchId) return false;
+  if (!batchId) return env === "true";
   try {
     const { data: plan } = await supabase.from("chs_daily_plans").select("character_id").eq("id", batchId).maybeSingle();
-    if (!plan?.character_id) return false;
+    if (!plan?.character_id) return env === "true";
     const { data: ch } = await supabase.from("chs_characters").select("feature_flags").eq("id", plan.character_id).maybeSingle();
+    // An explicit hook_overlay_v1=false on the character is a hard per-character opt-out (wins over
+    // HOOK_OVERLAY_ENABLED=true): no text is ever burned into that character's reels.
+    if (hookOverlayExplicitlyOff(ch?.feature_flags)) return false;
     return hookOverlayEnabled(isFlagOn(ch?.feature_flags, "hook_overlay_v1"));
   } catch (e) {
     console.warn("[video-async] overlay flag lookup failed, overlay off:", e instanceof Error ? e.message : e);

@@ -22,6 +22,11 @@ export function hookOverlayEnabled(flagOn: boolean, env: Record<string, string |
   return e === "true" || flagOn;
 }
 
+/** True when the character row explicitly sets hook_overlay_v1 to false (per-character opt-out). */
+export function hookOverlayExplicitlyOff(flags: unknown): boolean {
+  return !!flags && typeof flags === "object" && (flags as Record<string, unknown>).hook_overlay_v1 === false;
+}
+
 export type OverlayOutcome =
   | { kind: "applied"; video: Buffer; cover: Buffer | null; hookText: string; ms: number; endCard?: "applied" | "skipped"; endDetail?: string }
   | { kind: "needs_review"; issues: HookIssue[]; hookText: string }
