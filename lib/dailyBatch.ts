@@ -19,6 +19,7 @@ import { pickReelFormatForScene, ReelFormat } from "@/lib/reelFormats";
 import {
   compileRecipeReel,
   getReelRecipe,
+  withOverridePose,
   isReelRecipeId,
   recipeSupportsActionClass,
   reelRecipesEnabled,
@@ -183,6 +184,8 @@ async function generateSlotPromptViaDirector(args: {
   // reel_video sibling, so the start frame can be prepped for what actually happens next
   // (plannedActionForReelArchetype above). Unused for every other slot.
   reelVideoArchetypeId?: string;
+  // Series-day override action/pose — wins over the archetype-derived action (start frame + video).
+  overrideAction?: string | null;
   // F3 — today's tier + day number, threaded into the director for aesthetic direction and
   // deterministic photo-style rotation. Optional: absent reproduces pre-F3 output.
   tier?: string | null;
@@ -223,7 +226,7 @@ async function generateSlotPromptViaDirector(args: {
     // "leave room to move" guidance specifically, rather than only the generic fallback line.
     plannedVideoIntent:
       args.slot.slot === "reel_start_frame"
-        ? { mode: "motion_only", action: plannedActionForReelArchetype(args.reelVideoArchetypeId) }
+        ? { mode: "motion_only", action: args.overrideAction?.trim() || plannedActionForReelArchetype(args.reelVideoArchetypeId) }
         : undefined,
     // §22 fix (production finding, 2026-08-22) — this slot's OWN motion must reflect what the
     // start frame's pose actually implies (e.g. "stepping out of the pool"), not just generic
@@ -236,7 +239,7 @@ async function generateSlotPromptViaDirector(args: {
     // the right slot. The UI's manual Action field (GenerationControls.tsx) still overrides this.
     videoIntent:
       args.slot.type === "video"
-        ? { mode: "motion_only", action: plannedActionForReelArchetype(args.archetypeId) }
+        ? { mode: "motion_only", action: args.overrideAction?.trim() || plannedActionForReelArchetype(args.archetypeId) }
         : undefined,
     ...target,
   };
@@ -556,7 +559,10 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   const reelHookOverride = reelHookOverrideFor(character.feature_flags, storyDay.date);
   // Series day (reel_hook_overrides[date].recipe): that recipe replaces the rotation for the reel.
   const forcedRecipe = reelHookOverride?.recipe ? getReelRecipe(reelHookOverride.recipe) : undefined;
-  const reelFormat = discoveryMode ? (forcedRecipe ?? pickReelFormatForScene(dayNo, sceneActionClass)) : undefined;
+  // Override action/pose has ABSOLUTE precedence over the recipe/format's own moment (start-frame
+  // cover cue + video directive) — e.g. bindi_v1 "leans in, blows a kiss" beats surprise_reaction.
+  const pickedFormat = discoveryMode ? (forcedRecipe ?? pickReelFormatForScene(dayNo, sceneActionClass)) : undefined;
+  const reelFormat = pickedFormat ? withOverridePose(pickedFormat, reelHookOverride?.action) : undefined;
   // Phase 2 — reel recipe (ootd_stop / grwm_loading) for today's reel_video. Off unless the
   // character has reel_recipes_v1 or REEL_RECIPES_ENABLED=true; requires the scene to be able to
   // carry it (pickReelFormatForScene filters by action class).
@@ -1054,6 +1060,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
           character: args.character,
           situationTranslation: args.situationTranslation,
           reelVideoArchetypeId: args.reelVideoArchetypeId,
+          overrideAction: args.reelHookOverride?.action ?? null,
           tier: args.tier,
           dayNumber: args.dayNumber,
           sceneLocation: args.sceneLocation,

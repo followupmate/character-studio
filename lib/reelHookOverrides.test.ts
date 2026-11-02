@@ -59,9 +59,10 @@ describe("tries_episode fixes (18.10 preview)", () => {
       expect(out.marker.overlay_position).toBe("lower");
     }
   });
-  it("other recipes keep the top overlay and ignore activity", () => {
+  it("other recipes keep the top overlay; an override action wins over their moment beats", () => {
     const out = compileRecipeReel(REEL_RECIPES.surprise_reaction, { sceneBrief: brief("She sits at the café table by the window."), sceneLocation: "cafe", dayNumber: 3, activity: "riding a horse" });
-    expect(out.prompt).not.toContain("riding a horse");
+    expect(out.prompt).toContain("riding a horse");
+    expect(out.prompt).not.toMatch(/catches her attention/);
     expect(out.marker.overlay_position).toBeUndefined();
   });
   it("lower placement stays inside the IG safe zone for every series overlay", async () => {

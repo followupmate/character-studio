@@ -573,6 +573,44 @@ export interface CompiledRecipeReel extends SimpleReelPrompt {
   variant?: ReelRecipeVariant;
 }
 
+/** Beats for a series day whose override names an explicit action/pose — absolute precedence. */
+export function overridePoseBeats(action: string): { openingState: string; hookBeat: string; action: string; closingBeat: string } {
+  const a = action.trim().replace(/[.\s]+$/, "");
+  return {
+    openingState: `close to the lens, face fully visible from the very first frame, looking into the lens, already starting the planned pose: ${a}`,
+    hookBeat: "From the first second she performs exactly the planned pose, with no surprise, no glance or head turn off camera and no reaction to anything off screen.",
+    action: a,
+    closingBeat: "She finishes the pose close to the lens, holds eye contact, and the clip ends on a clean still frame.",
+  };
+}
+
+/**
+ * Series-day override with an explicit action: rewrite every recipe/format text that steers the
+ * start frame or the video (coverCue, videoDirective, archetypeAction/guidance, beats) so the
+ * override's pose wins over the moment recipe. Variants are dropped. No action -> unchanged.
+ */
+export function withOverridePose<T extends { coverCue: string; videoDirective: string }>(fmt: T, action: string | null | undefined): T {
+  const a = action?.trim().replace(/[.\s]+$/, "");
+  if (!a) return fmt;
+  if ((fmt as { id?: string }).id === "tries_episode") return fmt;
+  const b = overridePoseBeats(a);
+  const out: Record<string, unknown> = {
+    ...fmt,
+    coverCue: `Close-medium, face fully visible and close to the lens, at the very start of the planned pose: ${a}. Her face sits in the upper-middle of the frame; keep the lower third uncluttered for the overlay.`,
+    videoDirective: `Planned pose only: ${a}. No surprise, no off-camera glance, no head turn away. Ends close to the lens with eye contact. One take.`,
+  };
+  if ("archetypeAction" in fmt) {
+    out.archetypeAction = `close to the lens, face visible, about to ${a}`;
+    out.archetypeGuidance = `Series day — the planned pose has absolute priority: ${a}. Face visible from frame 0, eye contact at the end. One take, no cuts.`;
+    out.openingState = b.openingState;
+    out.hookBeat = b.hookBeat;
+    out.action = b.action;
+    out.closingBeat = b.closingBeat;
+    out.variants = undefined;
+  }
+  return out as T;
+}
+
 /** Goes through compileSimpleReel's seams only; throws on semantic errors (retry logic keys on the message). */
 export function compileRecipeReel(recipe: ReelRecipe, input: RecipeReelInput): CompiledRecipeReel {
   let variant: ReelRecipeVariant | undefined;
@@ -580,8 +618,16 @@ export function compileRecipeReel(recipe: ReelRecipe, input: RecipeReelInput): C
     const sem = resolveSceneSemantics(input.sceneBrief, { sceneLocation: input.sceneLocation, activityHint: input.activityHint });
     variant = pickVariant(recipe, sem.entityText, input.dayNumber);
   }
-  const act = recipe.id === "tries_episode" ? input.activity?.trim().replace(/[.\s]+$/, "") : undefined;
-  const beats = act
+  const rawAct = input.activity?.trim().replace(/[.\s]+$/, "") || undefined;
+  const act = recipe.id === "tries_episode" ? rawAct : undefined;
+  // Series day with an explicit action/pose (bindi_v1 etc.): the override's action is the WHOLE
+  // motion of the clip — it beats the recipe's own moment beats/variants (e.g. surprise_reaction's
+  // "something off camera catches her attention"). The recipe only keeps framing/duration/negatives.
+  const poseBeats = !act && rawAct ? overridePoseBeats(rawAct) : undefined;
+  if (poseBeats) variant = undefined;
+  const beats = poseBeats
+    ? poseBeats
+    : act
     ? {
         openingState: `mid-attempt at ${act} for the very first time, concentrating hard, her body already in motion`,
         hookBeat: recipe.hookBeat,

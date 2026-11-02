@@ -41,7 +41,7 @@ describe("plannedVideoIntent is actually wired into the reel_start_frame compile
 
   it("does not set plannedVideoIntent for every slot unconditionally (only reel_start_frame)", () => {
     const fn = src.slice(src.indexOf("async function generateSlotPromptViaDirector"), src.indexOf("export interface DailyBatchResult"));
-    expect(fn).toMatch(/mode:\s*"motion_only",\s*action:\s*plannedActionForReelArchetype\(args\.reelVideoArchetypeId\)/);
+    expect(fn).toMatch(/mode:\s*"motion_only",\s*action:\s*args\.overrideAction\?\.trim\(\) \|\| plannedActionForReelArchetype\(args\.reelVideoArchetypeId\)/);
     expect(fn).toContain(": undefined,");
   });
 
@@ -65,7 +65,7 @@ describe("§22 fix — the reel_video slot's OWN videoIntent.action is wired (no
   it("generateSlotPromptViaDirector() sets videoIntent.action from this slot's own archetype for every video-type slot", () => {
     const fn = src.slice(src.indexOf("async function generateSlotPromptViaDirector"), src.indexOf("export interface DailyBatchResult"));
     expect(fn).toMatch(/videoIntent:\s*\n?\s*args\.slot\.type === "video"/);
-    expect(fn).toMatch(/mode:\s*"motion_only",\s*action:\s*plannedActionForReelArchetype\(args\.archetypeId\)/);
+    expect(fn).toMatch(/mode:\s*"motion_only",\s*action:\s*args\.overrideAction\?\.trim\(\) \|\| plannedActionForReelArchetype\(args\.archetypeId\)/);
   });
 });
 
