@@ -372,7 +372,9 @@ export function buildSceneSection(input: PromptDirectorInput): string[] {
   if (sb.pet_lock) lines.push(`With ${sb.pet_lock}.`);
 
   const allowedProps = sb.allowed_props ?? [];
-  if (archetypeAllowsProp(input.archetypeId) && allowedProps.length > 0) {
+  if (input.overrideProps?.length) {
+    lines.push(`Holding ${input.overrideProps.join(" and ")}; nothing else held.`);
+  } else if (archetypeAllowsProp(input.archetypeId) && allowedProps.length > 0) {
     lines.push(`May hold: ${allowedProps.join(" or ")}.`);
   } else {
     lines.push("Empty hands, nothing held.");

@@ -186,6 +186,7 @@ async function generateSlotPromptViaDirector(args: {
   reelVideoArchetypeId?: string;
   // Series-day override action/pose — wins over the archetype-derived action (start frame + video).
   overrideAction?: string | null;
+  overrideProps?: string[] | null;
   // F3 — today's tier + day number, threaded into the director for aesthetic direction and
   // deterministic photo-style rotation. Optional: absent reproduces pre-F3 output.
   tier?: string | null;
@@ -207,7 +208,10 @@ async function generateSlotPromptViaDirector(args: {
       sacredDetails: args.character.sacred_details,
       soulId: args.character.soul_id,
     },
-    sceneBrief: args.sceneBriefJson,
+    sceneBrief: args.overrideProps?.length
+      ? ({ ...args.sceneBriefJson, allowed_props: [...new Set([...(args.sceneBriefJson.allowed_props ?? []), ...args.overrideProps])] } as typeof args.sceneBriefJson)
+      : args.sceneBriefJson,
+    overrideProps: args.overrideProps ?? undefined,
     slot: args.slot,
     archetypeId: args.archetypeId,
     archetypeGuidance: args.archetypeGuidance,
@@ -1036,6 +1040,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
             dayNumber: args.dayNumber,
             avoidHookTexts: args.recentHookTexts ?? [],
             activity: args.reelHookOverride?.action ?? null,
+            allowedProps: args.reelHookOverride?.allowed_props ?? null,
           })
         : null;
     if (recipeReel && args.reelHookOverride?.hook_text) {
@@ -1061,6 +1066,7 @@ async function runSlot(args: RunSlotArgs): Promise<void> {
           situationTranslation: args.situationTranslation,
           reelVideoArchetypeId: args.reelVideoArchetypeId,
           overrideAction: args.reelHookOverride?.action ?? null,
+          overrideProps: args.reelHookOverride?.allowed_props ?? null,
           tier: args.tier,
           dayNumber: args.dayNumber,
           sceneLocation: args.sceneLocation,
@@ -1214,6 +1220,7 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
             sceneLocation: (storyDay as { location?: string | null }).location ?? null,
             dayNumber: rcDayNo,
             activity: reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, (storyDay as { date?: string }).date)?.action ?? null,
+            allowedProps: reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, (storyDay as { date?: string }).date)?.allowed_props ?? null,
           });
           const rcOverride = reelHookOverrideFor((char as { feature_flags?: unknown }).feature_flags, (storyDay as { date?: string }).date);
           if (recipeReel && rcOverride?.hook_text) {

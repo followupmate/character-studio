@@ -55,6 +55,8 @@ export interface PromptDirectorCharacter {
 }
 
 export interface PromptDirectorInput {
+  /** Series-day props explicitly allowed in hand (reel_hook_overrides[date].allowed_props). */
+  overrideProps?: string[];
   character: PromptDirectorCharacter;
   sceneBrief: SceneBriefJson;
   slot: SlotSpec;

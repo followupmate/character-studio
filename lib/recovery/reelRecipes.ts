@@ -564,6 +564,8 @@ export interface RecipeReelInput {
   /** Series day (reel_hook_overrides[date].action): the concrete activity, gerund phrase
    *  ("riding a calm chestnut horse at a walk"). Only the tries_episode recipe uses it. */
   activity?: string | null;
+  /** Series day (reel_hook_overrides[date].allowed_props): lifts the nothing-in-hands negative. */
+  allowedProps?: ReadonlyArray<string> | null;
 }
 
 export interface CompiledRecipeReel extends SimpleReelPrompt {
@@ -571,6 +573,11 @@ export interface CompiledRecipeReel extends SimpleReelPrompt {
   hookText: string;
   marker: ReelRecipeMarker;
   variant?: ReelRecipeVariant;
+}
+
+/** Replace the nothing-in-hands negative with "nothing in hands except <props>" (other negatives unchanged). */
+export function allowPropsInNegatives(neg: string, props: ReadonlyArray<string>): string {
+  return neg.replace(/nothing in hands unless the scene requires it/g, `nothing in hands except ${props.join(" or ")}`);
 }
 
 /** Beats for a series day whose override names an explicit action/pose — absolute precedence. */
@@ -646,7 +653,7 @@ export function compileRecipeReel(recipe: ReelRecipe, input: RecipeReelInput): C
     hookBeat: beats.hookBeat,
     action: beats.action,
     closingBeat: beats.closingBeat,
-    negativePrompt: recipe.negativePrompt,
+    negativePrompt: input.allowedProps?.length ? allowPropsInNegatives(recipe.negativePrompt, input.allowedProps) : recipe.negativePrompt,
   });
   if (!recipeSupportsActionClass(recipe, compiled.semantics.actionClass)) {
     throw new Error(

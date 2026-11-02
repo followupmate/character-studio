@@ -6,7 +6,7 @@ import { Character, StoryDay } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
 import { maybeCreateLifeEvent } from "@/lib/lifeState";
 import { generateStoryDayContent } from "@/lib/storyGeneration";
-import { reelHookOverrideFor, episodeContextBlock } from "@/lib/reelHookOverrides";
+import { reelHookOverrideFor, episodeContextBlock, seriesHashtags } from "@/lib/reelHookOverrides";
 import { maybeAutoPlanArc, getActiveArc, getArcDayContext, arcContextBlock } from "@/lib/arcPlanner";
 
 export const runtime = "nodejs";
@@ -183,7 +183,7 @@ export async function GET() {
             drift_seeds: driftSeeds,
             next_hint: story.next_hint,
             ig_caption: story.ig_caption,
-            hashtags: story.hashtags,
+            hashtags: seriesHashtags(dayOverride, story.hashtags as string[] | null | undefined),
             ...(story.hook_text ? { hook_text: story.hook_text } : {}),
             ...(lifeOn && lifeStateToInsert ? { life_state: lifeStateToInsert } : {}),
             ...(arcId ? { arc_id: arcId } : {}),
