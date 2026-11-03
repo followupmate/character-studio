@@ -1,4 +1,4 @@
-import { reelHookOverrideFor, type ReelHookOverride } from "@/lib/reelHookOverrides";
+import { reelHookOverrideFor, scrubTravelContext, stripTravelFromLifeState, type ReelHookOverride } from "@/lib/reelHookOverrides";
 import { supabase } from "@/lib/supabase";
 import {
   DAILY_SLOTS,
@@ -354,8 +354,10 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
   // chs_story_days.scene.situation the story-generation retry loop validated. A null/missing
   // situation (flag-off day, old row, or validation-exhausted day) is a safe no-op below.
   const situation: GenerativeSituation | null = extractSituation(storyDay);
-  const situationTranslation = situation ? translateSituationForSlotPrompt(situation) : undefined;
-  const compactSituationTranslationText = situation ? compactSituationTranslation(situation) : undefined;
+  // Series scene day: arc/travel context (city, hotel, suitcase) never reaches reel/story prompts.
+  const sceneOverrideEarly = reelHookOverrideFor(character.feature_flags, storyDay.date);
+  const situationTranslation = situation ? scrubTravelContext(translateSituationForSlotPrompt(situation), sceneOverrideEarly) : undefined;
+  const compactSituationTranslationText = situation ? scrubTravelContext(compactSituationTranslation(situation), sceneOverrideEarly) : undefined;
   // sex_appeal_style_v1 (iteration 3, doplnenie #1) / luxury_seduction_v1 (iteration 4,
   // architektonické rozhodnutie #6) — normalized independently of the flags (pure function of
   // situation fields that are themselves undefined pre-iteration/flag-off, so this is a natural
@@ -474,7 +476,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     // LIFE LAYER (flag-gated): a short continuity note from today's persisted life_state.
     let lifeNote: string | undefined;
     if (isFlagOn(character.feature_flags, "life_layer") && storyDay.life_state) {
-      const ls = storyDay.life_state as LifeState;
+      const ls = stripTravelFromLifeState(storyDay.life_state as Record<string, unknown>, sceneOverrideEarly) as LifeState;
       lifeNote = [
         ls.mood_state ? `mood ${ls.mood_state}` : null,
         ls.energy_level != null ? `energy ${ls.energy_level}/10` : null,
@@ -494,7 +496,7 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
       storyScene: {
         location: storyDay.location,
         mood: storyDay.mood,
-        narrative: storyDay.narrative,
+        narrative: scrubTravelContext(storyDay.narrative, sceneOverrideEarly) ?? storyDay.narrative,
         arc_position: storyDay.arc_position,
         emotional_beat: storyDay.emotional_beat ?? null,
         scene: storyDay.scene ?? null,

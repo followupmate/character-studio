@@ -17,6 +17,7 @@ import {
 import type { MomentFamily, MagnetismLevel, SexualEnergyLevel, ContinuityPhase } from "@/types";
 import { Character } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
+import { reelHookOverrideFor, scrubTravelContext, stripTravelFromLifeState } from "@/lib/reelHookOverrides";
 import { LUXURY_ENVIRONMENT_DOCTRINE } from "@/lib/luxuryWorld";
 import { VOICE_DOCTRINE, DISCOVERY_DOCTRINE } from "@/lib/storyPrompt";
 import {
@@ -239,9 +240,11 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
   const luxuryWorldOn = isFlagOn(flags, "luxury_world_v1");
 
   const reversed = historyRows.slice().reverse();
+  // Series scene day: no travel/arc leftovers (city, hotel, suitcase) from history or life_state.
+  const sceneOverride = args.episodeContext ? reelHookOverrideFor(character.feature_flags, targetDate) : null;
   const historyText =
     reversed.length > 0
-      ? reversed.map((d) => `Day ${d.day_number}: ${d.location} — ${d.mood} — ${d.narrative}`).join("\n")
+      ? scrubTravelContext(reversed.map((d) => `Day ${d.day_number}: ${d.location} — ${d.mood} — ${d.narrative}`).join("\n"), sceneOverride) || "History omitted (series scene day)."
       : "First day. No history yet.";
 
   // CREATIVE INTELLIGENCE (flag-gated): the ONE random selection of "which real recommendation
@@ -291,7 +294,7 @@ export async function generateStoryDayContent(args: GenerateStoryDayArgs): Promi
       getActiveLifeEvents(character.id, targetDate),
     ]);
     activeEvents = events;
-    if (lifeOn) lifeContext = lifeContextBlock(prevLife, events);
+    if (lifeOn) lifeContext = lifeContextBlock(stripTravelFromLifeState(prevLife as Record<string, unknown> | null, sceneOverride) as typeof prevLife, events);
   }
 
   const discoveryMode = isFlagOn(flags, "discovery_mode");

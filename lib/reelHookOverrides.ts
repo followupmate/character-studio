@@ -89,3 +89,43 @@ export function seriesHashtags(o: ReelHookOverride | null | undefined, generated
   if (!o || !(o.location || o.episode_guidance) || !Array.isArray(generated)) return generated;
   return generated.filter((t) => !TRAVEL_TAG.test(String(t)));
 }
+
+/** Travel/arc context words for scene days (city, hotel, suitcase, airport ...). */
+const TRAVEL_WORDS = ["lisbon","lisboa","porto","paris","rome","roma","milan","london","barcelona","madrid","vienna","prague","bratislava","nyc","new york","dubai","bali","hotel","suitcase","luggage","airport","flight","boarding","packing","unpacking","check-in","check in","checkout","lobby","room service","minibar","travel","trip","vacation","getaway","citybreak","city break","sightseeing","tourist"];
+
+/** A day whose override defines a scene (location / episode guidance) — arc/travel context is ignored. */
+export function isSceneOverrideDay(o: ReelHookOverride | null | undefined): o is ReelHookOverride {
+  return !!o && !!(o.location || o.episode_guidance);
+}
+
+function travelRegex(o: ReelHookOverride | null | undefined): RegExp {
+  // Words the scene itself uses (e.g. a "hotel room" location) stay allowed.
+  const own = `${o?.location ?? ""} ${o?.episode_guidance ?? ""}`.toLowerCase();
+  const words = TRAVEL_WORDS.filter((w) => !own.includes(w));
+  return new RegExp(`\\b(${words.map((w) => w.replace(/[-\s]/g, "[-\\s]?")).join("|")})`, "i");
+}
+
+/** Drop every sentence/line that carries travel/arc context (scene days only; otherwise unchanged). */
+export function scrubTravelContext(text: string | null | undefined, o: ReelHookOverride | null | undefined): string | undefined {
+  if (text == null) return undefined;
+  if (!isSceneOverrideDay(o)) return text;
+  const re = travelRegex(o);
+  return text
+    .split("\n")
+    .map((line) => line.split(/(?<=[.;!?])\s+/).filter((s) => !re.test(s)).join(" "))
+    .filter((line) => line.trim().length > 0)
+    .join("\n");
+}
+
+/** life_state for a scene day: no current_city / hotel place type, no travel events or threads. */
+export function stripTravelFromLifeState<T extends Record<string, unknown> | null | undefined>(ls: T, o: ReelHookOverride | null | undefined): T {
+  if (!ls || !isSceneOverrideDay(o)) return ls;
+  const re = travelRegex(o);
+  const out: Record<string, unknown> = { ...ls };
+  delete out.current_city;
+  if (typeof out.current_place_type === "string" && re.test(out.current_place_type)) delete out.current_place_type;
+  for (const k of ["recent_event", "unresolved_thread", "next_possible_shift"]) {
+    if (typeof out[k] === "string" && re.test(out[k] as string)) delete out[k];
+  }
+  return out as T;
+}

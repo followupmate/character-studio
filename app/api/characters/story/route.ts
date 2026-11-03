@@ -6,7 +6,7 @@ import { Character, StoryDay } from "@/types";
 import { isFlagOn } from "@/lib/featureFlags";
 import { maybeCreateLifeEvent } from "@/lib/lifeState";
 import { generateStoryDayContent } from "@/lib/storyGeneration";
-import { reelHookOverrideFor, episodeContextBlock, seriesHashtags } from "@/lib/reelHookOverrides";
+import { reelHookOverrideFor, episodeContextBlock, seriesHashtags, stripTravelFromLifeState } from "@/lib/reelHookOverrides";
 import { maybeAutoPlanArc, getActiveArc, getArcDayContext, arcContextBlock } from "@/lib/arcPlanner";
 
 export const runtime = "nodejs";
@@ -157,7 +157,7 @@ export async function GET() {
         }
 
         // Prepare life_state with arc city override if needed
-        let lifeStateToInsert = story.life_state;
+        let lifeStateToInsert = episodeContext ? stripTravelFromLifeState(story.life_state as Record<string, unknown> | null | undefined, dayOverride) : story.life_state;
         if (arcOn && arcCityOverride && lifeStateToInsert) {
           lifeStateToInsert = {
             ...(lifeStateToInsert as Record<string, unknown>),
