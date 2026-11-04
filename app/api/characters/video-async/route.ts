@@ -2,6 +2,7 @@ import { checkIdentityMatch, checkStartFrameFace, extractFrames, faceGuardEnable
 import { NextResponse } from "next/server";
 import { stripPromptHeader } from "@/lib/promptClean";
 import { fal } from "@fal-ai/client";
+import { capKlingDuration, isContentPolicyRefusal, KLING_MAX_DURATION_SEC, refusalMessage } from "@/lib/videoCost";
 import { supabase } from "@/lib/supabase";
 import { recomputeBatchStatus } from "@/lib/dailyBatch";
 import { isFlagOn } from "@/lib/featureFlags";
@@ -98,7 +99,7 @@ function parseState(raw: string | null): FalQState | null {
 // fal ApiError carries the real reason (field validation) in `.body`, while
 // `.message` is just "Unprocessable Entity". Dig the detail out so failures are
 // diagnosable instead of opaque.
-function falErr(err: unknown): string {
+function falErr(err: unknown, falModel?: string): string {
   let text = "";
   if (err && typeof err === "object") {
     const e = err as { message?: string; status?: number; body?: unknown };
@@ -118,8 +119,8 @@ function falErr(err: unknown): string {
   // guaranteed failure for photorealistic characters (confirmed: real generations complete fine).
   // When this specific rejection does occur, translate the opaque policy error into an actionable
   // instruction rather than leaving it as raw API text.
-  if (/content_policy_violation|likenesses of real people|partner_validation_failed/i.test(text)) {
-    return "Seedance zamietol tento konkrétny záber (content policy — anti-deepfake kontrola). Skús to znova alebo uprav prompt; Kling a Veo tento typ kontroly nemajú.";
+  if (isContentPolicyRefusal(text)) {
+    return refusalMessage(falModel);
   }
   return text.slice(0, 400);
 }
@@ -309,11 +310,12 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ status: "ready", url: finalUrl });
       } catch (pollErr) {
-        const detail = falErr(pollErr);
+        const detail = falErr(pollErr, state.model);
         console.warn("[video-async] job cleared after poll failure:", detail);
+        // Content-policy refusal is terminal (retry_count at ceiling) so reconcile never re-bills it.
         await supabase
           .from("chs_media")
-          .update({ higgsfield_job_id: null, generation_status: "failed", last_error: detail })
+          .update({ higgsfield_job_id: null, generation_status: "failed", last_error: detail, ...(isContentPolicyRefusal(detail) ? { retry_count: 3 } : {}) })
           .eq("id", mediaId);
         return NextResponse.json({ status: "error", error: detail }, { status: 502 });
       }
@@ -386,8 +388,8 @@ export async function POST(req: Request) {
       // target duration (8 s, inside REEL_DURATION_GATE). Every other reel is untouched.
       const recipe = readReelRecipeMarker(media.visual_signature);
       const recipeExtras = recipe
-        ? { duration: String(recipe.target_duration_sec), ...(recipe.negative_prompt ? { negative_prompt: recipe.negative_prompt } : {}) }
-        : { duration: "10" };
+        ? { duration: String(capKlingDuration(recipe.target_duration_sec)), ...(recipe.negative_prompt ? { negative_prompt: recipe.negative_prompt } : {}) }
+        : { duration: String(KLING_MAX_DURATION_SEC) }; // cost cap: Kling never > 8 s
       falModel = startFrameUrl ? "fal-ai/kling-video/v3/pro/image-to-video" : "fal-ai/kling-video/v3/pro/text-to-video";
       input = startFrameUrl
         ? { prompt: cinematic, ...recipeExtras, start_image_url: startFrameUrl, generate_audio: false }
@@ -414,11 +416,11 @@ export async function POST(req: Request) {
     } catch (subErr) {
       // Surface fal's real rejection reason (bad param, unfetchable image, …)
       // and persist it so the card shows why instead of a blank "generating".
-      const detail = falErr(subErr);
+      const detail = falErr(subErr, falModel);
       console.error("[video-async] submit failed:", detail);
       await supabase
         .from("chs_media")
-        .update({ generation_status: "failed", last_error: detail })
+        .update({ generation_status: "failed", last_error: detail, ...(isContentPolicyRefusal(detail) ? { retry_count: 3 } : {}) })
         .eq("id", mediaId);
       return NextResponse.json({ status: "error", error: detail }, { status: 502 });
     }

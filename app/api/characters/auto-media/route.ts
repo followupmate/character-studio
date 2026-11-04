@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCron } from "@/lib/apiAuth";
 import { supabase } from "@/lib/supabase";
 import { recomputeBatchStatus } from "@/lib/dailyBatch";
+import { isFlagOn } from "@/lib/featureFlags";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -72,7 +73,7 @@ export async function GET(req: Request) {
   }
 
   const today = new Date().toISOString().split("T")[0];
-  const { data: plans } = await supabase.from("chs_daily_plans").select("id").eq("date", today);
+  const { data: plans } = await supabase.from("chs_daily_plans").select("id, character_id").eq("date", today);
 
   for (const plan of plans ?? []) {
     const { data } = await supabase
@@ -95,7 +96,15 @@ export async function GET(req: Request) {
 
     const video = rows.find((m) => m.slot === "reel_video" && eligible(m));
     const startFrame = rows.find((m) => m.slot === "reel_start_frame");
-    if (video && startFrame?.media_url) {
+    // Cost guard (2026-11-04): with feature_flags.skip_auto_reel_video the tick never SUBMITS a new
+    // Kling job — the daily sprint QAs the start frame and generates the reel exactly once itself
+    // (no throw-away auto reel + manual regen). An already in-flight job is still polled.
+    let skipAutoReel = false;
+    if (video && !video.higgsfield_job_id && (plan as { character_id?: string }).character_id) {
+      const { data: ch } = await supabase.from("chs_characters").select("feature_flags").eq("id", (plan as { character_id: string }).character_id).single();
+      skipAutoReel = isFlagOn((ch as { feature_flags?: unknown } | null)?.feature_flags, "skip_auto_reel_video");
+    }
+    if (video && startFrame?.media_url && !skipAutoReel) {
       const r = await call("/api/characters/video-async", { mediaId: video.id, model: "kling" }, 55_000);
       return NextResponse.json({ batchId: plan.id, slot: "reel_video", action: "kling", result: r });
     }

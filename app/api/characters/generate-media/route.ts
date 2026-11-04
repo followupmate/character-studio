@@ -472,7 +472,7 @@ async function generateWithKling(
 
   const input: Record<string, unknown> = {
     prompt: `Cinematic 9:16 vertical video. Real person. Natural movement. ${cleanedPrompt}`,
-    duration: "10",
+    duration: "5", // cost cap: legacy v2.1 only accepts "5" | "10"; never pay for 10 s
     aspect_ratio: "9:16",
   };
 

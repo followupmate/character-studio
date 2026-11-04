@@ -182,7 +182,7 @@ describe("video-async submit (kling)", () => {
     state.media = { ...state.media, higgsfield_job_id: null, visual_signature: null };
     await POST(req({ mediaId: "m1", model: "kling", audioStyle: "silent" }));
     const { input } = state.submitted[0];
-    expect(input.duration).toBe("10");
+    expect(input.duration).toBe("8"); // cost cap 2026-11-04
     expect("negative_prompt" in input).toBe(false);
   });
 });

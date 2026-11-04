@@ -1,4 +1,5 @@
 import { fal } from "@fal-ai/client";
+import { capKlingDuration } from "@/lib/videoCost";
 import { supabase } from "@/lib/supabase";
 
 // Kling (image-to-video) via fal.ai — the app's established, working video path (see
@@ -65,7 +66,7 @@ export async function generateKlingVideo(opts: {
   const falModel: string = KLING_MODEL[opts.tier ?? "pro"];
   // v3's duration is a wider closed enum ("3".."15", integers only) than v1.6/v2.1's "5"|"10" —
   // round and clamp into range instead of snapping to one of two fixed values.
-  const duration = String(Math.min(15, Math.max(3, Math.round(opts.durationSeconds ?? 10))));
+  const duration = String(capKlingDuration(opts.durationSeconds)); // cost cap: never > 8 s
   const input: Record<string, unknown> = {
     prompt: opts.prompt,
     negative_prompt: opts.negativePrompt ?? DEFAULT_NEGATIVE_PROMPT,

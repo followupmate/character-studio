@@ -1,3 +1,4 @@
+import { isContentPolicyRefusal } from "@/lib/videoCost";
 import { reelHookOverrideFor, scrubTravelContext, stripTravelFromLifeState, type ReelHookOverride } from "@/lib/reelHookOverrides";
 import { supabase } from "@/lib/supabase";
 import {
@@ -736,7 +737,8 @@ export async function generateDailyBatch({ characterId, storyDayId, forceRegener
     });
   }
 
-  const failedSlots = generated.filter((g) => !g.ok);
+  // Content-policy refusals are terminal — an in-batch retry would only re-bill the refusal.
+  const failedSlots = generated.filter((g) => !g.ok && !isContentPolicyRefusal(g.error));
 
   if (failedSlots.length > 0) {
     const retrySettled = await Promise.allSettled(
@@ -1152,9 +1154,18 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
     return { retried: 0, succeeded: 0 };
   }
 
+  // Cost guard: a content-policy refusal is terminal — never auto-retry (and re-bill) it.
+  const refused = (failed as Array<{ id: string; last_error?: string | null }>).filter((r) => isContentPolicyRefusal(r.last_error));
+  if (refused.length) {
+    await supabase.from("chs_media").update({ retry_count: maxRetries }).in("id", refused.map((r) => r.id));
+    console.warn(`[reconcile] skipping ${refused.length} content-policy refusal(s), marked terminal`);
+  }
+  const retryable = (failed as Array<{ id: string; last_error?: string | null }>).filter((r) => !isContentPolicyRefusal(r.last_error));
+  if (retryable.length === 0) return { retried: 0, succeeded: 0 };
+
   let succeeded = 0;
 
-  for (const row of failed as unknown as Array<{
+  for (const row of retryable as unknown as Array<{
     id: string;
     slot: string;
     batch_id: string;
@@ -1358,5 +1369,5 @@ export async function reconcileFailedSlots(maxRetries = 3): Promise<{ retried: n
     await recomputeBatchStatus(batchId);
   }
 
-  return { retried: failed.length, succeeded };
+  return { retried: retryable.length, succeeded };
 }
