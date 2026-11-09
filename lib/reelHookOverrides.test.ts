@@ -73,3 +73,21 @@ describe("tries_episode fixes (18.10 preview)", () => {
     }
   });
 });
+
+describe("allure_v1 series (2026-11-09)", () => {
+  const flags = { reel_hook_overrides: { "2026-11-10": { tag: "allure_v1", hook_text: "long run today… rub them for me?", caption: "long run today… rub them for me?", tier: "lived_moments", location: "her living-room couch", action: "resting her bare feet up toward the lens on the couch arm, wiggling her toes with a slow smirk", episode_guidance: "allure_v1 scene", hashtags: ["#homevibes", "cozyhome"] } } };
+  it("parses the override with pose and hashtags", () => {
+    const o = reelHookOverrideFor(flags, "2026-11-10")!;
+    expect(o.tag).toBe("allure_v1");
+    expect(o.action).toContain("bare feet");
+    expect(o.hashtags).toEqual(["homevibes", "cozyhome"]);
+  });
+  it("story block: styled home wardrobe (no costume), no visible underwear/lingerie, eye contact from first second", () => {
+    const b = episodeContextBlock(reelHookOverrideFor(flags, "2026-11-10"))!;
+    expect(b).toMatch(/never a costume/);
+    expect(b).toMatch(/NO underwear, bra or lingerie visible/);
+    expect(b).toMatch(/from the very first second/);
+    expect(b).not.toMatch(/nude-tone underwear/);
+    expect(b).not.toMatch(/ACTIVELY doing the activity/);
+  });
+});
