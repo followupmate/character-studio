@@ -47,3 +47,6 @@ artifacts/*/captions/
 *.zip
 *.tar.gz
 *.tar
+
+# local scratch scripts
+artifacts/_tmp_*.js

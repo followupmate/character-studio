@@ -170,24 +170,33 @@ export async function POST(req: Request) {
 
     // Duplicate guard: two queue rows for the same media on the same platform (concurrent
     // from-batch runs did this on 2026-10-30 and 2026-11-10) used to upload the video twice.
-    // Only the earliest live row publishes; later ones are closed as duplicates.
-    const { data: twins } = await supabase
-      .from("chs_posts")
-      .select("id, status, created_at, platform_post_id")
-      .eq("media_id", post.media_id)
-      .eq("platform", post.platform)
-      .eq("post_type", post.post_type)
-      .eq("source", "batch")
-      .neq("id", post.id)
-      .in("status", ["scheduled", "posted"]);
-    const earlier = (twins ?? []).find(
-      (t) => t.status === "posted" || String(t.created_at) < String(post.created_at) ||
-        (t.created_at === post.created_at && t.id < post.id)
-    );
-    if (post.source === "batch" && post.post_type !== "story" && earlier) {
-      const note = `duplicate of ${earlier.id}${earlier.platform_post_id ? ` (${earlier.platform_post_id})` : ""} — not uploaded`;
-      await supabase.from("chs_posts").update({ status: "failed", last_error: note }).eq("id", post_id);
-      return NextResponse.json({ success: false, skipped: note });
+    // Only the earliest live row publishes; later ones are closed as duplicates. Since 2026-11-13
+    // the unique index chs_posts_batch_one_per_day also blocks the second insert, so this is defense
+    // in depth: if the lookup itself fails we publish rather than block.
+    if (post.source === "batch" && post.post_type !== "story" && post.media_id) {
+      let earlier: { id: string; platform_post_id: string | null } | undefined;
+      try {
+        const { data: twins } = await supabase
+          .from("chs_posts")
+          .select("id, status, created_at, platform_post_id")
+          .eq("media_id", post.media_id)
+          .eq("platform", post.platform)
+          .eq("post_type", post.post_type)
+          .eq("source", "batch")
+          .neq("id", post.id)
+          .in("status", ["scheduled", "posted"]);
+        earlier = (twins ?? []).find(
+          (t) => t.status === "posted" || String(t.created_at) < String(post.created_at) ||
+            (t.created_at === post.created_at && t.id < post.id)
+        );
+      } catch (e) {
+        console.warn("[post-now] duplicate guard lookup failed, publishing anyway:", e instanceof Error ? e.message : e);
+      }
+      if (earlier) {
+        const note = `duplicate of ${earlier.id}${earlier.platform_post_id ? ` (${earlier.platform_post_id})` : ""} — not uploaded`;
+        await supabase.from("chs_posts").update({ status: "failed", last_error: note }).eq("id", post_id);
+        return NextResponse.json({ success: false, skipped: note });
+      }
     }
 
     const media = post.chs_media as { type: string; media_url: string | null } | null;
