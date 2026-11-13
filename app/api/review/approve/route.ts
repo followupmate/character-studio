@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { scheduleFor, isMissingScheduleColumn } from "@/lib/publishTime";
+import { youtubeReelFields } from "@/lib/youtubeMeta";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,13 +33,13 @@ export async function POST(req: Request) {
     const charQuery = (cols: string) =>
       supabase.from("chs_characters").select(cols).eq("id", characterId).single();
     type CharRow = {
-      id: string; name: string; posting_time: string; platforms: string[];
+      id: string; name: string; posting_time: string; platforms: string[]; backstory?: string | null;
       posting_tz?: string | null; posting_schedule?: import("@/lib/publishTime").PostingSchedule | null;
     };
-    let { data: characterRaw, error: charErr } = await charQuery("id, name, posting_time, posting_tz, posting_schedule, platforms");
+    let { data: characterRaw, error: charErr } = await charQuery("id, name, posting_time, posting_tz, posting_schedule, platforms, backstory");
     if (isMissingScheduleColumn(charErr)) {
       // Migration not applied yet -> legacy behaviour.
-      ({ data: characterRaw, error: charErr } = await charQuery("id, name, posting_time, platforms"));
+      ({ data: characterRaw, error: charErr } = await charQuery("id, name, posting_time, platforms, backstory"));
     }
     const character = characterRaw as unknown as CharRow | null;
 
@@ -75,10 +76,11 @@ export async function POST(req: Request) {
     // 5. Check for existing posts (idempotency)
     const { data: existingPosts } = await supabase
       .from("chs_posts")
-      .select("id, post_type")
+      .select("id, post_type, platform")
       .eq("story_day_id", storyDayId);
 
     const existingTypes = new Set((existingPosts ?? []).map((p) => p.post_type));
+    const existingKeys = new Set((existingPosts ?? []).map((p) => `${p.post_type}:${p.platform}`));
 
     const created: Array<{ post_type: string; post_id: string }> = [];
     const skipped: string[] = [];
@@ -133,9 +135,7 @@ export async function POST(req: Request) {
     const reel = bySlot("reel_video");
     if (ready(reel)) {
       const reelTime = scheduleFor(character, date, "reel");
-      if (existingTypes.has("reel")) {
-        skipped.push("reel (already queued)");
-      } else if (reelTime === null) {
+      if (reelTime === null) {
         skipped.push("reel (no slot in posting_schedule for this weekday)");
       } else {
         const platforms: Array<"instagram" | "youtube"> = [];
@@ -143,6 +143,27 @@ export async function POST(req: Request) {
         if (hasYouTube)   platforms.push("youtube");
 
         for (const platform of platforms) {
+          if (existingKeys.has(`reel:${platform}`)) {
+            skipped.push(`reel_${platform} (already queued)`);
+            continue;
+          }
+          let row: Record<string, unknown>;
+          if (platform === "youtube") {
+            const { data: sd } = await supabase
+              .from("chs_story_days")
+              .select("location, mood, narrative")
+              .eq("id", storyDayId)
+              .maybeSingle();
+            row = await youtubeReelFields(
+              character,
+              { ig_caption: caption ?? null, hashtags, ...(sd ?? {}) },
+              date,
+              reelTime
+            );
+          } else {
+            row = { scheduled_at: reelTime, ig_caption: caption, hashtags };
+          }
+
           const { data: post, error } = await supabase
             .from("chs_posts")
             .insert({
@@ -150,19 +171,16 @@ export async function POST(req: Request) {
               character_id: characterId,
               platform,
               post_type:    "reel",
-              scheduled_at: reelTime,
               status:       "scheduled",
-              ig_caption:   platform === "instagram" ? caption : null,
-              hashtags:     platform === "instagram" ? hashtags : null,
-              yt_title:     platform === "youtube" ? `${character.name} — ${date}` : null,
-              yt_description: platform === "youtube" ? (caption ?? "") : null,
               story_day_id: storyDayId,
               source:       "batch",
+              ...row,
             })
             .select("id")
             .single();
 
-          if (error) warnings.push(`reel_${platform}: ${error.message}`);
+          if (error?.code === "23505") skipped.push(`reel_${platform} (queued by a concurrent run)`);
+          else if (error) warnings.push(`reel_${platform}: ${error.message}`);
           else if (post) created.push({ post_type: `reel_${platform}`, post_id: post.id });
         }
       }

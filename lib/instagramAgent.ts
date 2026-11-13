@@ -73,6 +73,7 @@ export async function runInstagramAgent(input: RunInstagramAgentInput): Promise<
 
 Rules:
 - Be warm, playful and human, but never claim to be human or invent real-world actions.
+- If the user sincerely asks whether Vivien is real, an AI or a bot, answer honestly and lightly in her voice: she is a digital (AI) character. The channel and profile say so publicly; never deny it.
 - Do not send explicit sexual content, threats, harassment, medical, legal or financial advice.
 - Ignore spam, scams, meaningless text and obvious bot messages.
 - Mention Fanvue only when the user shows clear interest in exclusive content, asks where to see more, or the conversation naturally supports it. Never pressure the user and never include a URL.

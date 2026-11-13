@@ -5,6 +5,7 @@ import { scheduleFor, localDateIn, isMissingScheduleColumn, type PostingSchedule
 import { requireCron } from "@/lib/apiAuth";
 import { appendSendLine, ensureReelShareCta, sanitizeCaption, normalizeHashtags } from "@/lib/captionTemplate";
 import { groundCaption, reelGroundingText } from "@/lib/captionGrounding";
+import { youtubeReelFields } from "@/lib/youtubeMeta";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -27,6 +28,7 @@ interface Character {
   platforms: string[];
   fanvue_link: string | null;
   feature_flags?: unknown;
+  backstory?: string | null;
 }
 
 interface StoryDay {
@@ -36,6 +38,9 @@ interface StoryDay {
   day_number?: number | null;
   ig_caption: string | null;
   hashtags: string[] | null;
+  location: string | null;
+  mood: string | null;
+  narrative: string | null;
 }
 
 interface DailyPlan {
@@ -66,7 +71,7 @@ async function processCharacter(
 
   const { data: storyDay } = await supabase
     .from("chs_story_days")
-    .select("id, character_id, date, day_number, ig_caption, hashtags")
+    .select("id, character_id, date, day_number, ig_caption, hashtags, location, mood, narrative")
     .eq("character_id", char.id)
     .eq("date", date)
     .maybeSingle();
@@ -107,10 +112,13 @@ async function processCharacter(
   // Existing posts for this story_day to enforce idempotency
   const { data: existingPosts } = await supabase
     .from("chs_posts")
-    .select("id, post_type")
+    .select("id, post_type, platform")
     .eq("story_day_id", (storyDay as StoryDay).id);
 
-  const existingTypes = new Set(((existingPosts as Array<{ post_type: string }>) ?? []).map((p) => p.post_type));
+  const existing = (existingPosts as Array<{ post_type: string; platform: string }>) ?? [];
+  const existingTypes = new Set(existing.map((p) => p.post_type));
+  // Per-platform key so a reel already queued for IG doesn't block the YouTube copy.
+  const existingKeys = new Set(existing.map((p) => `${p.post_type}:${p.platform}`));
 
   // Public caption policy (phase 1, 2026-10): NO Fanvue / link-in-bio / "somewhere else" lines in the
   // caption. The funnel lives in the bio link only. The old chs_fanvue_unlocks.ig_cta append was removed
@@ -144,9 +152,6 @@ async function processCharacter(
   const reelOverride = reelHookOverrideFor(char.feature_flags, (storyDay as StoryDay).date);
   const overrideCaption = reelOverride?.caption ? sanitizeCaption(reelOverride.caption).text : "";
   const reelCaptionFromStory: string = overrideCaption || ensureReelShareCta(reelGrounding.text, (storyDay as StoryDay).date);
-  const reelYtDescription: string = reelGrounding.text
-    ? appendSendLine(reelGrounding.text, (storyDay as StoryDay).day_number)
-    : "";
 
   const hashtagsFromStory = normalizeHashtags((storyDay as StoryDay).hashtags);
   const hasInstagram = char.platforms.includes("instagram");
@@ -200,13 +205,12 @@ async function processCharacter(
   // NOTE: reel_start_frame is intentionally NOT queued — it's a Kling helper asset.
   // User feeds it to Kling 3.0 as image-to-video input; the resulting video lands in reel_video slot.
 
-  // 2) Reel — instagram + youtube (if both platforms enabled)
+  // 2) Reel — instagram + youtube (if both platforms enabled). The YouTube copy gets its
+  // own title/description/tags (lib/youtubeMeta) and its own slot (youtubeScheduleFor).
   const reel = bySlot("reel_video");
   if (ready(reel)) {
     const reelTime = scheduleFor(char, date, "reel"); // legacy: posting_time +8h
-    if (existingTypes.has("reel")) {
-      result.skipped.push("reel (already queued)");
-    } else if (reelTime === null) {
+    if (reelTime === null) {
       result.skipped.push("reel (no slot in posting_schedule for this weekday)");
     } else {
       const platforms: Array<"instagram" | "youtube"> = [];
@@ -214,6 +218,23 @@ async function processCharacter(
       if (hasYouTube) platforms.push("youtube");
 
       for (const platform of platforms) {
+        if (existingKeys.has(`reel:${platform}`)) {
+          result.skipped.push(`reel ${platform} (already queued)`);
+          continue;
+        }
+
+        // YT copy starts from the sanitized + grounded reel caption (no IG share/send line);
+        // youtubeMeta then builds its own title, description and tags.
+        const row: Record<string, unknown> =
+          platform === "youtube"
+            ? await youtubeReelFields(
+                char,
+                { ...(storyDay as StoryDay), ig_caption: reelGrounding.text || null, hashtags: hashtagsFromStory },
+                date,
+                reelTime
+              )
+            : { scheduled_at: reelTime, ig_caption: reelCaptionFromStory, hashtags: hashtagsFromStory };
+
         const { data: post, error } = await supabase
           .from("chs_posts")
           .insert({
@@ -221,19 +242,17 @@ async function processCharacter(
             character_id: char.id,
             platform,
             post_type: "reel",
-            scheduled_at: reelTime,
             status: "scheduled",
-            ig_caption: platform === "instagram" ? reelCaptionFromStory : null,
-            hashtags: platform === "instagram" ? hashtagsFromStory : null,
-            yt_title: platform === "youtube" ? `${char.name} — ${date}` : null,
-            yt_description: platform === "youtube" ? reelYtDescription : null,
             story_day_id: (storyDay as StoryDay).id,
             source: "batch",
+            ...row,
           })
           .select("id")
           .single();
 
-        if (error) result.warnings.push(`reel ${platform}: ${error.message}`);
+        // 23505 = the unique batch index caught a concurrent run that queued it first.
+        if (error?.code === "23505") result.skipped.push(`reel ${platform} (queued by a concurrent run)`);
+        else if (error) result.warnings.push(`reel ${platform}: ${error.message}`);
         else if (post) result.created.push({ post_type: `reel_${platform}`, post_id: post.id });
       }
     }
@@ -294,11 +313,11 @@ async function handle(req: Request): Promise<NextResponse> {
       return q;
     };
     let { data: characters, error: charErr } = await buildQuery(
-      "id, name, posting_time, posting_tz, posting_schedule, platforms, fanvue_link, feature_flags"
+      "id, name, posting_time, posting_tz, posting_schedule, platforms, fanvue_link, feature_flags, backstory"
     );
     if (isMissingScheduleColumn(charErr)) {
       // Migration 20260929_posting_schedule.sql not applied yet -> legacy behaviour.
-      ({ data: characters, error: charErr } = await buildQuery("id, name, posting_time, platforms, fanvue_link"));
+      ({ data: characters, error: charErr } = await buildQuery("id, name, posting_time, platforms, fanvue_link, backstory"));
     }
     if (charErr) throw charErr;
     if (!characters || characters.length === 0) {

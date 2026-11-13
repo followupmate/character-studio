@@ -9,7 +9,9 @@
 
 export const DEFAULT_POSTING_TZ = "Europe/Bratislava";
 
-export type SlotKind = "carousel" | "reel" | "story";
+// "yt_reel" is optional: when a weekday has no yt_reel entry the YouTube copy of the reel
+// goes out YT_REEL_OFFSET_MIN after the IG reel (see youtubeScheduleFor).
+export type SlotKind = "carousel" | "reel" | "story" | "yt_reel";
 export type WeekdayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 export type DaySchedule = Partial<Record<SlotKind, string | null>>;
 export type PostingSchedule = Partial<Record<WeekdayKey, DaySchedule | null>>;
@@ -21,7 +23,11 @@ export interface SchedulableCharacter {
 }
 
 // Legacy offsets (minutes after posting_time) — only used when posting_schedule is null.
-export const LEGACY_OFFSET_MIN: Record<SlotKind, number> = { carousel: 0, reel: 8 * 60, story: 90 };
+export const LEGACY_OFFSET_MIN: Record<SlotKind, number> = { carousel: 0, reel: 8 * 60, story: 90, yt_reel: 11 * 60 };
+
+// YouTube Shorts audience for English content peaks US midday; 15:30 CET (the IG slot) is
+// 09:30 ET. Default: post the YT copy 3h after the IG reel (18:30 CET = 12:30 ET).
+export const YT_REEL_OFFSET_MIN = 180;
 
 const WEEKDAYS: WeekdayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
@@ -134,6 +140,23 @@ export function scheduleFor(
   const t = slotTime(char.posting_schedule, dateStr, kind);
   if (!t) return null;
   return localToUtcIso(dateStr, t, char.posting_tz ?? DEFAULT_POSTING_TZ, now);
+}
+
+// scheduled_at for the YouTube copy of the day's reel, or null when the reel itself is
+// skipped that weekday. An explicit posting_schedule[day].yt_reel wins; otherwise
+// reel time + YT_REEL_OFFSET_MIN.
+export function youtubeScheduleFor(
+  char: SchedulableCharacter,
+  dateStr: string,
+  now: number = Date.now()
+): string | null {
+  const reelAt = scheduleFor(char, dateStr, "reel", now);
+  if (reelAt === null) return null;
+  if (char.posting_schedule) {
+    const explicit = slotTime(char.posting_schedule, dateStr, "yt_reel");
+    if (explicit) return localToUtcIso(dateStr, explicit, char.posting_tz ?? DEFAULT_POSTING_TZ, now);
+  }
+  return new Date(Date.parse(reelAt) + YT_REEL_OFFSET_MIN * 60_000).toISOString();
 }
 
 // True when a select failed only because the posting_tz / posting_schedule columns don't

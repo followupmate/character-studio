@@ -17,6 +17,10 @@
       "schedule": "0 20 * * *"
     },
     {
+      "path": "/api/publish/import-youtube-stats",
+      "schedule": "15 20 * * *"
+    },
+    {
       "path": "/api/fanvue/sync-snapshot",
       "schedule": "45 19 * * *"
     },

@@ -9,27 +9,12 @@ import { probeVideoDuration } from "@/lib/recovery/videoDuration";
 import { errMessage } from "@/lib/fbToken";
 import { groundCaption } from "@/lib/captionGrounding";
 import { loadReelGroundingText } from "@/lib/reelGroundingLoader";
+import { getYouTubeAccessToken } from "@/lib/youtube";
 
 export const runtime = "nodejs";
 // 60 -> 300: the legacy path polls a video container every 30 s (up to 10x) and the audio path may spend up
 // to ~150 s on processing before it can fall back to that legacy path. Same ceiling as the other publish routes.
 export const maxDuration = 300;
-
-async function getYouTubeAccessToken(): Promise<string> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.YOUTUBE_CLIENT_ID!,
-      client_secret: process.env.YOUTUBE_CLIENT_SECRET!,
-      refresh_token: process.env.YOUTUBE_REFRESH_TOKEN!,
-      grant_type: "refresh_token",
-    }),
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error(`YouTube token error: ${JSON.stringify(data)}`);
-  return data.access_token;
-}
 
 async function postToInstagram(
   mediaUrl: string,
@@ -91,7 +76,8 @@ async function postToYouTube(
   videoUrl: string,
   ytTitle: string,
   ytDescription: string,
-  scheduledAt?: string | null
+  scheduledAt?: string | null,
+  tags: string[] = []
 ): Promise<string> {
   const accessToken = await getYouTubeAccessToken();
 
@@ -102,9 +88,14 @@ async function postToYouTube(
   if (!contentLength || contentLength === "0") throw new Error(`Missing content-length for video: ${videoUrl}`);
 
   const isScheduled = scheduledAt && new Date(scheduledAt) > new Date();
-  const status = isScheduled
-    ? { privacyStatus: "private", publishAt: scheduledAt }
-    : { privacyStatus: "public" };
+  const status = {
+    ...(isScheduled ? { privacyStatus: "private", publishAt: scheduledAt } : { privacyStatus: "public" }),
+    selfDeclaredMadeForKids: false,
+    // The character is a realistic AI-generated person: YouTube policy requires the
+    // "altered or synthetic content" disclosure. Undisclosed realistic synthetic content
+    // can be labelled by YouTube itself, removed, or get the channel suspended from YPP.
+    containsSyntheticMedia: true,
+  };
 
   // Initiate resumable upload
   const initRes = await fetch(
@@ -119,9 +110,12 @@ async function postToYouTube(
       },
       body: JSON.stringify({
         snippet: {
-          title: ytTitle || "New Video",
-          description: ytDescription || "",
-          categoryId: "22",
+          title: (ytTitle || "New Video").replace(/[<>]/g, "").slice(0, 100),
+          description: (ytDescription || "").replace(/[<>]/g, "").slice(0, 4900),
+          tags: tags.length ? tags : undefined,
+          categoryId: "22", // People & Blogs
+          defaultLanguage: "en",
+          defaultAudioLanguage: "en",
         },
         status,
       }),
@@ -168,6 +162,32 @@ export async function POST(req: Request) {
 
     if (error || !post) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+
+    if (post.status === "posted") {
+      return NextResponse.json({ success: true, skipped: "already posted", platform_post_id: post.platform_post_id });
+    }
+
+    // Duplicate guard: two queue rows for the same media on the same platform (concurrent
+    // from-batch runs did this on 2026-10-30 and 2026-11-10) used to upload the video twice.
+    // Only the earliest live row publishes; later ones are closed as duplicates.
+    const { data: twins } = await supabase
+      .from("chs_posts")
+      .select("id, status, created_at, platform_post_id")
+      .eq("media_id", post.media_id)
+      .eq("platform", post.platform)
+      .eq("post_type", post.post_type)
+      .eq("source", "batch")
+      .neq("id", post.id)
+      .in("status", ["scheduled", "posted"]);
+    const earlier = (twins ?? []).find(
+      (t) => t.status === "posted" || String(t.created_at) < String(post.created_at) ||
+        (t.created_at === post.created_at && t.id < post.id)
+    );
+    if (post.source === "batch" && post.post_type !== "story" && earlier) {
+      const note = `duplicate of ${earlier.id}${earlier.platform_post_id ? ` (${earlier.platform_post_id})` : ""} — not uploaded`;
+      await supabase.from("chs_posts").update({ status: "failed", last_error: note }).eq("id", post_id);
+      return NextResponse.json({ success: false, skipped: note });
     }
 
     const media = post.chs_media as { type: string; media_url: string | null } | null;
@@ -274,7 +294,8 @@ export async function POST(req: Request) {
         media.media_url,
         post.yt_title ?? "",
         post.yt_description ?? "",
-        post.scheduled_at
+        post.scheduled_at,
+        (post.hashtags as string[] | null) ?? [] // YouTube rows store video tags here
       );
     }
 
