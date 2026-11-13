@@ -36,6 +36,18 @@ Data conventions:
 - The IG content pipeline and the **VHD v1 experiment** (`lib/experiments/*`, `docs/VHD-EXPERIMENT-V1.md`). The bedroom/intimate control arm is intentional; YouTube recommendations are applied only in the YouTube layer.
 - Old non-Vivienne Shorts on the channel (World Cup, celebrity) stay public — owner's decision.
 
+## 4b. Long-form episodes (added 2026-11-13, later the same day)
+
+- 16:9 episodes ("FIRST TRY — Vol. N", ~4 min) are produced OUTSIDE this repo, in project 25
+  (`projekt_25_Storyboard-First Video Agent/marekov_video-system`, profile `vivienn`, playbook `profily/vivienn/TVORBA.md`).
+- They enter this app only as data: `chs_media` (`slot: "longform"`, `type: "video"`, `thumbnail_url`, no `batch_id`) +
+  `chs_posts` (`platform: "youtube"`, `post_type: "longform"`, `source: "manual"`, `status: "scheduled"`). Files live in
+  storage `character-media/longform/`.
+- The normal publish cron uploads them through `post-now`; for `post_type === "longform"` it also sets the custom thumbnail
+  (`setYouTubeThumbnail` in `lib/youtube.ts`). A failed thumbnail does not fail the post (reason in `last_error`).
+- Do not treat `longform` rows or `slot: "longform"` media as orphans, do not attach them to batches, do not "fix" the
+  missing `batch_id`, and do not apply Shorts metadata (`youtubeMeta.ts`) to them.
+
 ## 5. If something looks wrong
 
 Ask the owner first. Tests covering this: `lib/youtubeMeta.test.ts` (titles, bait filter, tags limit, `youtubeScheduleFor`). Run `npx vitest run` and `npx tsc --noEmit` before any change near these files.
