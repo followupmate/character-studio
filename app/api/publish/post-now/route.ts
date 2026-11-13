@@ -9,7 +9,7 @@ import { probeVideoDuration } from "@/lib/recovery/videoDuration";
 import { errMessage } from "@/lib/fbToken";
 import { groundCaption } from "@/lib/captionGrounding";
 import { loadReelGroundingText } from "@/lib/reelGroundingLoader";
-import { getYouTubeAccessToken } from "@/lib/youtube";
+import { getYouTubeAccessToken, setYouTubeThumbnail } from "@/lib/youtube";
 
 export const runtime = "nodejs";
 // 60 -> 300: the legacy path polls a video container every 30 s (up to 10x) and the audio path may spend up
@@ -156,7 +156,7 @@ export async function POST(req: Request) {
   try {
     const { data: post, error } = await supabase
       .from("chs_posts")
-      .select("*, chs_media(type, media_url)")
+      .select("*, chs_media(type, media_url, thumbnail_url)")
       .eq("id", post_id)
       .single();
 
@@ -205,6 +205,7 @@ export async function POST(req: Request) {
     }
 
     let platformPostId = "";
+    let thumbnailError: string | null = null;
     let publishedAudio: PublishedAudio | null = null;
     // Phase 7: audio bookkeeping -> chs_posts.engagement.audio_meta (mode, fallbacks, reasons).
     let audioMetaPatch: Record<string, unknown> | null = null;
@@ -306,6 +307,17 @@ export async function POST(req: Request) {
         post.scheduled_at,
         (post.hashtags as string[] | null) ?? [] // YouTube rows store video tags here
       );
+      // Long-form episodes (project 25, profile vivienn) carry their own thumbnail in chs_media.thumbnail_url.
+      // A failed thumbnail never fails the publish: the video is already up; the reason goes to last_error.
+      const thumb = (post.chs_media as { thumbnail_url?: string | null } | null)?.thumbnail_url;
+      if (post.post_type === "longform" && thumb) {
+        try {
+          await setYouTubeThumbnail(platformPostId, thumb, await getYouTubeAccessToken());
+        } catch (e) {
+          thumbnailError = `thumbnail: ${e instanceof Error ? e.message : String(e)}`.slice(0, 400);
+          console.warn("[post-now]", thumbnailError);
+        }
+      }
     }
 
     await supabase
@@ -314,6 +326,7 @@ export async function POST(req: Request) {
         status: "posted",
         posted_at: new Date().toISOString(),
         platform_post_id: platformPostId,
+        ...(thumbnailError ? { last_error: thumbnailError } : {}),
       })
       .eq("id", post_id);
 

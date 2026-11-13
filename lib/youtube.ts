@@ -17,6 +17,24 @@ export async function getYouTubeAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+// Custom thumbnail for a long-form video (thumbnails.set). Requires a phone-verified channel.
+// Shorts don't use custom thumbnails in the feed, so callers only use this for post_type "longform".
+export async function setYouTubeThumbnail(videoId: string, imageUrl: string, accessToken: string): Promise<void> {
+  const img = await fetch(imageUrl);
+  if (!img.ok) throw new Error(`thumbnail fetch ${img.status}`);
+  const bytes = Buffer.from(await img.arrayBuffer());
+  if (bytes.length > 2 * 1024 * 1024) throw new Error(`thumbnail ${bytes.length} B > 2 MB YouTube limit`);
+  const res = await fetch(
+    `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(videoId)}&uploadType=media`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": img.headers.get("content-type") || "image/jpeg" },
+      body: bytes,
+    }
+  );
+  if (!res.ok) throw new Error(`thumbnails.set ${res.status}: ${(await res.text()).slice(0, 300)}`);
+}
+
 export interface YouTubeVideoStats {
   id: string;
   views: number;
