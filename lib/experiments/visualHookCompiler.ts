@@ -95,13 +95,15 @@ const CROP_OPENING: Record<VhdFraming, string> = {
   // Still not an establishing shot. The frame opens by exactly one notch so the repeating geometry
   // behind her is legible as a pattern rather than as wallpaper, and it closes at the waist.
   medium_graphic:
-    "Vertical 9:16 WAIST-UP portrait: framed at the waist, she is centred and close, with the wall behind her filling the rest of the frame.",
+    "Vertical 9:16 WAIST-UP portrait: the BOTTOM EDGE OF THE FRAME IS HER WAIST — nothing below the waistband is in " +
+    "the picture. She is centred and close, with the wall behind her filling the rest of the frame.",
 };
 
 const CROP_CLOSING: Record<VhdFraming, string> = {
   close: "Head-and-shoulders crop. The frame ends at the chest. No waist, no hips, no legs, no knees, no feet.",
   close_medium: "Chest-up crop. The frame ends just below the chest. No hips, no legs, no knees, no lower legs, no feet.",
-  medium_graphic: "Waist-up crop. The frame ends at the waist. No hips below the waistband, no legs, no knees, no feet.",
+  medium_graphic:
+    "Waist-up crop. The picture stops at her waistband. No thighs, no hips below the waist, no trousers, no legs, no knees, no feet.",
 };
 
 const FACE_DOMINANCE_TEXT: Record<FaceDominance, string> = {
@@ -118,7 +120,8 @@ const MOTIF_TEXT: Record<MotifFamily, string> = {
   bold_color:
     "One large flat block of the scene's saturated wall colour fills the frame behind her, unbroken and evenly lit, so the colour reads instantly as the first thing in the shot.",
   hard_light_shadow:
-    "Hard-edged light and real shadow do the composition: a clear, sharp-edged shape of light falls across her and the surface behind her, with the dark left genuinely dark.",
+    "Hard parallel bands of light and shadow run ACROSS HER FACE AND BODY and continue across the surface behind her, " +
+    "cast by the slats — sharp-edged, clearly separated, unmistakable. The bright bands are bright and the dark bands are genuinely dark.",
   social_depth:
     "Real depth behind her — the room continues past her with other people present in it, all of them soft and none of them recognisable, so the shot reads as a populated place rather than an empty set.",
   graphic_environment:
@@ -132,7 +135,8 @@ const CONTRAST_TEXT: Record<ContrastLevel, string> = {
 };
 
 const BACKGROUND_TEXT: Record<BackgroundComplexity, string> = {
-  empty: "The background is one clean, uninterrupted surface. Nothing else is in it.",
+  empty:
+    "Behind her there is ONE single flat surface of colour, edge to edge and corner to corner. Everything else the room contains — the doorway, any window, pictures, frames, shelves, plants, furniture, switches and sockets — is OUT OF FRAME. Nothing hangs on that surface and nothing stands in front of it.",
   simple: "The background is soft and out of focus, and holds at most one recognisable shape.",
   textured: "The background is sharp enough for its surface pattern to read, but carries no objects and no clutter.",
   populated: "The background is out of focus and has movement in it, well behind her.",
@@ -146,10 +150,34 @@ const SOCIAL_TEXT: Record<SocialPresence, string> = {
 
 const MOTIF_NEGATIVES: Record<MotifFamily, string[]> = {
   intimate_face: ["busy background", "background objects", "second subject"],
-  bold_color: ["muted colours", "desaturated", "patterned wall", "gradient wall", "washed out"],
+  bold_color: [
+    "muted colours",
+    "desaturated",
+    "patterned wall",
+    "gradient wall",
+    "washed out",
+    "doorway",
+    "open door",
+    "window",
+    "picture frame",
+    "wall art",
+    "houseplant",
+    "furniture",
+    "light switch",
+    "power socket",
+  ],
   hard_light_shadow: ["flat lighting", "soft even light", "diffused light", "no shadow", "overcast"],
   social_depth: ["second sharp face", "sharp background faces", "empty room", "companion beside her"],
-  graphic_environment: ["warped pattern", "crooked lines", "skewed perspective", "irregular grid"],
+  graphic_environment: [
+    "warped pattern",
+    "crooked lines",
+    "skewed perspective",
+    "irregular grid",
+    "thighs",
+    "mid-thigh crop",
+    "trousers",
+    "hips",
+  ],
 };
 
 /**
@@ -194,6 +222,16 @@ export function findMetaLanguage(prompt: string): string | null {
  */
 export const VHD_CLOSING_BEAT = "She settles naturally and holds the look.";
 
+/**
+ * The camera invariant, added for the #2-#5 remediation.
+ *
+ * "no camera movement, no zoom" was already in the negative prompt and Kling drifted the frame
+ * anyway on #4 and #5. Stated positively as well, since that is the instrument this model actually
+ * responds to. Not applied to #1, whose frame held (border drift 6.44) and whose shipped asset must
+ * stay reproducible from the code.
+ */
+export const VHD_CAMERA_LOCK = "Locked-off camera, framing remains fixed throughout.";
+
 /* ── Wardrobe: only what the crop can actually show ──────────────────────────
  *
  * The start frame is a chest-up or waist-up portrait, and listing trousers, jeans and sandals in
@@ -208,11 +246,18 @@ export const VHD_CLOSING_BEAT = "She settles naturally and holds the look.";
 const LEGWEAR = /\b(trousers|pants|jeans|shorts|skirt|leggings|joggers|slacks|culottes|waistband)\b/i;
 const FOOTWEAR = /\b(sandals|shoes|boots|sneakers|trainers|heels|loafers|mules|slippers|socks|feet|barefoot)\b/i;
 
-/** What each crop can genuinely show. `medium_graphic` ends AT the waist, so a waistband can read. */
+/**
+ * What each crop can genuinely show.
+ *
+ * `medium_graphic` originally kept legwear, on the reasoning that a frame ending AT the waist can
+ * show a waistband. The render disagreed: naming "soft charcoal wide-leg trousers" gave Soul V2 a
+ * garment to depict and it opened the crop to mid-thigh to depict it. Evidence beats the argument —
+ * the waistband is now carried by the crop lines alone, and no crop names anything below the waist.
+ */
 const HIDDEN_BY_FRAMING: Record<VhdFraming, RegExp[]> = {
   close: [LEGWEAR, FOOTWEAR],
   close_medium: [LEGWEAR, FOOTWEAR],
-  medium_graphic: [FOOTWEAR],
+  medium_graphic: [LEGWEAR, FOOTWEAR],
 };
 
 /** Splits a wardrobe lock on its top-level commas — the ones inside parentheses describe a single
@@ -270,13 +315,27 @@ export interface VisualHookStartFrame {
  * the slow-establishing failure the whole thesis is against, since a viewer can only be looked at
  * in the first second if the face is large in the frame.
  */
-export function compileVisualHookStartFrame(plan: VisualHookPlan, brief: SceneBriefJson): VisualHookStartFrame {
+export function compileVisualHookStartFrame(
+  plan: VisualHookPlan,
+  brief: SceneBriefJson,
+  /**
+   * Replaces the hook family's default frame-0 pose for THIS arm only.
+   *
+   * The remediation's whole thesis: Kling v3 spreads a state transition across the full clip, so the
+   * payoff lands early only when the start frame already sits close to it. #1 is the proof — it is
+   * the one arm whose opening gaze was a short hop from the lens, and the one arm whose payoff
+   * landed on time. Per-arm rather than edited into HOOK_BEATS, so #1 keeps compiling exactly the
+   * prompt its shipped asset was made from.
+   */
+  openingStateOverride?: string
+): VisualHookStartFrame {
   const planErrors = validatePlan(plan);
   if (planErrors.length > 0) throw new Error(`VisualHookPlan #${plan.experimentIndex} invalid: ${planErrors.join("; ")}`);
   const motifProblem = validateMotifAgainstBrief(plan.motifFamily, brief);
   if (motifProblem) throw new Error(`VisualHookPlan #${plan.experimentIndex}: ${motifProblem}`);
 
   const beats = HOOK_BEATS[plan.hookType];
+  const openingState = openingStateOverride?.trim() || beats.openingState;
   const wardrobe = visibleWardrobeFor(brief.wardrobe_lock, plan.framing);
 
   const prompt = [
@@ -285,7 +344,7 @@ export function compileVisualHookStartFrame(plan: VisualHookPlan, brief: SceneBr
     MOTIF_TEXT[plan.motifFamily],
     // The start frame IS the hook's frame 0. If it shows a resolved, settled pose, the video has
     // nothing to resolve and the first second is spent arriving at a starting point.
-    `She is ${beats.openingState}. Face clearly visible and unobscured.`,
+    `She is ${openingState}. Face clearly visible and unobscured.`,
     `Wearing: ${wardrobe.visible}.`,
     `Background: ${brief.spatial_setup}`,
     BACKGROUND_TEXT[plan.backgroundComplexity],
@@ -332,6 +391,10 @@ export interface VisualHookReelInput {
   durationSec: number;
   /** Replaces the hook type's default payoff action when the scene calls for a specific one. */
   action?: string;
+  /** Replaces the hook family's frame-0 pose for this arm. See compileVisualHookStartFrame. */
+  openingState?: string;
+  /** Adds the locked-off camera invariant. Off for #1, whose frame held. */
+  lockCamera?: boolean;
 }
 
 /**
@@ -356,10 +419,13 @@ export function compileVisualHookReel(input: VisualHookReelInput): SimpleReelPro
     dayNumber: plan.experimentIndex,
     durationSec,
     framing: toReelFraming(plan.framing),
-    openingState: beats.openingState,
+    // The motion prompt and the start frame MUST state the same frame-0 pose: the video is
+    // generated FROM that image, and a disagreement makes the first move a correction.
+    openingState: input.openingState?.trim() || beats.openingState,
     hookBeat: beats.hookBeat,
     action: input.action?.trim() || beats.payoffAction,
     closingBeat: VHD_CLOSING_BEAT,
+    ...(input.lockCamera ? { cameraNote: VHD_CAMERA_LOCK } : {}),
   });
 
   // The invariant, checked rather than asserted in prose.

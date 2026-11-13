@@ -147,6 +147,15 @@ export interface SimpleReelInput {
    * list. Omit it and the output is byte-identical to before.
    */
   negativePrompt?: string;
+  /**
+   * A camera-behaviour sentence placed immediately after the framing line.
+   *
+   * The negative prompt already says "no camera movement, no zoom", and on VHD #4 and #5 Kling
+   * moved the frame anyway (measured border drift 21.3 and 11.9 against 3.5-6.4 on the stable
+   * clips). A negative is a weaker instrument than a positive statement for this model, so the
+   * remediation states it in the prompt as well. Omit it and the output is byte-identical.
+   */
+  cameraNote?: string;
 }
 
 /** The gaze-turn beat every recovery reel uses. Exported so the experiment layer can name the
@@ -242,6 +251,7 @@ export function compileSimpleReel(input: SimpleReelInput): SimpleReelPrompt {
   const gazeAlreadyStated = /\blook(?:ing|s)?\b|\bgaze\b/i.test(openingState);
   const prompt = [
     FRAMING_TEXT[framing],
+    ...(input.cameraNote?.trim() ? [input.cameraNote.trim()] : []),
     gazeAlreadyStated ? `She starts ${openingState}.` : `She starts ${openingState}, looking just off camera.`,
     input.hookBeat?.trim() || DEFAULT_HOOK_BEAT,
     `${action.charAt(0).toUpperCase()}${action.slice(1)}.`,

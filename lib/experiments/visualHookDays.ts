@@ -58,6 +58,21 @@ export interface VisualHookDay {
   durationSec: number;
   /** Overrides the hook type's default payoff action when the scene calls for a specific one. */
   actionOverride?: string;
+  /**
+   * REMEDIATION v1.1 — the frame-0 pose for this arm, replacing the hook family's default.
+   *
+   * Root finding from the 2026-09-09 generation: Kling v3 spreads a state transition evenly across
+   * the whole 8s clip rather than front-loading it. #1's payoff landed at ~1.7s and #3/#4/#5's at
+   * ~6.25s, and the only thing that separated them was how far the start frame sat from the payoff
+   * state. So the fix is to move the START FRAME closer to the payoff — not to touch the motion
+   * compiler, the plan, the motif, the hook family, the brief, the wardrobe or the duration.
+   *
+   * Deliberately per-arm and NOT edited into HOOK_BEATS: #1 is already generated, scheduled and
+   * must keep compiling byte-for-byte the prompt its shipped asset came from.
+   */
+  openingStateOverride?: string;
+  /** Adds "Locked-off camera, framing remains fixed throughout." to the motion prompt. */
+  lockCamera?: boolean;
 }
 
 const CHAIN_AND_HOOPS =
@@ -147,6 +162,14 @@ export const VISUAL_HOOK_DAYS: VisualHookDay[] = [
         "The only high-colour frame in the recovery set. Its ratio held at 0.753, so colour does not cost retention; its 24h reach had not matured when this brief was written, and is the first number to read against this arm.",
     },
     durationSec: VHD_DEFAULT_DURATION_SEC,
+    // v1.1 — MANDATORY experimental-integrity fix. The first render came back with her already
+    // looking into the lens, so the gaze turn had no runway and Kling filled the clip with the
+    // chain action instead. #2 exists to hold the control's hook fixed and vary only the motif;
+    // without the gaze arrival it varies two things and measures neither.
+    openingStateOverride:
+      "close to the lens, head almost square to camera, her eyes turned about fifteen degrees off the lens to one side — " +
+      "a small, clearly visible angle, looking just past it and not into it",
+    lockCamera: true,
     brief: {
       camera_language: "static 50mm",
       color_palette: ["cobalt blue", "warm cream", "brass"],
@@ -202,6 +225,14 @@ export const VISUAL_HOOK_DAYS: VisualHookDay[] = [
         "The best recovery reel, and lit with a single soft amber lamp. It is the ceiling of the soft-light configuration on this account: 0.795 ratio, 44 reach. Contrast is the untested axis.",
     },
     durationSec: VHD_DEFAULT_DURATION_SEC,
+    // v1.1 — the first render put her gaze deeply down and left the shadow edge nowhere near her
+    // eyes, so "shift into the light" was a long journey and Kling took six seconds over it. Now
+    // the light boundary sits ON her eye line at frame 0: a few degrees of chin lift is the whole
+    // movement.
+    openingStateOverride:
+      "close to the lens, head almost square to camera, the hard edge of light falling right across her eye line so her eyes " +
+      "sit just inside the shadow, her gaze lowered only very slightly",
+    lockCamera: true,
     brief: {
       camera_language: "static 50mm",
       color_palette: ["warm amber", "deep shadow brown", "warm cream"],
@@ -254,6 +285,14 @@ export const VISUAL_HOOK_DAYS: VisualHookDay[] = [
       note: "Last of the five on both retention and reach. The prior is negative; this arm is a second, differently-built read of it rather than a repeat.",
     },
     durationSec: VHD_DEFAULT_DURATION_SEC,
+    // v1.1 — the populated-depth scene rendered well and is kept exactly. What failed was the beat:
+    // the start frame had direct eye contact, so Kling ran the reaction backwards — she turned AWAY
+    // into the room and only came back at ~6.25s. Starting a few degrees off-lens makes the
+    // excursion small and the return early.
+    openingStateOverride:
+      "close to the lens, head almost square to camera, looking only about twelve degrees off the lens toward the room " +
+      "beside her — a small angle, no direct eye contact yet",
+    lockCamera: true,
     brief: {
       camera_language: "static handheld 50mm",
       color_palette: ["warm amber", "oxblood", "warm cream"],
@@ -312,6 +351,14 @@ export const VISUAL_HOOK_DAYS: VisualHookDay[] = [
         "The only recovery reel with real architecture in frame — an open rooftop with a parapet and a skyline. It held retention (0.757) but the geometry was soft and distant; here it is hard, close and square to camera.",
     },
     durationSec: VHD_DEFAULT_DURATION_SEC,
+    // v1.1 — the tiled wall is the best motif render of the set and is kept exactly. The action was
+    // the problem: the hand started raised but away from the chain and the gaze was deeply down, so
+    // the whole path took six seconds. Now the fingers are already ON the chain and the eyes are
+    // barely lowered — the movement left is a settle and a glance up.
+    openingStateOverride:
+      "close to the lens, her fingers already resting lightly on the thin gold chain at her collarbone, her gaze lowered only " +
+      "slightly toward it",
+    lockCamera: true,
     brief: {
       camera_language: "static 50mm",
       color_palette: ["deep green", "warm cream", "brass"],
@@ -358,6 +405,8 @@ export function compileVisualHookDays(): CompiledVisualHookDay[] {
       brief: day.brief,
       durationSec: day.durationSec,
       ...(day.actionOverride ? { action: day.actionOverride } : {}),
+      ...(day.openingStateOverride ? { openingState: day.openingStateOverride } : {}),
+      ...(day.lockCamera ? { lockCamera: true } : {}),
     });
     if (compiled.validation.errors.length > 0) {
       throw new Error(
@@ -365,7 +414,7 @@ export function compileVisualHookDays(): CompiledVisualHookDay[] {
           compiled.validation.errors.map((e) => `[${e.rule}] ${e.detail}`).join(" | ")
       );
     }
-    const startFrame = compileVisualHookStartFrame(day.plan, day.brief);
+    const startFrame = compileVisualHookStartFrame(day.plan, day.brief, day.openingStateOverride);
     return { ...day, compiled, startFrame, slot: day.plan.experimentIndex };
   });
 }
