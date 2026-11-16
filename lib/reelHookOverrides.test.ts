@@ -82,10 +82,35 @@ describe("allure_v1 series (2026-11-09)", () => {
     expect(o.action).toContain("bare feet");
     expect(o.hashtags).toEqual(["homevibes", "cozyhome"]);
   });
-  it("story block: styled home wardrobe (no costume), no visible underwear/lingerie, eye contact from first second", () => {
+  it("story block: styled home wardrobe (no costume), lingerie-level pieces allowed but never vulgar/nude, eye contact from first second", () => {
     const b = episodeContextBlock(reelHookOverrideFor(flags, "2026-11-10"))!;
     expect(b).toMatch(/never a costume/);
-    expect(b).toMatch(/NO underwear, bra or lingerie visible/);
+    expect(b).not.toMatch(/NO underwear, bra or lingerie visible/);
+    expect(b).toMatch(/lingerie-level piece is allowed/);
+    expect(b).toMatch(/not vulgar, never explicit/);
+    expect(b).toMatch(/no nudity, nipples and genitals always fully covered/);
+    expect(b).toMatch(/from the very first second/);
+    expect(b).not.toMatch(/nude-tone underwear/);
+    expect(b).not.toMatch(/ACTIVELY doing the activity/);
+  });
+});
+
+describe("getting_ready_v1 series (2026-11-16)", () => {
+  const flags = { reel_hook_overrides: { "2026-11-17": { tag: "getting_ready_v1", hook_text: "still in bed… would you bring the coffee?", caption: "still in bed… would you bring the coffee?", tier: "lived_moments", location: "her white bed, morning light (July hit look)", action: "slowly pulls the duvet up, smiles to camera", episode_guidance: "getting_ready_v1 home reel. Wardrobe: white robe worn open over a blush-pink satin bralette, thin gold chain, small gold studs, hair loose on the pillow.", hashtags: ["slowmorning", "morninglight"] } } };
+  it("parses the override with the named bralette wardrobe", () => {
+    const o = reelHookOverrideFor(flags, "2026-11-17")!;
+    expect(o.tag).toBe("getting_ready_v1");
+    expect(o.episode_guidance).toMatch(/blush-pink satin bralette/);
+    expect(o.action).toContain("duvet");
+  });
+  it("uses the styled-home lingerie-allowed block, not the old no-underwear ban or the activity default", () => {
+    const b = episodeContextBlock(reelHookOverrideFor(flags, "2026-11-17"))!;
+    expect(b).toMatch(/never a costume/);
+    expect(b).toMatch(/blush-pink satin bralette/);
+    expect(b).not.toMatch(/NO underwear, bra or lingerie visible/);
+    expect(b).toMatch(/lingerie-level piece is allowed/);
+    expect(b).toMatch(/not vulgar, never explicit/);
+    expect(b).toMatch(/no nudity, nipples and genitals always fully covered/);
     expect(b).toMatch(/from the very first second/);
     expect(b).not.toMatch(/nude-tone underwear/);
     expect(b).not.toMatch(/ACTIVELY doing the activity/);
